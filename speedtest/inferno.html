@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Speedtest Inferno</title>
+<meta name="color-scheme" content="dark">
+<style>
+/* Speedtest Inferno: Hommage an die Ego-Shooter der 90er. Alles (Schrift, Texturen, Figuren) wird im Code erzeugt,
+   damit die Seite im Router-LAN ohne Internet genauso aussieht. Bewusst nur dunkel. */
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { background: #0b0604; }
+body { margin: 0; color: #e8dcc8; background: #0b0604; font: 16px/1.4 "Courier New", Courier, monospace; min-height: 100vh;
+  background-image: radial-gradient(ellipse at 50% -12%, #4a1206 0%, #1a0704 42%, #0b0604 78%); background-attachment: fixed; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 16px 16px 40px; }
+.wrap > *, .bar > *, .menu > *, .peaks > *, .slot > * { min-width: 0; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: -1px; }
+button { font: inherit; }
+
+/* Pixelschrift: jedes Zeichen ist ein Ausschnitt eines im Code gezeichneten Zeichensatzes */
+.px { display: inline-block; font-size: 0; line-height: 0; max-width: 100%; vertical-align: top; }
+.px .w { display: inline-block; white-space: nowrap; }
+.px i { display: inline-block; vertical-align: top; background-repeat: no-repeat; image-rendering: crisp-edges; image-rendering: pixelated; }
+.px i.sp { background: none !important; }
+
+/* Kopf */
+.top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 10px 20px; margin-bottom: 14px; }
+.top h1 { margin: 0; }
+.meta { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; text-align: right; flex: 1 1 320px; max-width: 560px; }
+.meta .hr { display: flex; align-items: center; gap: 10px; }
+.demo { display: inline-block; border: 2px solid #ff4a2a; background: #2a0804; padding: 4px 6px; box-shadow: 0 0 12px rgba(255,74,42,.45); }
+
+/* Spielfenster */
+.game { border: 4px solid #000; background: #000; box-shadow: 0 0 0 2px #5a4a3a, 0 0 0 5px #1a1210, 0 22px 60px rgba(0,0,0,.75); }
+.screen { position: relative; height: 320px; height: min(56vh, 58vw); min-height: 230px; overflow: hidden; background: #000; }
+#view { display: block; width: 100%; height: 100%; image-rendering: crisp-edges; image-rendering: pixelated; }
+.hud { position: absolute; right: 10px; bottom: 10px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+  padding: 10px 12px; background: rgba(8,3,2,.62); border: 2px solid rgba(120,70,40,.55); }
+.hud .row { display: flex; align-items: flex-end; gap: 10px; }
+.prog { width: 100%; height: 8px; background: #1a0c08; border: 2px solid #4a2a1a; }
+.prog i { display: block; height: 100%; width: 0; background: #ff8a10; box-shadow: 0 0 8px #ff6a00; }
+
+/* Statusleiste */
+.bar { display: grid; grid-template-columns: 1.05fr 1.15fr auto 1fr 1fr 1.35fr; gap: 5px; padding: 6px; background-color: #4e4740; border-top: 4px solid #241e1a; background-size: 192px 192px; image-rendering: pixelated; }
+.cell { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 10px 6px; min-height: 96px;
+  background: rgba(20,16,13,.38); border: 3px solid; border-color: #1e1a16 #8c8278 #8c8278 #1e1a16; }
+.num { display: flex; align-items: flex-end; gap: 6px; }
+.facebox { padding: 4px 8px; background: #1a0f0a; }
+#face { display: block; width: 96px; height: 116px; image-rendering: crisp-edges; image-rendering: pixelated; }
+.facebox.god { box-shadow: inset 0 0 18px rgba(255,210,60,.65); background: #3a2608; }
+.cards { display: flex; gap: 10px; }
+.card { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.card b { display: block; width: 30px; height: 20px; border: 2px dashed #5e554c; background: #17120e; }
+.card.got b { border-style: solid; border-color: #0c0806; }
+.card.got.kp b { background: linear-gradient(#9cc4ff 0 30%, #2f6ae0 30% 70%, #1a3c8a 70%); box-shadow: 0 0 10px #3c7cff; }
+.card.got.kd b { background: linear-gradient(#fff2a0 0 30%, #e8b820 30% 70%, #9a7410 70%); box-shadow: 0 0 10px #ffcc33; }
+.card.got.ku b { background: linear-gradient(#ffb0a0 0 30%, #e03a20 30% 70%, #8a1a0c 70%); box-shadow: 0 0 10px #ff4a2a; }
+.card.new b { animation: blink .16s steps(1) 8; }
+@keyframes blink { 50% { opacity: .15; } }
+.tbl { display: grid; gap: 6px; width: 100%; padding: 0 4px; }
+.tbl div { display: flex; justify-content: space-between; gap: 8px; }
+
+/* Optionen */
+.menu { margin-top: 18px; display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 14px 16px; align-items: end; padding: 16px;
+  background: rgba(24,14,10,.86); border: 3px solid; border-color: #6a5646 #1a100c #1a100c #6a5646; }
+.fld { display: flex; flex-direction: column; gap: 9px; }
+select, input { font: bold 17px "Courier New", Courier, monospace; color: #ffd860; background: #140c09; border: 3px solid; border-color: #070403 #6a5a4a #6a5a4a #070403;
+  padding: 8px 10px; min-height: 46px; border-radius: 0; width: 100%; max-width: 100%; }
+select { min-width: 9.5em; }
+#go { min-height: 58px; padding: 10px 20px; cursor: pointer; background: #8a1608; border: 4px solid; border-color: #ff6a3a #3a0602 #3a0602 #ff6a3a;
+  box-shadow: 0 0 0 2px #000, 0 0 22px rgba(255,80,20,.35); color: #fff; }
+#go:hover { background: #a81e0a; }
+#go:active { border-color: #3a0602 #ff6a3a #ff6a3a #3a0602; }
+#go[disabled] { opacity: .55; cursor: wait; }
+#go.stop { background: #3c3834; border-color: #8a8278 #141210 #141210 #8a8278; box-shadow: 0 0 0 2px #000; }
+.status { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; min-height: 18px; }
+.status::before { content: ""; width: 10px; height: 10px; background: #ff6a10; box-shadow: 0 0 8px #ff6a10; flex: none; }
+:focus { outline: none; }
+:focus-visible { outline: 3px solid #ffd040 !important; outline-offset: 3px; }
+button:focus, select:focus, input:focus { outline: 3px solid #ffd040; outline-offset: 3px; }
+button:focus:not(:focus-visible), select:focus:not(:focus-visible) { outline: none; }
+
+/* Level-Abschluss */
+#result { position: relative; overflow: hidden; background: #0d0505; }
+#fire { position: absolute; left: 0; top: 0; width: 100%; height: 100%; image-rendering: crisp-edges; image-rendering: pixelated; }
+.inter { position: relative; padding: 26px 18px 28px; display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; }
+.box { background: rgba(14,4,2,.82); border: 3px solid; border-color: #7a3a22 #2a0c06 #2a0c06 #7a3a22; padding: 14px 16px; width: 100%; }
+.peaks { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; width: 100%; max-width: 820px; }
+.pk { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.tally { max-width: 620px; display: grid; gap: 10px; }
+.tally div { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.rank { max-width: 820px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.note { border-color: #ff6a3a #4a0c04 #4a0c04 #ff6a3a; background: rgba(60,6,2,.9); max-width: 820px; }
+
+/* Spielstaende */
+.saves { margin-top: 30px; }
+.saves-h { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+.btn { cursor: pointer; padding: 9px 14px; background: #2a1c14; border: 3px solid; border-color: #7a6050 #120a06 #120a06 #7a6050; color: #fff; min-height: 42px; }
+.btn:hover { background: #3a2618; }
+.btn.yes { background: #7a1408; }
+.confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.slots { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.slot { display: grid; grid-template-columns: 150px minmax(0, 1.5fr) .6fr 1.15fr 1.15fr; gap: 10px 14px; align-items: start; padding: 12px 14px;
+  background: rgba(26,18,14,.9); border: 3px solid; border-color: #5a4a3c #140c08 #140c08 #5a4a3c; }
+.slot.best { border-color: #c89a30 #3a2808 #3a2808 #c89a30; background: rgba(40,28,10,.92); }
+.slot > div { display: flex; flex-direction: column; gap: 7px; }
+.empty { padding: 18px; background: rgba(26,18,14,.9); border: 3px solid #2a1c14; }
+.foot { margin-top: 26px; text-align: center; opacity: .8; }
+
+@media (max-width: 699px) {
+  .wrap { padding: 12px 12px 32px; }
+  .meta { align-items: flex-start; text-align: left; }
+  .screen { height: min(52vh, 86vw); }
+  .bar { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); grid-template-areas: "ammo face health" "armor face keys" "tbl tbl tbl"; }
+  #c-ammo { grid-area: ammo; } #c-health { grid-area: health; } #c-face { grid-area: face; } #c-armor { grid-area: armor; } #c-keys { grid-area: keys; } #c-tbl { grid-area: tbl; }
+  .bar { gap: 4px; padding: 4px; }
+  .cell { min-height: 74px; padding: 8px 1px; }
+  #face { width: 64px; height: 77px; }
+  .facebox { padding: 3px 4px; }
+  .cards { gap: 6px; }
+  .card b { width: 22px; height: 15px; }
+  .tbl { grid-template-columns: 1fr 1fr; column-gap: 18px; }
+  .hud { right: 6px; bottom: 6px; padding: 7px 8px; gap: 6px; }
+  .menu { grid-template-columns: 1fr 1fr; padding: 12px; }
+  .fld.lab, #go { grid-column: 1 / -1; }
+  select { min-width: 0; }
+  .inter { padding: 20px 10px 22px; gap: 14px; }
+  .box { padding: 12px 10px; }
+  .peaks { gap: 8px; }
+  .slot { grid-template-columns: 1fr 1fr; padding: 10px; }
+  .slot .who { grid-column: 1 / -1; order: -1; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1><span class="px" data-st="fire" data-s="5" data-m="3" data-t="Speedtest Inferno"></span></h1>
+    <div class="meta">
+      <div class="hr"><span class="px" id="host" data-st="gold" data-s="3" data-m="2"></span>
+      <span class="demo" id="demo" hidden><span class="px" data-st="red" data-s="2" data-t="Demo"></span></span></div>
+      <span class="px" id="meta" data-st="gray" data-s="2" data-m="2"></span>
+    </div>
+  </header>
+
+  <main class="game">
+    <div class="screen" id="screen">
+      <canvas id="view" aria-hidden="true"></canvas>
+      <div class="hud" id="hud" hidden>
+        <div class="row"><span class="px" id="spd" data-st="red" data-s="7" data-m="4"></span><span class="px" id="spdu" data-st="gold" data-s="3" data-m="2"></span></div>
+        <span class="px" id="spdl" data-st="gray" data-s="2" data-m="2" data-t="Spitze"></span>
+        <span class="px" id="spdp" data-st="gold" data-s="2" data-m="2"></span>
+        <div class="prog"><i id="progf"></i></div>
+      </div>
+    </div>
+    <section id="result" hidden aria-labelledby="r-title">
+      <canvas id="fire" aria-hidden="true"></canvas>
+      <div class="inter">
+        <h2 id="r-title" style="margin:0"><span class="px" data-st="fire" data-s="6" data-m="3" data-t="Ebene abgeschlossen"></span></h2>
+        <span class="px" data-st="gold" data-s="2" data-m="2" data-t="Datenbasis und Rückkanal gesäubert"></span>
+        <div class="peaks">
+          <div class="box pk">
+            <span class="px" data-st="gold" data-s="2" data-m="2" data-t="Download · Spitze"></span>
+            <span class="px" id="r-dl" data-st="red" data-s="8" data-m="5"></span>
+            <span class="px" id="r-dlu" data-st="gold" data-s="3" data-m="2"></span>
+            <span class="px" id="r-dla" data-st="white" data-s="2" data-m="2"></span>
+          </div>
+          <div class="box pk">
+            <span class="px" data-st="gold" data-s="2" data-m="2" data-t="Upload · Spitze"></span>
+            <span class="px" id="r-ul" data-st="red" data-s="8" data-m="5"></span>
+            <span class="px" id="r-ulu" data-st="gold" data-s="3" data-m="2"></span>
+            <span class="px" id="r-ula" data-st="white" data-s="2" data-m="2"></span>
+          </div>
+        </div>
+        <div class="box tally" id="tally"></div>
+        <div class="box rank">
+          <span class="px" data-st="gray" data-s="2" data-m="2" data-t="Rang"></span>
+          <span class="px" id="r-rank" data-st="fire" data-s="4" data-m="3"></span>
+          <span class="px" id="r-vt" data-st="gold" data-s="3" data-m="2"></span>
+          <span class="px" id="r-vs" data-st="white" data-s="2" data-m="2"></span>
+        </div>
+        <div class="box note" id="r-note" hidden><span class="px" data-st="white" data-s="2" data-m="2" data-t="Ein Prozessorkern des Routers war voll ausgelastet. Das Ergebnis zeigt eher die Grenze des Routers als die des Netzes."></span></div>
+      </div>
+    </section>
+
+    <div class="bar" id="bar">
+      <div class="cell" id="c-ammo"><div class="num"><span class="px" id="ammo" data-st="red" data-s="5" data-m="4"></span><span class="px" data-st="red" data-s="2" data-m="2" data-t="GB"></span></div><span class="px" data-st="gray" data-s="2" data-m="2" data-t="Munition"></span></div>
+      <div class="cell" id="c-health"><span class="px" id="health" data-st="red" data-s="5" data-m="4"></span><span class="px" data-st="gray" data-s="2" data-m="2" data-t="Gesundheit"></span></div>
+      <div class="cell facebox" id="c-face"><canvas id="face" width="24" height="29" role="img" aria-label="Gesicht des Helden"></canvas></div>
+      <div class="cell" id="c-armor"><span class="px" id="armor" data-st="red" data-s="5" data-m="4"></span><span class="px" data-st="gray" data-s="2" data-m="2" data-t="Rüstung"></span></div>
+      <div class="cell" id="c-keys">
+        <div class="cards">
+          <div class="card kp" id="k-ping"><b></b><span class="px" data-st="gray" data-s="1" data-m="1" data-t="Ping"></span></div>
+          <div class="card kd" id="k-download"><b></b><span class="px" data-st="gray" data-s="1" data-m="1" data-t="Down"></span></div>
+          <div class="card ku" id="k-upload"><b></b><span class="px" data-st="gray" data-s="1" data-m="1" data-t="Up"></span></div>
+        </div>
+        <span class="px" data-st="gray" data-s="2" data-m="2" data-t="Karten"></span>
+      </div>
+      <div class="cell" id="c-tbl">
+        <div class="tbl">
+          <div><span class="px" data-st="gray" data-s="2" data-m="2" data-t="Ping"></span><span class="px" id="t-ping" data-st="gold" data-s="2" data-m="2"></span></div>
+          <div><span class="px" data-st="gray" data-s="2" data-m="2" data-t="Jitter"></span><span class="px" id="t-jit" data-st="gold" data-s="2" data-m="2"></span></div>
+          <div><span class="px" data-st="gray" data-s="2" data-m="2" data-t="Down"></span><span class="px" id="t-dl" data-st="gold" data-s="2" data-m="2"></span></div>
+          <div><span class="px" data-st="gray" data-s="2" data-m="2" data-t="Up"></span><span class="px" id="t-ul" data-st="gold" data-s="2" data-m="2"></span></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <section class="menu" aria-label="Optionen">
+    <label class="fld" for="duration"><span class="px" data-st="gray" data-s="2" data-m="2" data-t="Dauer"></span>
+      <select id="duration"><option value="5">5 Sekunden</option><option value="10" selected>10 Sekunden</option><option value="20">20 Sekunden</option></select></label>
+    <label class="fld" for="streams"><span class="px" data-st="gray" data-s="2" data-m="2" data-t="Verbindungen"></span>
+      <select id="streams"><option value="1">1</option><option value="2">2</option><option value="4" selected>4</option><option value="6">6</option><option value="8">8</option></select></label>
+    <label class="fld lab" for="label"><span class="px" data-st="gray" data-s="2" data-m="2" data-t="Gerätename"></span>
+      <input id="label" maxlength="40" placeholder="z. B. Laptop Kabel" autocomplete="off"></label>
+    <button id="go" disabled><span class="px" id="go-t" data-st="white" data-s="3" data-m="3" data-t="Messung starten"></span></button>
+    <div class="status" aria-live="polite"><span class="px" id="status" data-st="gold" data-s="2" data-m="2" data-t="Lade Karte …"></span></div>
+  </section>
+
+  <section class="saves" aria-labelledby="h-saves">
+    <div class="saves-h">
+      <h2 id="h-saves" style="margin:0"><span class="px" data-st="fire" data-s="4" data-m="3" data-t="Spielstände"></span></h2>
+      <div id="clear-wrap"></div>
+    </div>
+    <div id="history"></div>
+  </section>
+  <p class="foot"><span class="px" data-st="gray" data-s="1" data-m="1" data-t="Eine Hommage an die Ego-Shooter der 90er. Schrift, Texturen und Held sind im Code gezeichnet."></span></p>
+</div>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.SpeedEngine;
+  function $(id) { return document.getElementById(id); }
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  var RM = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  // =====================================================================
+  // Bitmap-Schrift 5x7, selbst gezeichnet
+  // =====================================================================
+  var GL = {
+    ' ': '.....|.....|.....|.....|.....|.....|.....',
+    'A': '.###.|#...#|#...#|#####|#...#|#...#|#...#', 'B': '####.|#...#|#...#|####.|#...#|#...#|####.',
+    'C': '.###.|#...#|#....|#....|#....|#...#|.###.', 'D': '####.|#...#|#...#|#...#|#...#|#...#|####.',
+    'E': '#####|#....|#....|####.|#....|#....|#####', 'F': '#####|#....|#....|####.|#....|#....|#....',
+    'G': '.###.|#...#|#....|#.###|#...#|#...#|.####', 'H': '#...#|#...#|#...#|#####|#...#|#...#|#...#',
+    'I': '.###.|..#..|..#..|..#..|..#..|..#..|.###.', 'J': '..###|...#.|...#.|...#.|...#.|#..#.|.##..',
+    'K': '#...#|#..#.|#.#..|##...|#.#..|#..#.|#...#', 'L': '#....|#....|#....|#....|#....|#....|#####',
+    'M': '#...#|##.##|#.#.#|#.#.#|#...#|#...#|#...#', 'N': '#...#|#...#|##..#|#.#.#|#..##|#...#|#...#',
+    'O': '.###.|#...#|#...#|#...#|#...#|#...#|.###.', 'P': '####.|#...#|#...#|####.|#....|#....|#....',
+    'Q': '.###.|#...#|#...#|#...#|#.#.#|#..#.|.##.#', 'R': '####.|#...#|#...#|####.|#.#..|#..#.|#...#',
+    'S': '.####|#....|#....|.###.|....#|....#|####.', 'T': '#####|..#..|..#..|..#..|..#..|..#..|..#..',
+    'U': '#...#|#...#|#...#|#...#|#...#|#...#|.###.', 'V': '#...#|#...#|#...#|#...#|#...#|.#.#.|..#..',
+    'W': '#...#|#...#|#...#|#.#.#|#.#.#|#.#.#|.#.#.', 'X': '#...#|#...#|.#.#.|..#..|.#.#.|#...#|#...#',
+    'Y': '#...#|#...#|.#.#.|..#..|..#..|..#..|..#..', 'Z': '#####|....#|...#.|..#..|.#...|#....|#####',
+    'Ä': '.#.#.|.....|.###.|#...#|#####|#...#|#...#', 'Ö': '.#.#.|.....|.###.|#...#|#...#|#...#|.###.',
+    'Ü': '.#.#.|.....|#...#|#...#|#...#|#...#|.###.', 'Ø': '....#|.###.|#..##|#.#.#|##..#|.###.|#....',
+    '0': '.###.|#...#|#...#|#...#|#...#|#...#|.###.', '1': '..#..|.##..|..#..|..#..|..#..|..#..|.###.',
+    '2': '.###.|#...#|....#|...#.|..#..|.#...|#####', '3': '#####|...#.|..#..|...#.|....#|#...#|.###.',
+    '4': '...#.|..##.|.#.#.|#..#.|#####|...#.|...#.', '5': '#####|#....|####.|....#|....#|#...#|.###.',
+    '6': '..##.|.#...|#....|####.|#...#|#...#|.###.', '7': '#####|....#|...#.|..#..|.#...|.#...|.#...',
+    '8': '.###.|#...#|#...#|.###.|#...#|#...#|.###.', '9': '.###.|#...#|#...#|.####|....#|...#.|.##..',
+    '.': '.....|.....|.....|.....|.....|.##..|.##..', ',': '.....|.....|.....|.....|.##..|..#..|.#...',
+    ':': '.....|.##..|.##..|.....|.##..|.##..|.....', ';': '.....|.##..|.##..|.....|.##..|..#..|.#...',
+    '!': '..#..|..#..|..#..|..#..|..#..|.....|..#..', '?': '.###.|#...#|....#|...#.|..#..|.....|..#..',
+    '-': '.....|.....|.....|.###.|.....|.....|.....', '–': '.....|.....|.....|#####|.....|.....|.....',
+    '+': '.....|..#..|..#..|#####|..#..|..#..|.....', '/': '....#|....#|...#.|..#..|.#...|#....|#....',
+    '%': '##..#|##..#|...#.|..#..|.#...|#..##|#..##', '(': '...#.|..#..|.#...|.#...|.#...|..#..|...#.',
+    ')': '.#...|..#..|...#.|...#.|...#.|..#..|.#...', "'": '..#..|..#..|.#...|.....|.....|.....|.....',
+    '"': '.#.#.|.#.#.|.....|.....|.....|.....|.....', '·': '.....|.....|.....|..#..|.....|.....|.....',
+    '…': '.....|.....|.....|.....|.....|.....|#.#.#', '=': '.....|.....|#####|.....|#####|.....|.....',
+    '<': '...#.|..#..|.#...|#....|.#...|..#..|...#.', '>': '.#...|..#..|...#.|....#|...#.|..#..|.#...',
+    '&': '.##..|#..#.|#.#..|.#...|#.#.#|#..#.|.##.#', '×': '.....|#...#|.#.#.|..#..|.#.#.|#...#|.....',
+    '_': '.....|.....|.....|.....|.....|.....|#####', '#': '.#.#.|#####|.#.#.|.#.#.|.#.#.|#####|.#.#.',
+    '@': '.###.|#...#|#.###|#.#.#|#.###|#....|.###.'
+  };
+  var CH = ''; for (var gk in GL) if (GL.hasOwnProperty(gk)) CH += gk;
+  var STY = {
+    fire: [['#fff4b0', '#ffdc50', '#ffb42a', '#ff8a14', '#f05a0a', '#c83208', '#981e06'], '#2a0602'],
+    red: [['#ff7a64', '#ff4a36', '#ec3424', '#d42818', '#bc1e10', '#a4160a', '#8a1006'], '#1c0200'],
+    gold: [['#fff6c8', '#ffe88a', '#ffd85a', '#f6c23a', '#e4aa28', '#cc901c', '#ae7614'], '#1e0e00'],
+    white: [['#ffffff', '#f6f2ea', '#ece6dc', '#e2dace', '#d6cec0', '#c8bfb0', '#b8ae9e'], '#000000'],
+    gray: [['#d6ccbc', '#c8beae', '#bcb2a2', '#b0a696', '#a49a8a', '#988e7e', '#8a8072'], '#000000'],
+    green: [['#d8ffc0', '#a8f888', '#84e864', '#64d046', '#4cb834', '#3a9e26', '#2a841a'], '#001400']
+  };
+  var ATL = {}, AW = CH.length * 6;
+  (function buildFont() {
+    var css = '';
+    for (var st in STY) {
+      var cv = document.createElement('canvas'); cv.width = AW; cv.height = 8;
+      var c = cv.getContext('2d'), pal = STY[st];
+      for (var pass = 0; pass < 2; pass++) {
+        for (var i = 0; i < CH.length; i++) {
+          var rows = GL[CH.charAt(i)].split('|');
+          for (var y = 0; y < 7; y++) for (var x = 0; x < 5; x++) {
+            if (rows[y].charAt(x) !== '#') continue;
+            c.fillStyle = pass ? pal[0][y] : pal[1];
+            c.fillRect(i * 6 + x + (pass ? 0 : 1), y + (pass ? 0 : 1), 1, 1);
+          }
+        }
+      }
+      ATL[st] = cv;
+      var url = ''; try { url = cv.toDataURL(); } catch (e) { }
+      css += '.px.st-' + st + ' i{background-image:url(' + url + ')}';
+    }
+    for (var s = 1; s <= 9; s++) css += '.px.s' + s + ' i{width:' + 6 * s + 'px;height:' + 8 * s + 'px;background-size:' + AW * s + 'px ' + 8 * s + 'px}.px.s' + s + ' .w{margin-bottom:' + s + 'px}';
+    var tag = document.createElement('style'); tag.appendChild(document.createTextNode(css)); document.head.appendChild(tag);
+  })();
+  function norm(t) {
+    t = String(t).toUpperCase().replace(/[ÀÁÂ]/g, 'A').replace(/[ÉÈÊ]/g, 'E').replace(/[ÓÒÔ]/g, 'O').replace(/[ÚÙÛ]/g, 'U').replace(/[–—]/g, '–');
+    var o = ''; for (var i = 0; i < t.length; i++) { var ch = t.charAt(i); o += CH.indexOf(ch) < 0 ? '?' : ch; }
+    return o;
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function narrow() { return (window.innerWidth || 1280) < 700; }
+  // schreibt Text in Pixelschrift; der Klartext bleibt fuer Vorleser im DOM
+  function px(el, text) {
+    if (!el) return;
+    text = String(text);
+    var sc = +(narrow() ? (el.getAttribute('data-m') || el.getAttribute('data-s')) : el.getAttribute('data-s')) || 2;
+    if (el._t === text && el._s === sc) return;
+    el._t = text; el._s = sc;
+    if (el._base === undefined) el._base = el.className;
+    el.className = el._base + ' s' + sc + ' st-' + (el.getAttribute('data-st') || 'white');
+    var up = norm(text), words = up.split(' '), h = '<span class="sr">' + esc(text) + '</span><span aria-hidden="true">';
+    for (var w = 0; w < words.length; w++) {
+      if (w) h += '<i class="sp"></i> ';
+      h += '<span class="w">';
+      for (var i = 0; i < words[w].length; i++) h += '<i style="background-position:-' + CH.indexOf(words[w].charAt(i)) * 6 * sc + 'px 0"></i>';
+      h += '</span>';
+    }
+    el.innerHTML = h + '</span>';
+  }
+  function pxAll() {
+    var list = document.querySelectorAll('.px');
+    for (var i = 0; i < list.length; i++) {
+      var el = list[i];
+      if (el._t !== undefined) px(el, el._t);
+      else if (el.getAttribute('data-t') !== null) px(el, el.getAttribute('data-t'));
+    }
+  }
+
+  // =====================================================================
+  // Prozedurale Texturen
+  // =====================================================================
+  function C(r, g, b) { return ((255 << 24) | (clamp(b | 0, 0, 255) << 16) | (clamp(g | 0, 0, 255) << 8) | clamp(r | 0, 0, 255)) >>> 0; }
+  function hsh(x, y, s) { var v = Math.sin(x * 127.1 + y * 311.7 + s * 74.7) * 43758.5453; return v - Math.floor(v); }
+  function md(a, p) { return ((a % p) + p) % p; }
+  function vn(x, y, p, s) {
+    var x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
+    fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+    var a = hsh(md(x0, p), md(y0, p), s), b = hsh(md(x0 + 1, p), md(y0, p), s), c = hsh(md(x0, p), md(y0 + 1, p), s), d = hsh(md(x0 + 1, p), md(y0 + 1, p), s);
+    return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+  }
+  function fbm(u, v, s, oct) { var t = 0, a = 0.5, p = 4; for (var i = 0; i < (oct || 4); i++) { t += a * vn(u * p, v * p, p, s + i * 7); a *= 0.5; p *= 2; } return t; }
+  function tex(fn) {
+    var t = { c: new Uint32Array(4096), e: new Uint8Array(4096) };
+    for (var y = 0; y < 64; y++) for (var x = 0; x < 64; x++) { var p = fn(x, y); t.c[y * 64 + x] = C(p[0], p[1], p[2]); t.e[y * 64 + x] = p[3] ? 1 : 0; }
+    return t;
+  }
+  function techBase(x, y) {
+    var n = fbm(x / 64, y / 64, 3), b = 92 + n * 52, r = b * 1.04, g = b * 0.97, bl = b * 0.86;
+    var px_ = x & 31, py = y & 31;
+    if (px_ === 0 || py === 0) { r = g = bl = 30; }
+    else if (px_ === 1 || py === 1) { r += 36; g += 34; bl += 30; }
+    else if (px_ === 31 || py === 31) { r -= 32; g -= 32; bl -= 30; }
+    var rx = px_ < 16 ? 4 : 27, ry = py < 16 ? 4 : 27, dd = (px_ - rx) * (px_ - rx) + (py - ry) * (py - ry);
+    if (dd === 0) { r = g = bl = 210; } else if (dd <= 1) { r = g = bl = 150; } else if (dd <= 2) { r = g = bl = 44; }
+    if (hsh(x, y, 9) > 0.965) { r += 16; g += 16; bl += 16; }
+    return [r, g, bl, 0];
+  }
+  function hazard(x, y, base) {
+    if (y < 55) return base;
+    if (y === 55 || y === 63) return [18, 16, 12, 0];
+    return ((x + y) % 12) < 6 ? [222, 172, 26, 0] : [24, 20, 14, 0];
+  }
+  function stone(x, y, s) {
+    var row = y >> 4, off = (row & 1) ? 8 : 0, xx = (x + off) & 63, id = row * 8 + (xx >> 4), ly = y & 15, lx = xx & 15;
+    var sh = 0.72 + hsh(id, 2, s) * 0.4, n = fbm(x / 64, y / 64, s + 5);
+    var r = 128 * sh * (0.75 + n * 0.5), g = 46 * sh * (0.75 + n * 0.5), b = 34 * sh * (0.75 + n * 0.5);
+    if (ly === 0 || lx === 0) return [24, 8, 6, 0];
+    if (ly === 1 || lx === 1) { r += 34; g += 14; b += 10; }
+    if (ly === 15 || lx === 15) { r *= 0.62; g *= 0.62; b *= 0.62; }
+    var cr = fbm(x / 64, y / 64, s + 40); if (Math.abs(cr - 0.48) < 0.012) { r *= 0.45; g *= 0.45; b *= 0.45; }
+    return [r, g, b, 0];
+  }
+  var T = {};
+  function buildTextures() {
+    T.panel = tex(function (x, y) { return hazard(x, y, techBase(x, y)); });
+    T.comp = tex(function (x, y) {
+      if (x >= 7 && x < 57 && y >= 7 && y < 43) {
+        if (x < 9 || x > 54 || y < 9 || y > 40) return [26, 26, 30, 0];
+        var row = ((y - 11) / 4) | 0, ry = (y - 11) % 4, len = 8 + ((hsh(row, 1, 4) * 34) | 0);
+        if (y >= 11 && ry < 2 && x >= 12 && x < 12 + len && hsh(x >> 1, row, 5) > 0.22) return [80, 250, 130, 1];
+        return [6, 34 + (y & 1) * 10, 18, 1];
+      }
+      if (y >= 46 && y <= 51) {
+        var cols = [[255, 50, 40], [255, 210, 40], [60, 255, 90], [80, 160, 255]];
+        for (var k = 0; k < 4; k++) { var lx = 14 + k * 12; if (Math.abs(x - lx) <= 2 && y >= 47 && y <= 50) return cols[k].concat([1]); if (Math.abs(x - lx) <= 3) return [20, 20, 22, 0]; }
+      }
+      return hazard(x, y, techBase(x, y));
+    });
+    T.light = tex(function (x, y) {
+      if (x >= 25 && x <= 38 && y >= 3 && y <= 52) {
+        if (x === 25 || x === 38 || y === 3 || y === 52) return [24, 24, 28, 0];
+        if (x === 26 || x === 37 || y === 4 || y === 51) return [70, 72, 80, 0];
+        var c = 255 - Math.abs(x - 31.5) * 13; return [c * 0.82, c * 0.94, 255, 1];
+      }
+      return hazard(x, y, techBase(x, y));
+    });
+    T.tpillar = tex(function (x, y) {
+      var cyl = Math.sin((x + 0.5) / 64 * Math.PI), n = fbm(x / 64, y / 64, 11), b = (48 + cyl * 110) * (0.82 + n * 0.36);
+      var r = b * 1.05, g = b * 0.84, bl = b * 0.58;
+      if ((x & 15) < 2) { r *= 0.5; g *= 0.5; bl *= 0.5; }
+      if (y < 5 || y > 58) { r = g = bl = 34 + cyl * 60; }
+      if ((y === 10 || y === 53) && (x % 8) === 4) { r = g = bl = 210; }
+      return [r, g, bl, 0];
+    });
+    T.stone = tex(function (x, y) { return stone(x, y, 13); });
+    T.lavaw = tex(function (x, y) {
+      var v = fbm(x / 64, y / 64, 21), d = Math.abs(v - 0.47);
+      if (d < 0.022) { var k = 1 - d / 0.022; return [255, 110 + k * 130, 20 + k * 60, 1]; }
+      var s = stone(x, y, 17); if (d < 0.05) { s[0] += 70 * (1 - d / 0.05); s[1] += 18 * (1 - d / 0.05); }
+      return s;
+    });
+    T.hpillar = tex(function (x, y) {
+      var cyl = Math.sin((x + 0.5) / 64 * Math.PI), n = fbm(x / 64, y / 64, 31), b = (0.35 + cyl * 0.8) * (0.8 + n * 0.4);
+      var r = 96 * b, g = 22 * b, bl = 26 * b;
+      if (Math.abs(fbm(x / 64, y / 64, 33) - 0.5) < 0.015) { r += 60; g += 30; bl += 30; }
+      if ((y >= 4 && y <= 7) || (y >= 56 && y <= 59)) { r = 120 + cyl * 110; g = 84 + cyl * 80; bl = 24 + cyl * 20; }
+      var dx = x - 31.5, dy = y - 31.5, rr = Math.sqrt(dx * dx + dy * dy);
+      if (Math.abs(rr - 9) < 1.1 || (rr < 9 && (Math.abs(dx) < 0.8 || Math.abs(dy) < 0.8))) return [255, 140, 30, 1];
+      return [r, g, bl, 0];
+    });
+    T.tfloor = tex(function (x, y) {
+      var n = fbm(x / 64, y / 64, 51), b = 56 + n * 40, lx = x & 31, ly = y & 31;
+      if (lx === 0 || ly === 0) return [22, 22, 22, 0];
+      if (lx === 1 || ly === 1) b += 18;
+      if (((x >> 5) + (y >> 5)) & 1) { if ((x & 3) === 1 && (y & 3) === 1) b += 34; } else b -= 6;
+      return [b, b * 0.98, b * 0.92, 0];
+    });
+    T.hfloor = tex(function (x, y) {
+      var n = fbm(x / 64, y / 64, 61), v = fbm(x / 64, y / 64, 63), d = Math.abs(v - 0.5);
+      if (d < 0.014) return [255, 120, 20, 1];
+      var b = 0.55 + n * 0.7, gl = d < 0.04 ? (1 - d / 0.04) * 60 : 0;
+      return [76 * b + gl, 30 * b + gl * 0.3, 24 * b, 0];
+    });
+    T.tceil = tex(function (x, y) {
+      var n = fbm(x / 64, y / 64, 71), b = 44 + n * 26, lx = x & 31, ly = y & 31;
+      if (x >= 20 && x <= 43 && y >= 24 && y <= 39) {
+        if (x === 20 || x === 43 || y === 24 || y === 39) return [18, 18, 20, 0];
+        return [236, 238, 250, 1];
+      }
+      if (lx === 0 || ly === 0) return [16, 16, 16, 0];
+      return [b, b, b * 1.04, 0];
+    });
+    // Lava und Schleim: zwei Rauschfelder, die gegeneinander fliessen
+    T.n1 = new Uint8Array(4096); T.n2 = new Uint8Array(4096);
+    for (var y = 0; y < 64; y++) for (var x = 0; x < 64; x++) {
+      T.n1[y * 64 + x] = clamp(fbm(x / 64, y / 64, 81) * 300 - 20, 0, 255);
+      T.n2[y * 64 + x] = clamp(fbm(x / 64, y / 64, 91) * 300 - 20, 0, 255);
+    }
+    T.lavaPal = new Uint32Array(256); T.slimePal = new Uint32Array(256);
+    for (var i = 0; i < 256; i++) {
+      var t = i / 255;
+      T.lavaPal[i] = C(70 + 185 * Math.pow(t, 0.7), 8 + 210 * Math.pow(t, 2.2), 4 + 90 * Math.pow(t, 5));
+      T.slimePal[i] = C(10 + 140 * Math.pow(t, 3), 50 + 205 * Math.pow(t, 1.1), 14 + 90 * Math.pow(t, 2.4));
+    }
+    // Himmel der zweiten Ebene: Glut, Wolken, Bergkamm
+    T.sky = new Uint32Array(256 * 96);
+    for (var sy = 0; sy < 96; sy++) for (var sx = 0; sx < 256; sx++) {
+      var tt = sy / 95, cl = fbm(sx / 256, sy / 160, 31), r = 26 + 190 * Math.pow(tt, 1.7) + cl * 110 * tt, g = 4 + 70 * Math.pow(tt, 2.6) + cl * 40 * tt, b = 6 + 22 * Math.pow(tt, 3);
+      var ridge = 62 + fbm(sx / 256, 0.37, 41, 3) * 46 + fbm(sx / 256, 0.71, 43, 2) * 8;
+      if (sy > ridge) { var dk = (sy - ridge) / 30; r = 34 - dk * 14; g = 8; b = 6; }
+      T.sky[sy * 256 + sx] = C(r, g, b);
+    }
+  }
+
+  // ---------- Sprites (Fass, Fackel, Drohne, Waffe, Mündungsfeuer) ----------
+  function mkc(w, h) { var c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+  function sprite(w, h, draw) {
+    var cv = mkc(w, h), g = cv.getContext('2d'); draw(g);
+    var d = g.getImageData(0, 0, w, h).data, s = { w: w, h: h, c: new Uint32Array(w * h), a: new Uint8Array(w * h), e: new Uint8Array(w * h) };
+    for (var i = 0; i < w * h; i++) {
+      var r = d[i * 4], gg = d[i * 4 + 1], b = d[i * 4 + 2];
+      s.a[i] = d[i * 4 + 3] > 128 ? 1 : 0; s.c[i] = C(r, gg, b); s.e[i] = Math.max(r, gg, b) >= 232 ? 1 : 0;
+    }
+    return s;
+  }
+  function R(g, col, x, y, w, h) { g.fillStyle = col; g.fillRect(x, y, w, h); }
+  var SP = {}, GUN, FLASH;
+  function buildSprites() {
+    SP.barrel = sprite(20, 28, function (g) {
+      R(g, '#0e1418', 2, 3, 16, 25);
+      for (var x = 3; x < 17; x++) { var c = Math.sin((x - 2.5) / 15 * Math.PI); var v = (40 + c * 110) | 0; R(g, 'rgb(' + (v * 0.7 | 0) + ',' + (v * 0.85 | 0) + ',' + v + ')', x, 4, 1, 23); }
+      R(g, '#1a2228', 3, 9, 14, 2); R(g, '#1a2228', 3, 20, 14, 2);
+      R(g, '#e8c020', 5, 13, 10, 4); R(g, '#1a1a10', 7, 13, 2, 4); R(g, '#1a1a10', 11, 13, 2, 4);
+      R(g, '#0e1418', 1, 1, 18, 4); R(g, '#40eaff', 3, 2, 14, 2); R(g, '#c8faff', 6, 2, 6, 1);
+    });
+    for (var f = 0; f < 3; f++) (function (f) {
+      SP['torch' + f] = sprite(12, 40, function (g) {
+        R(g, '#1a0e0a', 5, 16, 2, 22); R(g, '#3a2418', 5, 16, 1, 22); R(g, '#120806', 3, 37, 6, 3);
+        R(g, '#2a1a12', 2, 13, 8, 3); R(g, '#5a3a24', 2, 13, 8, 1);
+        var hs = [10, 12, 9][f], sw = [0, 1, -1][f];
+        R(g, '#ff5a10', 3 + sw, 13 - hs + 3, 6, hs - 2); R(g, '#ff5a10', 4, 13 - hs, 4, 3);
+        R(g, '#ffb020', 4 + sw, 13 - hs + 5, 4, hs - 5); R(g, '#fff0a0', 5, 13 - hs + 8, 2, Math.max(1, hs - 9));
+      });
+    })(f);
+    SP.drone = sprite(26, 20, function (g) {
+      R(g, '#141414', 2, 3, 22, 2); R(g, '#8a8a8a', 3, 3, 8, 1); R(g, '#8a8a8a', 15, 3, 8, 1);
+      R(g, '#141414', 12, 4, 2, 4);
+      R(g, '#101010', 5, 7, 16, 12); R(g, '#6c6a66', 6, 8, 14, 10); R(g, '#9a9894', 6, 8, 14, 1); R(g, '#9a9894', 6, 8, 1, 10); R(g, '#3a3836', 19, 8, 1, 10); R(g, '#3a3836', 6, 17, 14, 1);
+      R(g, '#200404', 10, 11, 6, 4); R(g, '#ff3a2a', 11, 12, 4, 2); R(g, '#ffe0d0', 12, 12, 1, 1);
+      R(g, '#40ff70', 7, 9, 1, 1); R(g, '#ffd040', 18, 9, 1, 1);
+    });
+    GUN = mkc(64, 54);
+    var g = GUN.getContext('2d');
+    for (var y = 12; y < 54; y++) {
+      var half = 7 + (y - 12) * 0.42, x0 = Math.round(32 - half), x1 = Math.round(32 + half), w = x1 - x0, q = Math.max(1, Math.round(w * 0.24));
+      R(g, '#141210', x0 - 1, y, w + 2, 1); R(g, '#5e5b56', x0, y, w, 1); R(g, '#8e8a84', x0 + 1, y, q, 1); R(g, '#3a3834', x1 - q, y, q, 1);
+    }
+    for (var v = 0; v < 6; v++) R(g, '#24221e', 26, 18 + v * 4, 12, 1);
+    R(g, '#141210', 24, 1, 16, 13); R(g, '#4a4844', 25, 2, 14, 11); R(g, '#76726c', 26, 2, 3, 11); R(g, '#2a2824', 36, 2, 3, 11); R(g, '#050404', 29, 2, 6, 4);
+    R(g, '#081a0c', 15, 26, 5, 26); R(g, '#3cff70', 16, 27, 3, 24); R(g, '#b8ffc8', 17, 28, 1, 22);
+    R(g, '#081a0c', 44, 26, 5, 26); R(g, '#3cff70', 45, 27, 3, 24); R(g, '#b8ffc8', 46, 28, 1, 22);
+    for (var hk = 0; hk < 2; hk++) for (var fk = 0; fk < 4; fk++) {
+      var fy = 38 + fk * 4, fw = 15 - fk, fx = hk ? 41 : 64 - 41 - fw;
+      R(g, '#141210', fx, fy, fw, 5); R(g, '#3e4a2c', fx + 1, fy + 1, fw - 2, 3); R(g, '#5c6c40', hk ? fx + 2 : fx + fw - 7, fy + 1, 5, 1);
+      R(g, '#2a3220', hk ? fx + fw - 2 : fx + 1, fy + 1, 1, 3);
+    }
+    R(g, '#141210', 39, 33, 8, 6); R(g, '#3e4a2c', 40, 34, 6, 4); R(g, '#5c6c40', 41, 34, 3, 1);
+    R(g, '#141210', 17, 33, 8, 6); R(g, '#3e4a2c', 18, 34, 6, 4); R(g, '#5c6c40', 20, 34, 3, 1);
+    FLASH = mkc(30, 24);
+    g = FLASH.getContext('2d');
+    R(g, '#ff7a10', 6, 8, 18, 12); R(g, '#ff7a10', 12, 2, 6, 22); R(g, '#ff7a10', 2, 12, 26, 4);
+    R(g, '#ff7a10', 5, 5, 3, 3); R(g, '#ff7a10', 22, 5, 3, 3); R(g, '#ff7a10', 5, 19, 3, 3); R(g, '#ff7a10', 22, 19, 3, 3);
+    R(g, '#ffd040', 9, 10, 12, 9); R(g, '#ffd040', 13, 5, 4, 17); R(g, '#fff8d0', 11, 12, 8, 5); R(g, '#ffffff', 13, 13, 4, 3);
+  }
+
+  // =====================================================================
+  // Raycaster: endloser Korridor
+  // =====================================================================
+  var cv = $('view'), ctx = cv.getContext && cv.getContext('2d');
+  var W = 320, H = 180, img, buf, zbuf, rayA;
+  var meltCv = mkc(2, 2);
+  function sizeView() {
+    if (!ctx) return;
+    var w = cv.clientWidth || 640, h = cv.clientHeight || 360;
+    W = w < 640 ? 240 : 320;
+    H = clamp(Math.round(W * h / w), 120, 280);
+    cv.width = W; cv.height = H;
+    img = ctx.createImageData(W, H); buf = new Uint32Array(img.data.buffer); zbuf = new Float64Array(W); rayA = new Float64Array(W);
+    ctx.imageSmoothingEnabled = false;
+    S.melt = null;
+  }
+  var LV = {
+    tech: { wallA: 'panel', fog: [0, 0, 0], fogD: 20, floor: 'tfloor', pal: 'slimePal', sky: false },
+    hell: { wallA: 'stone', fog: [46, 6, 2], fogD: 15, floor: 'hfloor', pal: 'lavaPal', sky: true }
+  };
+  function cell(cx, cy, lv) {
+    var m = md(cx, 16);
+    if (cy <= 0 || cy >= 4) {
+      if (lv === 'tech') return (m === 2 || m === 10) ? T.comp : (m === 6 || m === 14) ? T.light : T.panel;
+      return (m === 3 || m === 11 || m === 7) ? T.lavaw : T.stone;
+    }
+    if ((cy === 1 || cy === 3) && (m === 4 || m === 12)) return lv === 'tech' ? T.tpillar : T.hpillar;
+    return null;
+  }
+  var S = {
+    phase: 'idle', level: 'tech', tgt: 0, disp: 0, peak: 0, prog: 0, v: 0.9, camX: 3.2, camY: 2.5, bob: 0, t: 0,
+    flash: 0, flashCol: '255,210,60', boost: 0, kick: 0, fireT: -1, shots: [], lastShot: 0, hits: [], sparks: [], msgs: [],
+    banner: null, melt: null, ammo: 0, droneHit: -1, look: 0, nextLook: 2, live: null, unit: '', endT: 0
+  };
+
+  function render() {
+    var lv = LV[S.level], t = S.t, ampl = RM ? 0 : clamp(S.v / 3.2, 0.25, 1);
+    var bobS = Math.sin(S.bob), camH = 0.5 + (RM ? 0 : 0.03 * ampl * (Math.abs(bobS) - 0.5));
+    var hor = Math.round(H / 2);
+    var ang = 0.045 * Math.sin(t * 0.45) + 0.02 * Math.sin(t * 1.3);
+    var dX = Math.cos(ang), dY = Math.sin(ang);
+    var pl = (W >= 300 ? 0.82 : 0.66) * (1 + 0.1 * clamp((S.v - 2) / 10, 0, 1));
+    var pX = -dY * pl, pY = dX * pl, f = (W / 2) / pl;
+    var camX = S.camX, camY = S.camY;
+    var fr = lv.fog[0], fg = lv.fog[1], fb = lv.fog[2], fogD = lv.fogD;
+    var flick = S.level === 'hell' ? 0.92 + 0.08 * Math.sin(t * 11) * Math.sin(t * 7.3) : 1;
+    var boost = S.boost;
+    var x, y, i, c, l, ff, r, g, b, k;
+    var pal = T[lv.pal], n1 = T.n1, n2 = T.n2, fl = T[lv.floor], ce = T.tceil, sky = T.sky;
+    var lo = (t * 9) | 0, lo2 = (t * 5) | 0;
+    for (x = 0; x < W; x++) { var cx2 = 2 * x / W - 1; rayA[x] = Math.atan2(dY + pY * cx2, dX + pX * cx2); }
+    // Boden und Decke zeilenweise
+    var rdx0 = dX - pX, rdy0 = dY - pY, rdx1 = dX + pX, rdy1 = dY + pY;
+    for (y = 0; y < H; y++) {
+      var floorRow = y > hor, dist;
+      if (y === hor) { for (x = 0; x < W; x++) buf[y * W + x] = C(fr, fg, fb); continue; }
+      if (floorRow) dist = camH * f / (y - hor + 0.5); else dist = (1 - camH) * f / (hor - y - 0.5);
+      l = clamp(1.3 - dist * 0.085, 0.1, 1) * flick + boost; ff = clamp((dist - 2) / fogD, 0, 1);
+      var sx = dist * (rdx1 - rdx0) / W, sy = dist * (rdy1 - rdy0) / W, wx = camX + dist * rdx0, wy = camY + dist * rdy0;
+      var row = y * W;
+      if (!floorRow && lv.sky) {
+        var sv = clamp(((y + (H / 2 - hor)) / hor) * 95, 0, 95) | 0;
+        for (x = 0; x < W; x++) buf[row + x] = sky[sv * 256 + (((rayA[x] / 6.2832) * 512) & 255)];
+        continue;
+      }
+      for (x = 0; x < W; x++, wx += sx, wy += sy) {
+        var fy = wy - Math.floor(wy) + (Math.floor(wy) & 3), tx = (wx * 64) & 63, ty = (wy * 64) & 63, em = 0;
+        if (floorRow) {
+          if (wy < 1.27 || wy > 3.73) {
+            var lx = (wx * 32 + lo) & 63, ly = (wy * 32) & 63, lx2 = (wx * 24 - lo2) & 63, ly2 = (wy * 24 + 7) & 63;
+            c = pal[(n1[(ly << 6) | lx] + n2[(ly2 << 6) | lx2]) >> 1]; em = 1;
+          } else if (wy < 1.33 || wy > 3.67) { c = 0xff2a2a2e; }
+          else { k = (ty << 6) | tx; c = fl.c[k]; em = fl.e[k]; }
+        } else { k = (ty << 6) | tx; c = ce.c[k]; em = ce.e[k]; }
+        var ll = em ? 1 : l, f2 = em ? ff * 0.55 : ff;
+        r = (c & 255) * ll; g = ((c >> 8) & 255) * ll; b = ((c >> 16) & 255) * ll;
+        r = r + (fr - r) * f2; g = g + (fg - g) * f2; b = b + (fb - b) * f2;
+        buf[row + x] = (0xff000000 | ((b > 255 ? 255 : b) << 16) | ((g > 255 ? 255 : g) << 8) | (r > 255 ? 255 : r)) >>> 0;
+      }
+    }
+    // Waende spaltenweise (DDA)
+    for (x = 0; x < W; x++) {
+      var cxr = 2 * x / W - 1, rdx = dX + pX * cxr, rdy = dY + pY * cxr;
+      var mx = Math.floor(camX), my = Math.floor(camY);
+      var ddx = Math.abs(1 / rdx), ddy = Math.abs(1 / rdy), stx, sty, sdx, sdy, side = 0, hit = null;
+      if (rdx < 0) { stx = -1; sdx = (camX - mx) * ddx; } else { stx = 1; sdx = (mx + 1 - camX) * ddx; }
+      if (rdy < 0) { sty = -1; sdy = (camY - my) * ddy; } else { sty = 1; sdy = (my + 1 - camY) * ddy; }
+      for (i = 0; i < 70; i++) {
+        if (sdx < sdy) { sdx += ddx; mx += stx; side = 0; } else { sdy += ddy; my += sty; side = 1; }
+        hit = cell(mx, my, S.level); if (hit) break;
+      }
+      if (!hit) { zbuf[x] = 1e9; continue; }
+      var perp = side === 0 ? sdx - ddx : sdy - ddy;
+      zbuf[x] = perp;
+      var wallX = side === 0 ? camY + perp * rdy : camX + perp * rdx; wallX -= Math.floor(wallX);
+      var tX = (wallX * 64) | 0; if ((side === 0 && rdx < 0) || (side === 1 && rdy > 0)) tX = 63 - tX;
+      var lh = f / perp, top = hor - (1 - camH) * lh, bot = hor + camH * lh;
+      var y0 = Math.max(0, Math.ceil(top)), y1 = Math.min(H - 1, Math.floor(bot));
+      l = clamp(1.3 - perp * 0.085, 0.1, 1) * (side ? 0.78 : 1) * flick + boost; ff = clamp((perp - 2) / fogD, 0, 1);
+      var hasE = hit === T.lavaw || hit === T.hpillar || hit === T.comp || hit === T.light, pulse = 0.85 + 0.15 * Math.sin(t * 3 + mx);
+      for (y = y0; y <= y1; y++) {
+        k = ((((y - top) / lh * 64) | 0) & 63) << 6 | tX;
+        c = hit.c[k];
+        var e = hasE && hit.e[k], li = e ? pulse : l, fo = e ? ff * 0.5 : ff;
+        r = (c & 255) * li; g = ((c >> 8) & 255) * li; b = ((c >> 16) & 255) * li;
+        r = r + (fr - r) * fo; g = g + (fg - g) * fo; b = b + (fb - b) * fo;
+        buf[y * W + x] = (0xff000000 | ((b > 255 ? 255 : b) << 16) | ((g > 255 ? 255 : g) << 8) | (r > 255 ? 255 : r)) >>> 0;
+      }
+    }
+    // Sprites
+    var list = [], base = Math.floor(camX / 16) * 16;
+    for (var p = base - 16; p <= base + 48; p += 16) {
+      if (S.level === 'tech') { list.push([p + 8.5, 1.45, SP.barrel, 0, 0.5, 0.36]); list.push([p + 0.5, 3.55, SP.barrel, 0, 0.5, 0.36]); }
+      else { var tf = SP['torch' + (((t * 8) | 0) + p) % 3]; list.push([p + 8.5, 1.35, tf, 0, 0.95, 0.3]); list.push([p + 0.5, 3.65, tf, 0, 0.95, 0.3]); }
+    }
+    S.droneScr = null;
+    if (S.phase === 'ping') list.push([camX + 3.6, 2.5 + 0.22 * Math.sin(t * 1.4), SP.drone, 0.3 + 0.04 * Math.sin(t * 2.3), 0.34, 0.45, 'drone']);
+    var inv = 1 / (pX * dY - dX * pY);
+    for (i = 0; i < list.length; i++) { var o = list[i], ox = o[0] - camX, oy = o[1] - camY; o.ty = inv * (-pY * ox + pX * oy); o.tx = inv * (dY * ox - dX * oy); }
+    list.sort(function (a, b2) { return b2.ty - a.ty; });
+    for (i = 0; i < list.length; i++) {
+      var s = list[i]; if (s.ty < 0.3 || s.ty > 40) continue;
+      var sp = s[2], scx = (W / 2) * (1 + s.tx / s.ty), sw = f * s[5] / s.ty, shh = f * s[4] / s.ty;
+      var yb = hor + (camH - s[3]) * f / s.ty, yt = yb - shh, xs = scx - sw / 2;
+      if (s[6] === 'drone') S.droneScr = [scx, yt + shh / 2];
+      var flashHit = s[6] === 'drone' && t - S.droneHit < 0.06;
+      l = clamp(1.3 - s.ty * 0.085, 0.1, 1) * flick + boost; ff = clamp((s.ty - 2) / fogD, 0, 1);
+      var xa = Math.max(0, Math.ceil(xs)), xb = Math.min(W - 1, Math.floor(xs + sw)), ya = Math.max(0, Math.ceil(yt)), yb2 = Math.min(H - 1, Math.floor(yb));
+      for (x = xa; x <= xb; x++) {
+        if (s.ty >= zbuf[x]) continue;
+        var u = ((x - xs) / sw * sp.w) | 0; if (u < 0 || u >= sp.w) continue;
+        for (y = ya; y <= yb2; y++) {
+          var vv = ((y - yt) / shh * sp.h) | 0; if (vv < 0 || vv >= sp.h) continue;
+          k = vv * sp.w + u; if (!sp.a[k]) continue;
+          c = sp.c[k];
+          if (flashHit) { buf[y * W + x] = 0xffffffff; continue; }
+          var ee = sp.e[k], lq = ee ? 1 : l, fq = ee ? ff * 0.5 : ff;
+          r = (c & 255) * lq; g = ((c >> 8) & 255) * lq; b = ((c >> 16) & 255) * lq;
+          r = r + (fr - r) * fq; g = g + (fg - g) * fq; b = b + (fb - b) * fq;
+          buf[y * W + x] = (0xff000000 | ((b > 255 ? 255 : b) << 16) | ((g > 255 ? 255 : g) << 8) | (r > 255 ? 255 : r)) >>> 0;
+        }
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    // Funken
+    for (i = 0; i < S.sparks.length; i++) { var sk = S.sparks[i]; ctx.fillStyle = sk.c; ctx.fillRect(sk.x | 0, sk.y | 0, 1, 1); }
+    // Waffe mit Kopfwippen
+    var gx = Math.round(W / 2 - 32 + Math.cos(S.bob) * 7 * ampl), gy = Math.round(H - 48 + Math.abs(bobS) * 6 * ampl + S.kick);
+    if (t - S.fireT < 0.07) ctx.drawImage(FLASH, gx + 17, gy - 20);
+    ctx.drawImage(GUN, gx, gy);
+    // Treffermeldungen
+    for (i = 0; i < S.hits.length; i++) {
+      var hm = S.hits[i], age = t - hm.t0;
+      ctx.globalAlpha = clamp(1.6 - age, 0, 1);
+      ctext(hm.txt, hm.x, Math.round(hm.y - age * 22), 'gold', 1, 'c');
+    }
+    ctx.globalAlpha = 1;
+    // Nachrichten oben links
+    var my2 = 3;
+    for (i = 0; i < S.msgs.length; i++) { ctext(S.msgs[i].txt, 3, my2, S.msgs[i].st || 'white', 1); my2 += 9; }
+    // Ebenen-Banner
+    var bn = S.banner;
+    if (bn) {
+      var ba = t - bn.t0;
+      if (ba < bn.dur) {
+        var bs = clamp(Math.floor((W - 10) / (norm(bn.txt).length * 6)), 1, 3);
+        ctx.globalAlpha = clamp((bn.dur - ba) * 2, 0, 1);
+        ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(0, Math.round(H * 0.13) - 5, W, 8 * bs + (bn.sub ? 22 : 10));
+        ctext(bn.txt, W / 2, Math.round(H * 0.13), 'fire', bs, 'c');
+        if (bn.sub) ctext(bn.sub, W / 2, Math.round(H * 0.13) + 8 * bs + 4, 'gold', 1, 'c');
+        ctx.globalAlpha = 1;
+      } else if (bn.keep) {
+        ctext(bn.keep, W - 3, 3, 'gray', 1, 'r');
+      }
+    }
+    if (S.phase === 'idle' || S.phase === 'abort') {
+      var blink = RM || Math.floor(t * 1.6) % 2 === 0;
+      var big = S.phase === 'abort' ? 'Abgebrochen' : 'Bereit?';
+      var bs2 = clamp(Math.floor((W - 10) / (norm(big).length * 6)), 1, 3);
+      ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fillRect(0, Math.round(H * 0.3) - 6, W, 8 * bs2 + 24);
+      ctext(big, W / 2, Math.round(H * 0.3), 'fire', bs2, 'c');
+      if (blink) ctext(S.phase === 'abort' ? 'Nichts gespeichert' : 'Messung starten drücken', W / 2, Math.round(H * 0.3) + 8 * bs2 + 6, 'gold', 1, 'c');
+    }
+    if (S.phase === 'outro') {
+      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+      ctext('Ebene abgeschlossen', W / 2, Math.round(H / 2 - 8), 'fire', W >= 300 ? 2 : 1, 'c');
+    }
+    // Bildschirmblitz (Schlüsselkarte, Schuss)
+    if (S.flash > 0.01) { ctx.fillStyle = 'rgba(' + S.flashCol + ',' + (S.flash * 0.45).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+    // Bildschirm-Schmelzen beim Ebenenwechsel
+    var m = S.melt;
+    if (m) {
+      var done = true;
+      for (i = 0; i < m.off.length; i++) {
+        var oo = m.off[i];
+        if (oo < 0) { ctx.drawImage(meltCv, i * 2, 0, 2, H, i * 2, 0, 2, H); done = false; m.off[i] += 1; continue; }
+        if (oo < H) { ctx.drawImage(meltCv, i * 2, 0, 2, H - oo, i * 2, oo, 2, H - oo); done = false; }
+        m.off[i] += oo < 12 ? oo + 1 : Math.max(8, H / 10);
+      }
+      if (done) S.melt = null;
+    }
+  }
+  function ctext(str, x, y, st, s, align) {
+    str = norm(str); var w = str.length * 6 * s, a = ATL[st];
+    if (align === 'c') x = Math.round(x - w / 2); else if (align === 'r') x = x - w;
+    for (var i = 0; i < str.length; i++) ctx.drawImage(a, CH.indexOf(str.charAt(i)) * 6, 0, 6, 8, x + i * 6 * s, y, 6 * s, 8 * s);
+  }
+  function startMelt() {
+    if (RM || !ctx) return;
+    meltCv.width = W; meltCv.height = H;
+    meltCv.getContext('2d').drawImage(cv, 0, 0);
+    var n = Math.ceil(W / 2), off = [], o = -((Math.random() * 8) | 0);
+    for (var i = 0; i < n; i++) { o += ((Math.random() * 3) | 0) - 1; o = clamp(o, -8, 0); off.push(o); }
+    S.melt = { off: off };
+  }
+  function msg(txt, st) { S.msgs.push({ txt: txt, t0: S.t, st: st }); if (S.msgs.length > 3) S.msgs.shift(); }
+
+  // =====================================================================
+  // Gesicht des Helden (24 x 29 Pixel)
+  // =====================================================================
+  var faceCtx = $('face').getContext ? $('face').getContext('2d') : null, faceKey = '';
+  function drawFace(ex, look, hurt) {
+    var key = ex + look + hurt; if (key === faceKey || !faceCtx) return; faceKey = key;
+    var g = faceCtx; g.clearRect(0, 0, 24, 29);
+    var SK = '#d99a6c', SD = '#b0703f', DK = '#6a3a1c', HL = '#f2c08e', HR = '#2e1c10', HH = '#5a3a20', ST = '#a8744a';
+    function r(c, x, y, w, h) { g.fillStyle = c; g.fillRect(x, y, w, h); }
+    if (ex === 'god') { r('rgba(255,210,60,.35)', 1, 1, 22, 28); }
+    r(SK, 4, 4, 16, 21); r(SK, 3, 8, 18, 12); r(SK, 5, 25, 14, 2); r(SK, 7, 27, 10, 1);
+    r(SD, 2, 12, 1, 5); r(SD, 21, 12, 1, 5); r(DK, 2, 14, 1, 1); r(DK, 21, 14, 1, 1);
+    r(SD, 18, 8, 2, 17); r(SD, 17, 22, 2, 4); r(HL, 4, 9, 1, 9); r(HL, 5, 13, 2, 2);
+    r(ST, 5, 22, 14, 3); r(SK, 8, 22, 8, 1); r(ST, 7, 25, 10, 2); r(SD, 7, 27, 10, 1);
+    // Haare und Stirnband
+    r(HR, 4, 1, 16, 5); r(HR, 3, 3, 18, 3); r(HR, 5, 0, 2, 1); r(HR, 9, 0, 3, 1); r(HR, 14, 0, 2, 1); r(HR, 18, 1, 2, 1);
+    r(HH, 6, 1, 2, 1); r(HH, 11, 1, 3, 1); r(HH, 16, 2, 2, 1);
+    r('#c4281a', 3, 6, 18, 2); r('#ff5a3a', 4, 6, 15, 1); r('#8a140c', 21, 6, 2, 3); r('#c4281a', 22, 8, 1, 3);
+    r(HR, 3, 8, 1, 4); r(HR, 20, 8, 1, 4);
+    // Augenbrauen
+    var BR = '#24140a';
+    if (ex === 'grim' || ex === 'strain') { r(BR, 5, 9, 2, 1); r(BR, 7, 10, 3, 1); r(BR, 14, 10, 3, 1); r(BR, 17, 9, 2, 1); }
+    else if (ex === 'grin' || ex === 'god') { r(BR, 5, 9, 5, 1); r(BR, 14, 9, 5, 1); r(BR, 5, 10, 1, 1); r(BR, 18, 10, 1, 1); }
+    else if (ex === 'ouch') { r(BR, 6, 9, 3, 1); r(BR, 9, 8, 1, 1); r(BR, 15, 9, 3, 1); r(BR, 14, 8, 1, 1); }
+    else { r(BR, 5, 9, 5, 1); r(BR, 14, 9, 5, 1); }
+    // Augen
+    var EW = ex === 'god' ? '#ffd23a' : '#f4f0e8', PU = ex === 'god' ? '#fffbe0' : '#1a1a2a';
+    if (ex === 'strain') { r(DK, 5, 11, 5, 1); r(DK, 14, 11, 5, 1); r(EW, 6, 12, 4, 1); r(EW, 14, 12, 4, 1); r(PU, 7 + look, 12, 2, 1); r(PU, 15 + look, 12, 2, 1); }
+    else {
+      r(DK, 5, 11, 5, 1); r(DK, 14, 11, 5, 1);
+      r(EW, 6, 12, 4, 2); r(EW, 14, 12, 4, 2);
+      r(PU, 7 + look, 12, 2, 2); r(PU, 15 + look, 12, 2, 2);
+      if (ex === 'god') { r('#fff', 6, 12, 1, 1); r('#fff', 14, 12, 1, 1); }
+    }
+    // Nase
+    r(SD, 12, 13, 1, 5); r(HL, 11, 14, 1, 3); r(DK, 10, 18, 1, 1); r(DK, 13, 18, 1, 1); r(SD, 11, 18, 2, 1);
+    // Mund
+    var MO = '#3a0e0a', TE = '#f4f0e0', TG = '#b8b0a0';
+    if (ex === 'grin' || ex === 'god') {
+      var wd = ex === 'god' ? 1 : 0;
+      r(MO, 6 - wd, 19, 12 + wd * 2, 4); r(TE, 7 - wd, 20, 10 + wd * 2, 2); r(TG, 9, 20, 1, 2); r(TG, 12, 20, 1, 2); r(TG, 15, 20, 1, 2);
+      r(MO, 5 - wd, 18, 1, 1); r(MO, 18 + wd, 18, 1, 1); r(SD, 7, 23, 10, 1);
+    } else if (ex === 'strain') {
+      r(MO, 7, 19, 10, 4); r(TE, 8, 20, 8, 1); r(TE, 8, 21, 8, 1); r(MO, 8, 21, 8, 0);
+      r(TG, 10, 20, 1, 2); r(TG, 13, 20, 1, 2); r(MO, 8, 20, 8, 1); r(TE, 8, 19, 8, 1); r(TE, 8, 22, 8, 1);
+      r('#a8d8ff', 20, 9, 1, 2); r('#e0f4ff', 20, 9, 1, 1); r('#a8d8ff', 3, 13, 1, 2);
+    } else if (ex === 'grim') {
+      r(MO, 8, 20, 8, 1); r(MO, 7, 21, 1, 1); r(MO, 16, 21, 1, 1); r(SD, 9, 21, 6, 1);
+    } else if (ex === 'ouch') {
+      r(MO, 10, 19, 4, 4); r(TE, 10, 19, 4, 1);
+    } else {
+      r(MO, 8, 20, 8, 1); r(SD, 9, 21, 6, 1);
+    }
+    if (hurt) { r('#7a3a7a', 5, 15, 2, 2); r('#9a5a9a', 5, 15, 1, 1); r('#ead2a8', 15, 15, 5, 2); r('#c8a878', 16, 15, 1, 2); r('#c8a878', 18, 15, 1, 2); }
+    $('c-face').className = 'cell facebox' + (ex === 'god' ? ' god' : '');
+    $('face').setAttribute('aria-label', { idle: 'Held wartet', grim: 'Held schaut grimmig', strain: 'Held strengt sich an', grin: 'Held grinst', god: 'Held grinst wie ein Gott', ouch: 'Held ist enttäuscht' }[ex] || 'Held');
+  }
+
+  // =====================================================================
+  // Pixel-Feuer für den Level-Abschluss (klassischer Ausbreitungs-Algorithmus)
+  // =====================================================================
+  var fcv = $('fire'), fctx = fcv.getContext ? fcv.getContext('2d') : null, FW = 0, FH = 0, fpix = null, fimg = null, fbuf = null, FPAL = [];
+  (function () {
+    var stops = [[0, 13, 5, 5], [6, 70, 10, 4], [12, 160, 30, 6], [20, 222, 90, 10], [28, 240, 170, 30], [33, 250, 220, 90], [36, 255, 255, 230]];
+    for (var i = 0; i < 37; i++) {
+      for (var j = 1; j < stops.length; j++) if (i <= stops[j][0]) break;
+      var a = stops[j - 1], b = stops[j], t = (i - a[0]) / (b[0] - a[0]);
+      FPAL.push(C(a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t));
+    }
+  })();
+  function sizeFire() {
+    if (!fctx) return;
+    var w = fcv.clientWidth || 600, h = fcv.clientHeight || 400;
+    FW = w < 640 ? 96 : 160; FH = clamp(Math.round(FW * h / w), 40, 260);
+    fcv.width = FW; fcv.height = FH;
+    fimg = fctx.createImageData(FW, FH); fbuf = new Uint32Array(fimg.data.buffer); fpix = new Uint8Array(FW * FH);
+    for (var x = 0; x < FW; x++) fpix[(FH - 1) * FW + x] = 36;
+  }
+  function fireStep() {
+    if (!fpix) return;
+    for (var x = 0; x < FW; x++) for (var y = 1; y < FH; y++) {
+      var src = y * FW + x, p = fpix[src];
+      if (!p) { fpix[src - FW] = 0; continue; }
+      var rnd = (Math.random() * 4) | 0, dst = src - rnd + 1;
+      if (dst - FW >= 0) fpix[dst - FW] = Math.max(0, p - (rnd & 1));
+    }
+    for (var i = 0; i < fpix.length; i++) fbuf[i] = FPAL[fpix[i]];
+    fctx.putImageData(fimg, 0, 0);
+  }
+
+  // =====================================================================
+  // Spiel-Logik und Anzeige
+  // =====================================================================
+  var running = false, res = {}, opts = null, tStart = 0, pingN = 0, healthV = null, lastHud = 0, tally = null;
+  function velFor(m) { return 1.0 + 7.4 * Math.sqrt(Math.min(m, 10000) / 2500); }
+  function update(dt) {
+    var t = S.t;
+    S.disp += (S.tgt - S.disp) * (1 - Math.exp(-dt * 5));
+    if (S.disp > S.peak) S.disp = S.peak;
+    var vt = 0.9;
+    if (S.phase === 'ping') vt = 0.35;
+    else if (S.phase === 'download' || S.phase === 'upload') vt = S.live === null ? 1.4 : velFor(S.disp);
+    else if (S.phase === 'outro' || S.phase === 'done') vt = 0;
+    S.v += (vt - S.v) * (1 - Math.exp(-dt * 2.5));
+    S.camX += S.v * dt; if (S.camX > 1040) S.camX -= 1024;
+    S.camY = 2.5 + 0.12 * Math.sin(t * 0.37);
+    S.bob += dt * (2.2 + S.v * 1.15);
+    S.flash = Math.max(0, S.flash - dt * 2.2); S.boost = Math.max(0, S.boost - dt * 4); S.kick = Math.max(0, S.kick - dt * 40);
+    // Ping-Schüsse nacheinander abspielen
+    var gap = S.phase === 'ping' ? 0.09 : 0.045;
+    if (S.shots.length && t - S.lastShot > gap) {
+      var ms = S.shots.shift(); S.lastShot = t; S.fireT = t; S.kick = 4; S.boost = RM ? 0 : 0.28; S.droneHit = t;
+      var ds = S.droneScr || [W / 2, H * 0.42];
+      S.hits.push({ txt: E.fmt(ms, 1) + ' ms', x: ds[0], y: ds[1] + 8, t0: t });
+      if (!RM) for (var i = 0; i < 6; i++) S.sparks.push({ x: ds[0], y: ds[1], vx: (Math.random() - 0.5) * 60, vy: (Math.random() - 0.8) * 50, life: 0.35, c: Math.random() < 0.5 ? '#ffd040' : '#ff7a10' });
+      if (S.hits.length > 6) S.hits.shift();
+    }
+    for (var j = S.sparks.length - 1; j >= 0; j--) { var s = S.sparks[j]; s.life -= dt; s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 120 * dt; if (s.life <= 0) S.sparks.splice(j, 1); }
+    for (j = S.hits.length - 1; j >= 0; j--) if (t - S.hits[j].t0 > 1.6) S.hits.splice(j, 1);
+    for (j = S.msgs.length - 1; j >= 0; j--) if (t - S.msgs[j].t0 > 4) S.msgs.splice(j, 1);
+    if (t > S.nextLook) { S.look = [-1, 0, 0, 1][(Math.random() * 4) | 0]; S.nextLook = t + 1.2 + Math.random() * 2.2; }
+    updFace();
+  }
+  function updFace() {
+    var ex = 'idle', hurt = healthV !== null && healthV <= 10;
+    if (S.phase === 'ping') ex = 'grim';
+    else if (S.phase === 'download' || S.phase === 'upload') ex = S.live === null ? 'grim' : S.disp >= 2000 ? 'god' : S.disp < 250 ? 'strain' : 'grim';
+    else if (S.phase === 'outro' || S.phase === 'done') { var dl = res.download ? res.download.peak : 0; ex = dl >= 2000 ? 'god' : dl >= 600 ? 'grin' : dl >= 90 ? 'grim' : 'strain'; }
+    else if (S.phase === 'abort') ex = 'ouch';
+    drawFace(ex, ex === 'god' || ex === 'grin' ? 0 : S.look, hurt);
+  }
+  function hud(force) {
+    var now = S.t;
+    if (!force && now - lastHud < 0.12) return; lastHud = now;
+    var on = S.phase === 'ping' || S.phase === 'download' || S.phase === 'upload';
+    $('hud').hidden = !on;
+    if (!on) return;
+    if (S.phase === 'ping') {
+      px($('spd'), S.lastPing === undefined ? '…' : E.fmt(S.lastPing, 1)); px($('spdu'), 'ms'); px($('spdl'), 'Probe'); px($('spdp'), Math.min(pingN, 20) + ' / 20');
+      $('progf').style.width = Math.round(Math.min(pingN, 20) / 20 * 100) + '%';
+    } else {
+      if (S.live === null || S.peak <= 0) { px($('spd'), '…'); px($('spdu'), 'Mbit/s'); }
+      else { var s = E.fmtSpeed(S.disp); px($('spd'), s.v); px($('spdu'), s.u); }
+      px($('spdl'), 'Spitze');
+      if (S.peak > 0) { var pk = E.fmtSpeed(S.peak); px($('spdp'), pk.v + ' ' + pk.u); } else px($('spdp'), '–');
+      $('progf').style.width = Math.round(S.prog * 100) + '%';
+    }
+    px($('ammo'), E.fmt(S.ammo, S.ammo < 10 ? 2 : 1));
+  }
+  function setStatus(t) { px($('status'), t); }
+  function setGo(t, stop) { px($('go-t'), t); $('go').className = stop ? 'stop' : ''; }
+  function cardGet(id) {
+    var el = $('k-' + id); el.className = el.className.replace(/\s*(got|new)/g, '') + ' got new';
+    setTimeout(function () { el.className = el.className.replace(/\s*new/g, ''); }, 1500);
+  }
+  function cardsReset() { ['ping', 'download', 'upload'].forEach(function (k) { var el = $('k-' + k); el.className = el.className.replace(/\s*(got|new)/g, ''); }); }
+  function setTbl(id, v) { px($(id), v); }
+
+  // Einordnung nach Netzwerkklassen (Nettodurchsatz liegt ~6 % unter der Leitungsrate)
+  function verdict(dl) {
+    if (dl >= 4700) return ['Über 5 Gbit/s', 'Das schafft nur eine 10-GbE-Strecke.', 'Gottmodus'];
+    if (dl >= 2000) return ['2,5 Gbit/s ausgeschöpft', 'Die 2,5-GbE-Verbindung läuft nahe am Maximum.', 'Albtraum bezwungen'];
+    if (dl >= 940) return ['Mehr als Gigabit', 'Schneller als 1 GbE, also 2,5 GbE oder schnelles WLAN.', 'Ultrabrutal'];
+    if (dl >= 600) return ['Gigabit-Klasse', 'Typisch für 1-GbE-Kabel oder gutes WLAN 6/7.', 'Harter Brocken'];
+    if (dl >= 90) return ['Ordentlich', 'Typisch für WLAN mit Abstand oder 100-Mbit-Kabel.', 'Leichtes Gefecht'];
+    return ['Langsam', 'Kabel, Port oder WLAN-Empfang prüfen.', 'Noch im Training'];
+  }
+
+  function resetView() {
+    S.tgt = 0; S.disp = 0; S.peak = 0; S.prog = 0; S.live = null; S.ammo = 0; S.shots = []; S.hits = []; S.msgs = []; S.lastPing = undefined;
+    healthV = null; pingN = 0; res = {};
+    px($('ammo'), '0,00'); px($('health'), '100%'); px($('armor'), '–');
+    setTbl('t-ping', '–'); setTbl('t-jit', '–'); setTbl('t-dl', '–'); setTbl('t-ul', '–');
+    cardsReset();
+  }
+  function start() {
+    var streams = +$('streams').value, duration = +$('duration').value, label = $('label').value.replace(/^\s+|\s+$/g, '');
+    try { localStorage.setItem('st-label', label); localStorage.setItem('st-streams', streams); localStorage.setItem('st-duration', duration); } catch (e) { }
+    opts = { streams: streams, duration: duration };
+    tally = null;
+    var wasResult = !$('result').hidden;
+    $('result').hidden = true; $('screen').hidden = false;
+    if (wasResult) { sizeView(); window.scrollTo(0, 0); }
+    resetView();
+    running = true; tStart = Date.now();
+    setGo('Stopp', true);
+    startMelt();
+    if (narrow() && $('screen').scrollIntoView) $('screen').scrollIntoView({ behavior: RM ? 'auto' : 'smooth', block: 'start' });
+    S.phase = 'ping'; S.level = 'tech';
+    S.banner = { txt: 'Zielübung: Ping', sub: '20 Schuss auf die Paket-Drohne', t0: S.t, dur: 2.2 };
+    setStatus('Ping: Ziel erfassen …');
+    E.run({ streams: streams, duration: duration, label: label }, {
+      phase: function (p) {
+        if (p === 'ping') return;
+        startMelt();
+        S.phase = p; S.tgt = 0; S.disp = 0; S.peak = 0; S.live = null; S.prog = 0;
+        if (p === 'download') {
+          S.level = 'tech'; S.banner = { txt: 'Ebene 1: Datenbasis', sub: 'Download', t0: S.t, dur: 2.6, keep: 'E1 Datenbasis' };
+          setStatus('Ebene 1: Datenbasis (Download)');
+        } else {
+          S.level = 'hell'; S.banner = { txt: 'Ebene 2: Rückkanal', sub: 'Upload', t0: S.t, dur: 2.6, keep: 'E2 Rückkanal' };
+          setStatus('Ebene 2: Rückkanal (Upload)');
+        }
+        hud(true);
+      },
+      pingSample: function (ms) { pingN++; S.lastPing = ms; S.shots.push(ms); if (S.shots.length > 24) S.shots.shift(); hud(true); },
+      ping: function (p, j) {
+        res.ping = p; res.jitter = j; res.pingN = pingN;
+        var armor = Math.round(clamp(100 - (p - 0.5) * 8 - j * 4, 0, 100));
+        px($('armor'), armor + '%');
+        setTbl('t-ping', E.fmt(p, p < 10 ? 1 : 0) + ' ms'); setTbl('t-jit', E.fmt(j, 1) + ' ms');
+        cardGet('ping'); msg('Ping-Karte eingesammelt', 'gold'); msg('Ping ' + E.fmt(p, 1) + ' ms, Jitter ' + E.fmt(j, 1) + ' ms');
+        S.flash = RM ? 0 : 0.8; S.flashCol = '90,140,255';
+      },
+      live: function (kind, m, p) {
+        S.prog = p || 0;
+        if (m === null) return;
+        S.live = m; S.tgt = m; if (m > S.peak) S.peak = m;
+        S.ammo += m * 0.2 / 8 / 1000;
+      },
+      result: function (kind, r) {
+        res[kind] = r;
+        var s = E.fmtSpeed(r.peak);
+        setTbl(kind === 'download' ? 't-dl' : 't-ul', s.v + ' ' + (s.u === 'Gbit/s' ? 'G' : 'M'));
+        if (r.core !== null && r.core !== undefined) {
+          var hv = Math.round(clamp(100 - r.core, 0, 100));
+          healthV = healthV === null ? hv : Math.min(healthV, hv);
+          px($('health'), healthV + '%');
+          if (r.core >= 90) msg('Router-Kern am Limit!', 'red');
+        }
+        cardGet(kind);
+        msg((kind === 'download' ? 'Download' : 'Upload') + '-Karte eingesammelt', 'gold');
+        S.flash = RM ? 0 : 0.9; S.flashCol = kind === 'download' ? '255,210,60' : '255,80,40';
+      },
+      done: function (rec) {
+        running = false; S.endT = Date.now();
+        setGo('Neu messen', false);
+        setStatus('Ebene abgeschlossen');
+        startMelt(); S.phase = 'outro'; S.banner = null;
+        hud(true);
+        setTimeout(function () { if (S.phase === 'outro') showResult(rec); }, RM ? 50 : 1100);
+      },
+      error: function (msgTxt) {
+        running = false; S.phase = 'abort'; setGo('Neu messen', false); setStatus(msgTxt); hud(true);
+      }
+    });
+  }
+  function stopRun() {
+    E.stop(); running = false;
+    S.phase = 'abort'; S.banner = null; S.shots = []; S.msgs = []; S.hits = [];
+    setGo('Neu messen', false); setStatus('Abgebrochen'); hud(true);
+  }
+
+  function showResult(rec) {
+    S.phase = 'done';
+    var d = res.download, u = res.upload, sd = E.fmtSpeed(d.peak), su = E.fmtSpeed(u.peak), ad = E.fmtSpeed(d.avg), au = E.fmtSpeed(u.avg);
+    px($('r-dl'), sd.v); px($('r-dlu'), sd.u); px($('r-dla'), 'Ø ' + ad.v + ' ' + ad.u);
+    px($('r-ul'), su.v); px($('r-ulu'), su.u); px($('r-ula'), 'Ø ' + au.v + ' ' + au.u);
+    var v = verdict(d.peak);
+    px($('r-rank'), v[2]); px($('r-vt'), v[0]); px($('r-vs'), v[1]);
+    var core = Math.max(d.core || 0, u.core || 0), hasCore = d.core !== null && d.core !== undefined;
+    $('r-note').hidden = !(core >= 90);
+    var secs = Math.round((S.endT - tStart) / 1000), par = opts.duration * 2 + 3;
+    function mmss(s) { return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
+    var konst = Math.round(((d.peak ? d.avg / d.peak : 0) + (u.peak ? u.avg / u.peak : 0)) * 50);
+    var rows = [
+      ['Treffer', Math.round(100 * Math.min(res.pingN || 0, 20) / 20), function (x) { return Math.round(x) + '%'; }],
+      ['Konstanz', konst, function (x) { return Math.round(x) + '%'; }],
+      ['Reserve', hasCore ? 100 - Math.round(core) : null, function (x) { return Math.round(x) + '%'; }],
+      ['Ping', res.ping, function (x) { return E.fmt(x, 1) + ' ms'; }],
+      ['Jitter', res.jitter, function (x) { return E.fmt(x, 1) + ' ms'; }],
+      ['CPU-Kern', hasCore ? Math.round(core) : null, function (x) { return Math.round(x) + ' %'; }],
+      ['Zeit', secs, function (x) { return mmss(Math.round(x)); }],
+      ['Par', par, function (x) { return mmss(Math.round(x)); }]
+    ];
+    var h = '';
+    for (var i = 0; i < rows.length; i++) h += '<div><span class="px" data-st="gold" data-s="3" data-m="2" data-t="' + rows[i][0] + '"></span><span class="px" id="ty' + i + '" data-st="red" data-s="3" data-m="2"></span></div>';
+    $('tally').innerHTML = h;
+    tally = { rows: rows, t0: S.t, i: 0 };
+    for (i = 0; i < rows.length; i++) px($('ty' + i), rows[i][1] === null || rows[i][1] === undefined ? '–' : rows[i][2](0));
+    $('screen').hidden = true; $('result').hidden = false;
+    pxAll(); sizeFire();
+    if (RM) finishTally();
+    $('result').scrollIntoView ? $('result').scrollIntoView({ behavior: RM ? 'auto' : 'smooth', block: 'start' }) : 0;
+    loadHistory();
+  }
+  function tallyStep(all) {
+    if (!tally) return;
+    var per = 0.22, el = all ? 1e6 : S.t - tally.t0, idx = Math.floor(el / per);
+    for (var i = 0; i < tally.rows.length; i++) {
+      var row = tally.rows[i]; if (row[1] === null || row[1] === undefined) continue;
+      var k = clamp((el - i * per) / per, 0, 1);
+      if (k > 0) px($('ty' + i), row[2](row[1] * k));
+    }
+    if (idx > tally.rows.length + 1) tally = null;
+  }
+  function finishTally() { tallyStep(true); tally = null; }
+
+  // ---------- Spielstände ----------
+  function n0(v) { return v === null || v === undefined ? '–' : E.fmt(v, 0); }
+  function loadHistory() {
+    E.history(function (hs) {
+      if (!hs.length) { $('history').innerHTML = '<div class="empty"><span class="px" data-st="gray" data-s="2" data-m="2" data-t="Noch keine Spielstände. Starte die erste Messung."></span></div>'; pxAll(); clearReset(true); return; }
+      var best = -1, bv = -1;
+      for (var b = 0; b < hs.length; b++) { var pv = hs[b].dl_peak !== null && hs[b].dl_peak !== undefined ? hs[b].dl_peak : hs[b].dl; if (pv > bv) { bv = pv; best = b; } }
+      var h = '<ol class="slots">';
+      function cellH(k, v, st, cls) { return '<div' + (cls ? ' class="' + cls + '"' : '') + '><span class="px" data-st="gray" data-s="1" data-m="1" data-t="' + esc(k) + '"></span><span class="px" data-st="' + st + '" data-s="2" data-m="2" data-t="' + esc(v) + '"></span></div>'; }
+      for (var i = hs.length - 1; i >= 0; i--) {
+        var e = hs[i], d = new Date(e.ts * 1000);
+        var when = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '. ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        var who = e.label || e.host || e.ip || '?', sub = e.label && e.host ? e.host : (e.ip || '');
+        h += '<li class="slot' + (i === best ? ' best' : '') + '">' +
+          cellH('Slot ' + (hs.length - i) + (i === best ? ' · Bestwert' : ''), when, i === best ? 'gold' : 'white') +
+          '<div class="who"><span class="px" data-st="gray" data-s="1" data-m="1" data-t="' + esc('Gerät' + (sub ? ' · ' + sub : '')) + '"></span><span class="px" data-st="gold" data-s="2" data-m="2" data-t="' + esc(who) + '"></span></div>' +
+          cellH('Ping ms', e.ping === null || e.ping === undefined ? '–' : E.fmt(e.ping, 1), 'white') +
+          cellH('Down Mbit/s Spitze / Ø', (e.dl_peak === null || e.dl_peak === undefined ? '' : n0(e.dl_peak) + ' / ') + n0(e.dl), 'red') +
+          cellH('Up Mbit/s Spitze / Ø', (e.ul_peak === null || e.ul_peak === undefined ? '' : n0(e.ul_peak) + ' / ') + n0(e.ul), 'red') + '</li>';
+      }
+      $('history').innerHTML = h + '</ol>';
+      pxAll(); clearReset();
+    });
+  }
+  // Löschen mit Rückfrage direkt auf der Seite
+  function clearAsk() {
+    $('clear-wrap').innerHTML = '<span class="confirm"><span class="px" data-st="gold" data-s="2" data-m="2" data-t="Alle Spielstände löschen?"></span><button class="btn yes" id="yes"><span class="px" data-st="white" data-s="2" data-t="Ja"></span></button><button class="btn" id="no"><span class="px" data-st="white" data-s="2" data-t="Nein"></span></button></span>';
+    pxAll();
+    $('yes').onclick = function () { E.clearHistory(function () { loadHistory(); }); };
+    $('no').onclick = function () { clearReset(); $('clear').focus(); };
+    $('no').focus();
+  }
+  function clearReset(empty) {
+    $('clear-wrap').innerHTML = empty ? '' : '<button class="btn" id="clear"><span class="px" data-st="white" data-s="2" data-t="Löschen"></span></button>';
+    if (!empty) { pxAll(); $('clear').onclick = clearAsk; }
+  }
+
+  // ---------- Statusleisten-Textur ----------
+  (function barTex() {
+    var c = mkc(64, 64), g = c.getContext('2d'), id = g.createImageData(64, 64), b32 = new Uint32Array(id.data.buffer);
+    for (var y = 0; y < 64; y++) for (var x = 0; x < 64; x++) {
+      var n = fbm(x / 64, y / 64, 101), v = 58 + n * 46 + (hsh(x, y, 103) > 0.92 ? 12 : 0);
+      if (Math.abs(fbm(x / 64, y / 64, 107) - 0.5) < 0.012) v -= 26;
+      b32[y * 64 + x] = C(v * 1.05, v * 0.97, v * 0.86);
+    }
+    g.putImageData(id, 0, 0);
+    try { $('bar').style.backgroundImage = 'url(' + c.toDataURL() + ')'; } catch (e) { }
+  })();
+
+  // ---------- Hauptschleife ----------
+  var lastTs = 0;
+  function loop(ts) {
+    window.requestAnimationFrame(loop);
+    if (document.hidden) return;
+    var fps = RM ? 4 : (S.phase === 'idle' || S.phase === 'abort') ? 20 : S.phase === 'done' ? 24 : 35;
+    if (ts - lastTs < 1000 / fps - 3) return;
+    var dt = lastTs ? Math.min(0.1, (ts - lastTs) / 1000) : 0.016; lastTs = ts;
+    S.t += dt;
+    update(dt);
+    if (S.phase === 'done') { fireStep(); tallyStep(); }
+    else if (ctx && !$('screen').hidden) render();
+    hud(false);
+  }
+
+  // ---------- Start ----------
+  $('go').onclick = function () { if (running) stopRun(); else start(); };
+  try {
+    var ls = localStorage.getItem('st-label'), ss = localStorage.getItem('st-streams'), sd = localStorage.getItem('st-duration');
+    if (ls) $('label').value = ls; if (ss) $('streams').value = ss; if (sd) $('duration').value = sd;
+  } catch (e) { }
+  buildTextures(); buildSprites();
+  resetView(); pxAll(); sizeView(); updFace();
+  var rsT = null, wasNarrow = narrow();
+  window.addEventListener('resize', function () {
+    clearTimeout(rsT);
+    rsT = setTimeout(function () { if (narrow() !== wasNarrow) { wasNarrow = narrow(); pxAll(); } if (!$('screen').hidden) sizeView(); if (!$('result').hidden) sizeFire(); }, 150);
+  });
+  if (RM) { S.v = 0; }
+  window.requestAnimationFrame(loop);
+
+  E.init(function (info) {
+    px($('host'), info.hostname || 'Router');
+    px($('meta'), (info.model ? info.model + ' · ' : '') + info.cores + ' Kerne · Du: ' + (info.client_host ? info.client_host + ' (' + info.client_ip + ')' : info.client_ip));
+    $('demo').hidden = !info.demo;
+    $('go').disabled = false;
+    setStatus('Bereit. Wähle Dauer und Verbindungen.');
+    loadHistory();
+  });
+})();
+</script>
+</body>
+</html>
