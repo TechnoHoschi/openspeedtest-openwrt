@@ -44,6 +44,18 @@ Messwerte auf dem Asus BT8 (3 Kerne, PC per 2,5 GbE, Messkit in `bench/`):
 `install.sh` trägt den ucode-Handler in `/etc/config/uhttpd` ein (`ucode_prefix /speedtest-api`), setzt `max_requests` auf mindestens 16
 und startet uhttpd neu. Läuft uhttpd danach nicht, stellt das Skript die alte Konfiguration sofort wieder her, damit LuCI erreichbar bleibt.
 
+<details><summary>Dasselbe von Hand (ohne automatischen Rückfall)</summary>
+
+```sh
+head -c 2 /www/speedtest/api.uc        # muss "{%" ausgeben, sonst startet uhttpd nicht
+cp /etc/config/uhttpd /tmp/uhttpd.bak
+uci add_list uhttpd.main.ucode_prefix='/speedtest-api=/www/speedtest/api.uc'
+uci set uhttpd.main.max_requests=16
+uci commit uhttpd && service uhttpd restart
+pidof uhttpd || { cp /tmp/uhttpd.bak /etc/config/uhttpd; service uhttpd restart; }
+```
+</details>
+
 Für Backups: `/www/speedtest` und `/etc/config/uhttpd` sichern.
 
 ## Entfernen
