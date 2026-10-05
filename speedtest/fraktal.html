@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Speedtest Fraktal</title>
+<meta name="color-scheme" content="dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;1,6..72,300;1,6..72,400&family=Space+Mono:wght@400;700&display=swap">
+<style>
+/* Idee: Die Leitung ist ein Tauchboot. Je mehr Durchsatz, desto schneller sinkt der Blick in die
+   Mandelbrot-Menge. Am Ende entsteht aus den Messwerten eine eigene Julia-Menge. Bewusst nur dunkel. */
+:root {
+  --abyss: #03040b;
+  --deep: #070a18;
+  --panel: rgba(8, 11, 26, .78);
+  --line: rgba(160, 175, 230, .18);
+  --ink: #eef1fa;
+  --mute: #a3acc8;
+  --faint: #6c7596;
+  --cool: #79e6f2;
+  --warm: #ffb070;
+  --ping: #cdb8ff;
+  --warn: #ff8f6b;
+  --mono: "Space Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
+  --serif: "Newsreader", Georgia, Cambria, "Times New Roman", "DejaVu Serif", serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { background: var(--abyss); color: var(--ink); }
+body { margin: 0; font: 16px/1.5 var(--serif); overflow-x: hidden; }
+button, select, input { font: inherit; }
+
+/* Hintergrund: das Fraktal */
+#sea { position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; }
+.veil { position: fixed; inset: 0; z-index: 1; pointer-events: none;
+  background:
+    radial-gradient(ellipse 60% 42% at 50% 46%, rgba(3,4,11,.62), rgba(3,4,11,.18) 70%, rgba(3,4,11,0) 100%),
+    linear-gradient(to bottom, rgba(3,4,11,.72), rgba(3,4,11,0) 18%, rgba(3,4,11,0) 62%, rgba(3,4,11,.86));
+  transition: background-color 1.2s; }
+body.done .veil { background-color: rgba(3,4,11,.35); }
+
+main { position: relative; z-index: 2; }
+main > *, .hero > *, .res > *, .vals > * { min-width: 0; }
+
+/* Kopfzeile */
+.top { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px 20px;
+  padding: max(18px, env(safe-area-inset-top)) clamp(16px, 4vw, 44px) 0; }
+.brand { display: flex; align-items: baseline; gap: 14px; min-width: 0; }
+.brand h1 { margin: 0; font: italic 300 clamp(1.5rem, 3.2vw, 2.1rem)/1 var(--serif); letter-spacing: .005em; }
+.brand h1 b { font-weight: 400; font-style: normal; }
+.mark { font: 400 .78rem/1 var(--mono); color: var(--cool); border: 1px solid rgba(121,230,242,.4); border-radius: 999px; padding: 5px 10px 4px; white-space: nowrap; }
+.meta { font: 400 .74rem/1.5 var(--mono); color: var(--mute); letter-spacing: .02em; min-width: 0; overflow-wrap: anywhere; }
+.demo { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--warm); color: #1a0d02; font: 700 .68rem/1.6 var(--mono); letter-spacing: .08em; text-transform: uppercase; vertical-align: 1px; }
+
+/* Bühne */
+.hero { min-height: 100vh; min-height: 100svh; display: grid; grid-template-rows: auto 1fr auto; padding: 0 clamp(16px, 4vw, 44px) max(22px, env(safe-area-inset-bottom)); }
+.center { display: grid; align-content: center; justify-items: center; text-align: center; gap: 6px; padding: 24px 0; }
+.eyebrow { font: 400 .72rem/1.4 var(--mono); letter-spacing: .28em; text-transform: uppercase; color: var(--mute); min-height: 1.4em; margin: 0; }
+.eyebrow.dl { color: var(--cool); } .eyebrow.ul { color: var(--warm); } .eyebrow.ping { color: var(--ping); }
+.lede { margin: 6px 0 0; font: italic 300 clamp(2.1rem, 7vw, 4.6rem)/1.04 var(--serif); letter-spacing: -.01em; max-width: 13em; text-shadow: 0 2px 30px rgba(0,0,0,.6); }
+.lede em { font-style: normal; font-family: var(--mono); font-size: .62em; letter-spacing: -.02em; color: var(--cool); }
+.sub { margin: 12px auto 0; color: var(--mute); font-size: 1.05rem; max-width: 30em; text-shadow: 0 1px 12px rgba(0,0,0,.8); }
+.bigwrap { display: flex; align-items: center; justify-content: center; gap: clamp(12px, 3vw, 28px); }
+.big { font: 400 clamp(3.4rem, 15vw, 8.4rem)/1 var(--mono); letter-spacing: -.05em; font-variant-numeric: tabular-nums; text-shadow: 0 4px 40px rgba(0,0,0,.55); white-space: nowrap; }
+.big small { font: italic 300 clamp(1.1rem, 3.4vw, 1.9rem)/1 var(--serif); letter-spacing: 0; color: var(--mute); margin-left: .35em; }
+.jp { width: clamp(72px, 16vw, 116px); height: clamp(72px, 16vw, 116px); border-radius: 50%; box-shadow: 0 0 0 1px rgba(205,184,255,.45), 0 0 40px rgba(205,184,255,.25); background: #05040e; flex: none; }
+.depth { font: 400 .78rem/1.6 var(--mono); color: var(--mute); letter-spacing: .03em; text-shadow: 0 1px 8px #000; min-height: 1.6em; }
+.depth b { color: var(--ink); font-weight: 400; }
+.bar { width: min(340px, 70vw); height: 2px; background: rgba(255,255,255,.12); border-radius: 2px; overflow: hidden; margin-top: 6px; }
+.bar i { display: block; height: 100%; width: 0; background: var(--cool); transition: width .25s linear, background-color .6s; }
+.bar.ul i { background: var(--warm); } .bar.ping i { background: var(--ping); }
+
+/* Steuerung */
+.dock { display: grid; gap: 18px; justify-items: center; }
+.go { min-width: 220px; padding: 15px 34px 14px; border-radius: 999px; border: 1px solid rgba(121,230,242,.7); cursor: pointer;
+  background: linear-gradient(180deg, rgba(20,40,60,.75), rgba(5,10,24,.85)); color: var(--ink);
+  font: italic 400 1.35rem/1 var(--serif); letter-spacing: .01em; box-shadow: 0 0 0 0 rgba(121,230,242,.35), 0 10px 40px rgba(0,0,0,.5); transition: border-color .3s, color .3s, background .3s; animation: breathe 3.6s ease-in-out infinite; }
+.go:hover { border-color: var(--cool); background: linear-gradient(180deg, rgba(28,58,80,.85), rgba(5,10,24,.9)); }
+.go:disabled { opacity: .5; cursor: default; animation: none; }
+.go.stop { border-color: var(--warn); color: #ffd9cc; animation: none; background: rgba(30,8,8,.7); font-style: normal; font-family: var(--mono); font-size: 1rem; letter-spacing: .2em; text-transform: uppercase; padding: 16px 34px; }
+@keyframes breathe { 0%, 100% { box-shadow: 0 0 0 0 rgba(121,230,242,.0), 0 10px 40px rgba(0,0,0,.5); } 50% { box-shadow: 0 0 0 10px rgba(121,230,242,.10), 0 10px 40px rgba(0,0,0,.5); } }
+.opts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 18px; font: 400 .74rem/1 var(--mono); color: var(--mute); letter-spacing: .04em; }
+.opts label { display: flex; align-items: center; gap: 8px; }
+select, input { color: var(--ink); background: rgba(6,9,22,.8); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; font: 400 .8rem/1.2 var(--mono); }
+input { width: 12em; max-width: 52vw; }
+input::placeholder { color: var(--faint); }
+button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--cool); outline-offset: 3px; }
+
+.readouts { width: 100%; max-width: 980px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.ro { background: var(--panel); padding: 11px 14px 10px; min-width: 0; transition: background-color .4s; }
+.ro .k { font: 400 .66rem/1.4 var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--mute); display: flex; align-items: center; gap: 7px; }
+.ro .k i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
+.ro.ping .k { color: var(--ping); } .ro.dl .k { color: var(--cool); } .ro.ul .k { color: var(--warm); }
+.ro .v { font: 400 1.45rem/1.25 var(--mono); letter-spacing: -.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ro .v small { font: italic 300 .85rem var(--serif); color: var(--mute); margin-left: 5px; letter-spacing: 0; }
+.ro .s { font: 400 .68rem/1.4 var(--mono); color: var(--faint); min-height: 1.4em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ro.on { background: rgba(14,20,44,.88); }
+
+/* Ergebnis */
+.sheet { position: relative; background: linear-gradient(to bottom, rgba(3,4,11,.0), rgba(3,4,11,.92) 90px, var(--abyss) 220px); padding: 70px clamp(16px, 4vw, 44px) 40px; }
+.res { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: clamp(24px, 4vw, 60px); align-items: center; }
+.art { position: relative; width: 100%; max-width: 600px; justify-self: center; }
+.art canvas { display: block; width: 100%; aspect-ratio: 1 / 1; border-radius: 50%; background: #04050c;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 0 120px rgba(121,230,242,.10), 0 0 80px rgba(255,176,112,.08); }
+.art figcaption { margin-top: 16px; text-align: center; font: 400 .74rem/1.6 var(--mono); color: var(--mute); }
+.txt .eyebrow { color: var(--cool); }
+.txt h2 { margin: 6px 0 4px; font: italic 300 clamp(2.4rem, 5.2vw, 4rem)/1.02 var(--serif); letter-spacing: -.015em; }
+.verdict { margin: 0 0 4px; font: 400 clamp(1.25rem, 2.4vw, 1.6rem)/1.25 var(--serif); }
+.verdict-s { margin: 0; color: var(--mute); }
+.formula { margin: 22px 0 24px; padding: 16px 18px; border: 1px solid var(--line); border-left: 2px solid var(--cool); border-radius: 4px 12px 12px 4px; background: rgba(10,14,32,.6); font: 400 .95rem/1.7 var(--mono); overflow-wrap: anywhere; }
+.formula .f1 { font: italic 400 1.5rem/1.3 var(--serif); }
+.formula .f1 sub { font-size: .6em; }
+.formula .cval { color: var(--cool); }
+.formula .cval .im { color: var(--warm); }
+.vals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; margin: 0; }
+.vals div { min-width: 0; border-top: 1px solid var(--line); padding-top: 9px; }
+.vals dt { font: 400 .66rem/1.4 var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--mute); }
+.vals dd { margin: 2px 0 0; font: 400 1.5rem/1.2 var(--mono); letter-spacing: -.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vals dd small { font: italic 300 .9rem var(--serif); color: var(--mute); letter-spacing: 0; margin-left: 5px; }
+.vals dd span { display: block; font: 400 .74rem/1.5 var(--mono); letter-spacing: 0; color: var(--faint); white-space: normal; }
+.vals .hero-v dd { font-size: clamp(2rem, 4vw, 2.7rem); }
+.vals .dl dt { color: var(--cool); } .vals .ul dt { color: var(--warm); } .vals .pg dt { color: var(--ping); }
+.note { margin: 18px 0 0; color: var(--warn); font-size: .98rem; }
+.acts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+.btn { color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 9px 18px; cursor: pointer; font: 400 .78rem/1.2 var(--mono); letter-spacing: .04em; }
+.btn:hover { border-color: var(--mute); }
+.btn.warn { border-color: var(--warn); color: var(--warn); }
+
+/* Verlauf */
+.hist { max-width: 1180px; margin: 64px auto 0; }
+.hist-h { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid var(--line); padding-bottom: 10px; margin-bottom: 6px; }
+.hist-h h2 { margin: 0; font: italic 300 1.9rem/1.1 var(--serif); }
+.hist-h h2 small { font: 400 .7rem var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--mute); margin-left: 12px; font-style: normal; }
+.confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 400 .8rem var(--mono); color: var(--warn); }
+.list { list-style: none; margin: 0; padding: 0; }
+.item { display: grid; grid-template-columns: 64px minmax(0, 1.3fr) minmax(0, .6fr) minmax(0, 1fr) minmax(0, 1fr); gap: 6px 18px; align-items: center; padding: 12px 0; border-bottom: 1px solid rgba(160,175,230,.09); }
+.item > * { min-width: 0; }
+.item img { width: 56px; height: 56px; border-radius: 50%; display: block; background: #04050c; box-shadow: 0 0 0 1px rgba(255,255,255,.08); }
+.item .who { font: 400 1.08rem/1.3 var(--serif); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .when { font: 400 .7rem/1.5 var(--mono); color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item .c { font: 400 .7rem/1.5 var(--mono); color: var(--mute); }
+.cell .k { font: 400 .62rem/1.4 var(--mono); letter-spacing: .18em; text-transform: uppercase; color: var(--faint); }
+.cell .v { font: 400 1.05rem/1.3 var(--mono); letter-spacing: -.02em; white-space: nowrap; }
+.cell .v small { color: var(--faint); font-size: .78em; }
+.cell.dl .k { color: var(--cool); } .cell.ul .k { color: var(--warm); } .cell.pg .k { color: var(--ping); }
+.empty { color: var(--mute); padding: 14px 0; font-style: italic; }
+footer { max-width: 1180px; margin: 46px auto 0; color: var(--faint); font: 400 .7rem/1.6 var(--mono); }
+
+@media (max-width: 900px) {
+  .res { grid-template-columns: minmax(0, 1fr); }
+  .art { max-width: 520px; }
+}
+@media (max-width: 640px) {
+  .readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ro .v { font-size: 1.25rem; }
+  .item { grid-template-columns: 56px minmax(0, 1fr) minmax(0, 1fr); }
+  .item img { width: 48px; height: 48px; }
+  .item .id { grid-column: 2 / 4; }
+  .item .cell.pg { grid-column: 1; text-align: center; }
+  .item .cell.pg .k { letter-spacing: .08em; }
+  .item { grid-template-columns: 56px minmax(0, 1fr) minmax(0, 1fr); }
+  .cell .v small span { display: block; }
+  .cell .v { font-size: .98rem; }
+  .vals { gap: 14px 16px; }
+  .vals dd { font-size: 1.25rem; }
+  .go { min-width: 200px; }
+  .sub { font-size: .98rem; }
+}
+@media (min-width: 1700px) { body { font-size: 18px; } }
+@media (prefers-reduced-motion: reduce) { .go { animation: none; } * { transition: none !important; } }
+</style>
+</head>
+<body>
+<canvas id="sea" aria-hidden="true"></canvas>
+<div class="veil" aria-hidden="true"></div>
+<main>
+  <section class="hero">
+    <header class="top">
+      <div class="brand"><h1>Speedtest <b>Fraktal</b></h1><span class="mark" aria-hidden="true">z² + c</span></div>
+      <div class="meta" id="meta">Verbinde mit dem Router …</div>
+    </header>
+
+    <div class="center">
+      <p class="eyebrow" id="phase" aria-live="polite">Router <span id="host">…</span></p>
+      <div id="intro">
+        <p class="lede">Wie tief reicht deine Leitung?</p>
+        <p class="sub">Je schneller die Daten fließen, desto tiefer sinkt der Blick in die Mandelbrot-Menge. Am Ende wächst aus deinen Werten ein eigenes Fraktal.</p>
+      </div>
+      <div class="bigwrap" id="livebox" hidden>
+        <canvas class="jp" id="jp" width="120" height="120" aria-hidden="true" hidden></canvas>
+        <div class="big" id="big" aria-live="off">…</div>
+      </div>
+      <div class="depth" id="depth"></div>
+      <div class="bar" id="bar" hidden><i id="bar-i"></i></div>
+    </div>
+
+    <div class="dock">
+      <button class="go" id="go" disabled>Eintauchen</button>
+      <div class="opts">
+        <label for="streams">Verbindungen
+          <select id="streams"><option value="1">1</option><option value="2">2</option><option value="4" selected>4</option><option value="6">6</option><option value="8">8</option></select></label>
+        <label for="duration">Dauer
+          <select id="duration"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></label>
+        <label for="label">Gerät <input id="label" maxlength="40" placeholder="z. B. Laptop WLAN"></label>
+      </div>
+      <div class="readouts">
+        <div class="ro ping" id="ro-ping"><div class="k"><i></i>Ping</div><div class="v">–<small>ms</small></div><div class="s"></div></div>
+        <div class="ro jit" id="ro-jit"><div class="k">Jitter</div><div class="v">–<small>ms</small></div><div class="s"></div></div>
+        <div class="ro dl" id="ro-dl"><div class="k"><i></i>Download</div><div class="v">–<small>Mbit/s</small></div><div class="s"></div></div>
+        <div class="ro ul" id="ro-ul"><div class="k"><i></i>Upload</div><div class="v">–<small>Mbit/s</small></div><div class="s"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="sheet">
+    <section class="res" id="result" hidden aria-labelledby="res-h">
+      <figure class="art" style="margin:0">
+        <canvas id="art" width="600" height="600" role="img" aria-label="Julia-Menge aus deinen Messwerten"></canvas>
+        <figcaption id="art-cap">Julia-Menge · Ausschnitt −1,6 … 1,6</figcaption>
+      </figure>
+      <div class="txt">
+        <p class="eyebrow">Befund</p>
+        <h2 id="res-h">Dein Fraktal</h2>
+        <p class="verdict" id="verdict">–</p>
+        <p class="verdict-s" id="verdict-s"></p>
+        <div class="formula">
+          <div class="f1">z<sub>n+1</sub> = z<sub>n</sub>² + c</div>
+          <div>c = <span class="cval" id="cval">–</span></div>
+        </div>
+        <dl class="vals">
+          <div class="dl hero-v"><dt>Download Spitze</dt><dd id="r-dl">–</dd></div>
+          <div class="ul hero-v"><dt>Upload Spitze</dt><dd id="r-ul">–</dd></div>
+          <div class="dl"><dt>Download Ø</dt><dd id="r-dla">–</dd></div>
+          <div class="ul"><dt>Upload Ø</dt><dd id="r-ula">–</dd></div>
+          <div class="pg"><dt>Ping</dt><dd id="r-ping">–</dd></div>
+          <div class="pg"><dt>Jitter</dt><dd id="r-jit">–</dd></div>
+          <div><dt>Router-CPU · stärkster Kern</dt><dd id="r-cpu">–</dd></div>
+          <div><dt>Verbindungen</dt><dd id="r-str">–</dd></div>
+        </dl>
+        <p class="note" id="note" hidden></p>
+        <div class="acts">
+          <button class="btn" id="again">Neu messen</button>
+          <button class="btn" id="save">Fraktal speichern</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="hist" aria-labelledby="hist-h">
+      <div class="hist-h">
+        <h2 id="hist-h">Verlauf<small>jede Messung, ihr Fraktal</small></h2>
+        <span id="clear-wrap"><button class="btn" id="clear">Verlauf löschen</button></span>
+      </div>
+      <div id="history"><p class="empty">Noch keine Messungen.</p></div>
+    </section>
+    <footer>Mandelbrot-Ziel −0,743643887037151 + 0,131825904205330 i · Seepferdchental · gerechnet in doppelter Genauigkeit</footer>
+  </div>
+</main>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.SpeedEngine;
+  function $(id) { return document.getElementById(id); }
+  function now() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
+  var reduced = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  // ================= Rechenkern =================
+  // Wird sowohl im Web Worker (aus blob:-URL) als auch als Zeitscheiben-Fallback im Hauptthread benutzt.
+  // Ergebnis je Pixel: glatte Iterationszahl (>= 0) oder negativ fuer "gehoert zur Menge".
+  function kernel(S) {
+    var LN2 = Math.log(2);
+    S.rows = function (j, out, y0, y1) {
+      var w = j.w, h = j.h, u = j.u, max = j.max, julia = j.t === 'j';
+      var xl = j.cx - (w / 2) * u + u / 2, yt = j.cy + (h / 2) * u - u / 2;
+      var jcr = j.cr, jci = j.ci;
+      for (var y = y0; y < y1; y++) {
+        var im0 = yt - y * u, p = y * w;
+        for (var x = 0; x < w; x++, p++) {
+          var re0 = xl + x * u, zr, zi, cr, ci, i = 0, zr2, zi2, trap = 1e9, m;
+          if (julia) { zr = re0; zi = im0; cr = jcr; ci = jci; }
+          else {
+            var xq = re0 - 0.25, q = xq * xq + im0 * im0;
+            if (q * (q + xq) <= 0.25 * im0 * im0 || (re0 + 1) * (re0 + 1) + im0 * im0 <= 0.0625) { out[p] = -1; continue; }
+            zr = 0; zi = 0; cr = re0; ci = im0;
+          }
+          zr2 = zr * zr; zi2 = zi * zi;
+          if (julia) {
+            while (i < max && zr2 + zi2 < 65536) {
+              zi = 2 * zr * zi + ci; zr = zr2 - zi2 + cr; zr2 = zr * zr; zi2 = zi * zi; i++;
+              m = zr2 + zi2; if (m < trap) trap = m;
+            }
+          } else {
+            while (i < max && zr2 + zi2 < 65536) {
+              zi = 2 * zr * zi + ci; zr = zr2 - zi2 + cr; zr2 = zr * zr; zi2 = zi * zi; i++;
+            }
+          }
+          if (i >= max) out[p] = julia ? -1 - Math.sqrt(Math.sqrt(trap)) : -1;
+          else out[p] = i + 1 - Math.log(Math.log(zr2 + zi2) * 0.5) / LN2;
+        }
+      }
+    };
+  }
+  var K = {}; kernel(K);
+
+  var worker = null, jobs = {}, jobId = 0, slices = [];
+  try {
+    if (window.Worker && window.Blob && window.URL && URL.createObjectURL) {
+      var src = '(' + kernel.toString() + ')(self);' +
+        'self.onmessage=function(e){var j=e.data,o=new Float32Array(j.w*j.h),t=Date.now();self.rows(j,o,0,j.h);' +
+        'self.postMessage({id:j.id,buf:o,ms:Date.now()-t},[o.buffer]);};';
+      worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+      worker.onmessage = function (e) { var cb = jobs[e.data.id]; delete jobs[e.data.id]; if (cb) cb(e.data.buf, e.data.ms); };
+      worker.onerror = function () { worker = null; };
+    }
+  } catch (e) { worker = null; }
+
+  function compute(job, cb) {
+    job.id = ++jobId;
+    if (worker) { jobs[job.id] = cb; worker.postMessage(job); return; }
+    // Zeitscheiben: hoechstens ~6 ms pro Bild im Hauptthread
+    slices.push({ job: job, out: new Float32Array(job.w * job.h), y: 0, cb: cb, t0: now(), spent: 0 });
+    kickSlices();
+  }
+  var sliceTimer = 0;
+  function kickSlices() { if (!sliceTimer) sliceTimer = setTimeout(runSlices, 0); }
+  function runSlices() {
+    sliceTimer = 0;
+    var t0 = now();
+    while (slices.length && now() - t0 < 6) {
+      var s = slices[0], step = Math.max(1, Math.round(4000 / s.job.w));
+      var y1 = Math.min(s.job.h, s.y + step), ts = now();
+      K.rows(s.job, s.out, s.y, y1); s.y = y1; s.spent += now() - ts;
+      if (s.y >= s.job.h) { slices.shift(); s.cb(s.out, s.spent); }
+    }
+    if (slices.length) sliceTimer = setTimeout(runSlices, 16);
+  }
+
+  // ================= Farben =================
+  // Zyklische Verlaeufe; Download kuehl, Upload warm, das eigene Fraktal vereint beide.
+  function hex(h) { return [parseInt(h.substr(1, 2), 16), parseInt(h.substr(3, 2), 16), parseInt(h.substr(5, 2), 16)]; }
+  function ramp(stops) {
+    var n = 1024, lut = new Uint8Array(n * 3), cs = stops.map(hex), k = cs.length;
+    for (var i = 0; i < n; i++) {
+      var f = i / n * k, a = Math.floor(f), t = f - a, c0 = cs[a % k], c1 = cs[(a + 1) % k];
+      t = t * t * (3 - 2 * t);
+      for (var q = 0; q < 3; q++) lut[i * 3 + q] = Math.round(c0[q] + (c1[q] - c0[q]) * t);
+    }
+    return lut;
+  }
+  var PAL = {
+    cool: ramp(['#040818', '#0a2160', '#1559a8', '#2fa6cf', '#7fe9ef', '#effcff', '#9db8ff', '#5b49c9', '#21135e']),
+    warm: ramp(['#0e0306', '#4a0a1f', '#a3203a', '#ef5a3c', '#ffa149', '#fff0c2', '#ff8fa3', '#b02a6e', '#3c0a33']),
+    own: ramp(['#050716', '#11306e', '#2b8fc4', '#9ff1f0', '#fff6dc', '#ffb36b', '#e0485b', '#6a1d6e', '#1b0f3d'])
+  };
+  var lut32 = new Uint32Array(1024), lutWarm = -1;
+  function buildLut(w) {
+    if (Math.abs(w - lutWarm) < 0.004) return;
+    lutWarm = w;
+    var a = PAL.cool, b = PAL.warm;
+    for (var i = 0; i < 1024; i++) {
+      var r = a[i * 3] + (b[i * 3] - a[i * 3]) * w, g = a[i * 3 + 1] + (b[i * 3 + 1] - a[i * 3 + 1]) * w, bl = a[i * 3 + 2] + (b[i * 3 + 2] - a[i * 3 + 2]) * w;
+      lut32[i] = ((255 << 24) | (Math.round(bl) << 16) | (Math.round(g) << 8) | Math.round(r)) >>> 0;
+    }
+  }
+  var INSIDE = ((255 << 24) | (12 << 16) | (5 << 8) | 3) >>> 0;
+  // Faerbt ein Iterationsfeld in ein ImageData (Mandelbrot)
+  function paintMandel(f, off) {
+    var buf = f.buf, px = f.px, n = buf.length, dens = f.dens;
+    for (var i = 0; i < n; i++) {
+      var v = buf[i];
+      if (v < 0) { px[i] = INSIDE; continue; }
+      var t = Math.log(v + 1) * dens + off, c = lut32[((t - Math.floor(t)) * 1024) | 0];
+      if (v < 6) {   // weit draussen: ins dunkle Wasser ausblenden
+        var a = v / 6; a = a * a;
+        c = ((255 << 24) | (((((c >>> 16) & 255) - 16) * a + 16) << 16) | (((((c >>> 8) & 255) - 6) * a + 6) << 8) | (((c & 255) - 3) * a + 3)) >>> 0;
+      }
+      px[i] = c;
+    }
+    f.ctx.putImageData(f.img, 0, 0);
+  }
+  // Julia: eigene Palette, Innenraum mit sanfter Orbit-Falle
+  function paintJulia(buf, img, lut, off, dens) {
+    var d = img.data, n = buf.length;
+    for (var i = 0; i < n; i++) {
+      var v = buf[i], o = i * 4, k;
+      if (v < 0) {
+        var tr = Math.min(1, -v - 1);       // 0 .. 1, Abstand der Bahn zum Ursprung
+        var ti = tr * 1.7 + off + 0.55, ki = (((ti - Math.floor(ti)) * 1024) | 0) * 3, sh = 0.16 + 0.42 * Math.pow(1 - tr, 2);
+        d[o] = 3 + lut[ki] * sh; d[o + 1] = 4 + lut[ki + 1] * sh; d[o + 2] = 12 + lut[ki + 2] * sh; d[o + 3] = 255; continue;
+      }
+      var t = Math.log(v + 1) * dens + off;
+      k = (((t - Math.floor(t)) * 1024) | 0) * 3;
+      var fade = v < 1 ? 0 : Math.min(1, (v - 1) / 5); fade = fade * fade;       // aussen sanft ins Dunkle
+      d[o] = 4 + (lut[k] - 4) * fade; d[o + 1] = 6 + (lut[k + 1] - 6) * fade; d[o + 2] = 16 + (lut[k + 2] - 16) * fade; d[o + 3] = 255;
+    }
+  }
+
+  // ================= Mandelbrot-Tauchgang =================
+  var TX = -0.743643887037151, TY = 0.131825904205330;   // Seepferdchental, tief genug fuer double
+  var S0 = 3.3;            // sichtbarer Ausschnitt (kuerzere Seite) bei Tiefe 0
+  var DMAX = 39.5;         // Zweierpotenzen, danach wird double zu grob
+  var sea = $('sea'), sctx = sea.getContext('2d');
+  var W = 0, H = 0, M = 1;  // CSS-Groesse des Hintergrunds, kuerzere Seite
+  var D = 0, frames = [], inflight = false, nextReq = 0, budget = 90000, ghost = null, dive = 1, diveNo = 1;
+  var palOff = 0, warm = 0, warmTarget = 0, dirty = true;
+
+  function resize() {
+    var w = window.innerWidth, h = window.innerHeight;
+    if (w === W && Math.abs(h - H) < 80 && sea.width) return;   // Adressleiste am Handy ignorieren
+    W = w; H = h; M = Math.min(W, H); dive++; inflight = false;
+    sea.width = W; sea.height = H;           // Inhalt ist ohnehin niedrig aufgeloest, dpr 1 reicht
+    dirty = true; requestFrame(true);
+  }
+  function uppAt(d) { return S0 * Math.pow(2, -d) / M; }    // komplexe Einheiten pro CSS-Pixel
+  function maxIter(d) { return Math.min(2400, Math.round(160 + d * 52)); }
+
+  function requestFrame(force) {
+    if (inflight || !W) return;
+    if (!force && now() < nextReq) return;
+    var f = Math.sqrt(budget / (W * H)); f = Math.max(0.16, Math.min(0.5, f));
+    var w = Math.max(40, Math.round(W * f)), h = Math.max(40, Math.round(H * f));
+    var upp = uppAt(D), ucss = upp * W / w, gen = dive, Wq = W, Hq = H;
+    inflight = true;
+    var t0 = now();
+    compute({ t: 'm', w: w, h: h, u: ucss, cx: TX, cy: TY, max: maxIter(D) }, function (buf, ms) {
+      if (gen !== dive) return;
+      inflight = false;
+      if (Wq !== W || Hq !== H) { requestFrame(true); return; }
+      // Bildbudget an die Rechenzeit anpassen (Ziel ~90 ms)
+      budget = Math.max(26000, Math.min(170000, budget * Math.max(0.6, Math.min(1.35, 90 / Math.max(10, ms)))));
+      var c = document.createElement('canvas'); c.width = w; c.height = h;
+      var ctx = c.getContext('2d'), img = ctx.createImageData(w, h);
+      var fr = { cw: Wq, ch: Hq, c: c, ctx: ctx, img: img, px: new Uint32Array(img.data.buffer), buf: buf, upp: upp, d: D, dens: 0.62 + D * 0.025 };
+      paintMandel(fr, palOff);
+      frames.push(fr); if (frames.length > 2) frames.shift();
+      dirty = true;
+      // Pause zwischen den Rechnungen, damit die Messung genug CPU behaelt
+      schedule();
+      nextReq = now() + (running ? Math.max(30, (now() - t0) * 0.7) : 400) * (reduced ? 6 : 1);
+    });
+  }
+
+  function drawSea() {
+    var upp = uppAt(D);
+    sctx.imageSmoothingEnabled = true;
+    if (sctx.imageSmoothingQuality) sctx.imageSmoothingQuality = 'high';
+    if (!frames.length && !ghost) { sctx.fillStyle = '#03040b'; sctx.fillRect(0, 0, W, H); }
+    for (var i = 0; i < frames.length; i++) {
+      var fr = frames[i], k = fr.upp / upp, dw = fr.cw * k, dh = fr.ch * k;
+      sctx.drawImage(fr.c, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    }
+    if (ghost) {
+      var a = 1 - (now() - ghost.t) / 1400;
+      if (a <= 0 || (frames.length && a < 0.98 && ghost.seen)) { if (a <= 0) ghost = null; }
+      if (ghost) {
+        var g = 1 + (1 - a) * 0.6;
+        sctx.globalAlpha = Math.max(0, Math.min(1, frames.length ? a : 1));
+        sctx.drawImage(ghost.c, (W - W * g) / 2, (H - H * g) / 2, W * g, H * g);
+        sctx.globalAlpha = 1;
+        if (frames.length) ghost.seen = true; else ghost.t = now();
+      }
+    }
+  }
+  function wrapDive(d) {
+    var c = document.createElement('canvas'); c.width = W; c.height = H;
+    c.getContext('2d').drawImage(sea, 0, 0);
+    ghost = { c: c, t: now() };
+    dive++; D = d; frames = []; inflight = false; requestFrame(true);
+  }
+
+  // ================= Animation =================
+  var running = false, phase = '', live = 0, liveShown = 0, lastT = 0, raf = 0, lastPaint = 0, lastText = 0, progress = 0;
+  function rate(m) { return 0.06 + 1.05 * Math.pow(Math.max(0, m) / 1000, 0.55); }   // Zweierpotenzen pro Sekunde
+  function loop() {
+    raf = 0;
+    if (document.hidden) return;
+    var t = now(), dt = Math.min(0.1, (t - (lastT || t)) / 1000); lastT = t;
+    var busy = running && (phase === 'download' || phase === 'upload');
+    liveShown += (live - liveShown) * (1 - Math.exp(-dt * 5));
+    if (busy) {
+      var dd = rate(liveShown) * dt * (reduced ? 0.25 : 1);
+      if (dd > 0) { D += dd; dirty = true; }
+      if (D > DMAX) { wrapDive(4); diveNo++; }
+    }
+    warm += (warmTarget - warm) * (1 - Math.exp(-dt * 1.6));
+    // Farbzyklus: im Leerlauf langsam, beim Messen mit dem Durchsatz
+    if (!reduced) palOff += dt * (busy ? 0.04 + liveShown / 60000 : 0.012);
+    var fps = busy || ghost ? 60 : 20;
+    if (t - lastPaint >= 1000 / fps - 2) {
+      lastPaint = t;
+      buildLut(warm);
+      for (var i = 0; i < frames.length; i++) paintMandel(frames[i], palOff);
+      if (frames.length || ghost || dirty) drawSea();
+      dirty = false;
+      requestFrame(false);
+      if (running && phase !== 'ping' && t - lastText > 90) { lastText = t; liveText(); }
+    }
+    if (!(reduced && !busy && !ghost && !inflight)) schedule();
+  }
+  function schedule() { if (!raf && !document.hidden) raf = (window.requestAnimationFrame || function (f) { return setTimeout(f, 16); })(loop); }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { lastT = 0; schedule(); } });
+  window.addEventListener('resize', function () { resize(); schedule(); });
+
+  // ================= Texte =================
+  var SUP = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '-': '⁻' };
+  function sci(x) {
+    if (x < 1000) return E.fmt(x, x < 10 ? 1 : 0);
+    var e = Math.floor(Math.log(x) / Math.LN10), m = x / Math.pow(10, e);
+    return E.fmt(m, 1) + '·10' + String(e).replace(/./g, function (c) { return SUP[c]; });
+  }
+  function liveText() {
+    if (live > 0) { var s = E.fmtSpeed(liveShown); $('big').innerHTML = s.v + '<small>' + s.u + '</small>'; }
+    $('depth').innerHTML = 'Vergrößerung <b>× ' + sci(Math.pow(2, D)) + '</b>' + (diveNo > 1 ? ' · Tauchgang ' + diveNo : '') + ' · ' + maxIter(D) + ' Iterationen';
+  }
+  function fc(c) {
+    function n(v) { return (v < 0 ? '−' : '') + E.fmt(Math.abs(v), 4); }
+    return '<span>' + n(c[0]) + '</span> ' + (c[1] < 0 ? '−' : '+') + ' <span class="im">' + E.fmt(Math.abs(c[1]), 4) + ' i</span>';
+  }
+  function fcPlain(c) { return (c[0] < 0 ? '−' : '') + E.fmt(Math.abs(c[0]), 4) + (c[1] < 0 ? ' − ' : ' + ') + E.fmt(Math.abs(c[1]), 4) + 'i'; }
+
+  // ================= Julia: Parameter aus den Messwerten =================
+  function frac(x) { return x - Math.floor(x); }
+  // Punkt nahe am Rand der Hauptkardioide: dort leben die schoensten Julia-Mengen.
+  function cOf(dl, ul, ping, jit) {
+    dl = dl || 0; ul = ul || 0; ping = ping || 0; jit = jit || 0;
+    var th = 2 * Math.PI * frac(0.137 + Math.log(1 + dl) / Math.LN2 * 0.6180339887 + Math.log(1 + ul) / Math.LN2 * 0.4142135624);
+    var eps = -0.022 + 0.03 * frac(ping * 0.7316 + jit * 1.9134 + 0.21);
+    var r = 1 + eps;
+    var cr = (Math.cos(th) / 2 - Math.cos(2 * th) / 4) * r, ci = (Math.sin(th) / 2 - Math.sin(2 * th) / 4) * r;
+    return [cr, ci];
+  }
+  function renderJuliaSync(cv, c, span, max, dens) {
+    var w = cv.width, h = cv.height, buf = new Float32Array(w * h), ctx = cv.getContext('2d'), img = ctx.createImageData(w, h);
+    K.rows({ t: 'j', w: w, h: h, u: span / w, cx: 0, cy: 0, cr: c[0], ci: c[1], max: max }, buf, 0, h);
+    paintJulia(buf, img, PAL.own, 0.18, dens);
+    ctx.putImageData(img, 0, 0);
+  }
+  // Ping-Vorschau: der Parameter springt mit jedem Wert
+  var jp = $('jp'), pingLut = ramp(['#07051a', '#2a1a6e', '#7a5cf0', '#cdb8ff', '#ffffff', '#b8f2ff', '#4a7ad8', '#150f3d']);
+  function pingJulia(ms, i) {
+    var a = frac(ms * 0.913 + i * 0.1618) * 2 * Math.PI, c = [0.7885 * Math.cos(a), 0.7885 * Math.sin(a)];
+    var w = jp.width, h = jp.height, buf = new Float32Array(w * h), ctx = jp.getContext('2d'), img = ctx.createImageData(w, h);
+    K.rows({ t: 'j', w: w, h: h, u: 3.2 / w, cx: 0, cy: 0, cr: c[0], ci: c[1], max: 90 }, buf, 0, h);
+    paintJulia(buf, img, pingLut, 0.1, 0.9);
+    ctx.putImageData(img, 0, 0);
+  }
+
+  // Grosses Ergebnisbild: erst grob, dann fein (im Worker)
+  var art = $('art'), artC = null, artGen = 0;
+  function renderArt(c) {
+    var g = ++artGen, dpr = 2;
+    var css = Math.max(240, Math.min(600, art.getBoundingClientRect().width || 520));
+    var full = Math.round(css * dpr), span = 2.9;
+    function pass(size, max, cb) {
+      compute({ t: 'j', w: size, h: size, u: span / size, cx: 0, cy: 0, cr: c[0], ci: c[1], max: max }, function (buf) {
+        if (g !== artGen) return;
+        art.width = size; art.height = size;
+        var ctx = art.getContext('2d'), img = ctx.createImageData(size, size);
+        paintJulia(buf, img, PAL.own, 0.18, 0.7);
+        ctx.putImageData(img, 0, 0);
+        if (cb) cb();
+      });
+    }
+    pass(Math.round(full / 4), 220, function () { pass(full, 600); });
+  }
+
+  // ================= Einordnung =================
+  function verdict(dl) {
+    if (dl >= 4700) return ['Über 5 Gbit/s', 'Das schafft nur eine 10-GbE-Strecke.'];
+    if (dl >= 2000) return ['2,5 Gbit/s ausgeschöpft', 'Die 2,5-GbE-Verbindung läuft nahe am Maximum.'];
+    if (dl >= 940) return ['Mehr als Gigabit', 'Schneller als 1 GbE, also 2,5 GbE oder schnelles WLAN.'];
+    if (dl >= 600) return ['Gigabit-Klasse', 'Typisch für 1-GbE-Kabel oder gutes WLAN 6/7.'];
+    if (dl >= 90) return ['Ordentlich', 'Typisch für WLAN mit Abstand oder 100-Mbit-Kabel.'];
+    return ['Langsam', 'Kabel, Port oder WLAN-Empfang prüfen.'];
+  }
+
+  // ================= Ablauf =================
+  function readout(id, val, unit, sub) {
+    var r = $(id);
+    r.querySelector('.v').innerHTML = val + '<small>' + unit + '</small>';
+    r.querySelector('.s').textContent = sub || '';
+  }
+  function sp(m) { var s = E.fmtSpeed(m); return s.v + '<small>' + s.u + '</small>'; }
+  function setPhase(txt, cls) { var p = $('phase'); p.textContent = txt; p.className = 'eyebrow' + (cls ? ' ' + cls : ''); }
+  function onRo(id) { ['ro-ping', 'ro-jit', 'ro-dl', 'ro-ul'].forEach(function (k) { $(k).classList.toggle('on', k === id); }); }
+  function setBar(p, cls) { var b = $('bar'); b.hidden = false; b.className = 'bar ' + (cls || ''); $('bar-i').style.width = Math.round(p * 100) + '%'; }
+
+  var res = {}, phaseName = { ping: 'Ping · Echolot', download: 'Download · Abstieg', upload: 'Upload · tiefer' };
+  function start() {
+    var streams = +$('streams').value, duration = +$('duration').value, label = $('label').value.replace(/^\s+|\s+$/g, '');
+    try { localStorage.setItem('st-label', label); localStorage.setItem('st-streams', streams); localStorage.setItem('st-duration', duration); } catch (e) { }
+    res = {};
+    running = true; phase = ''; live = 0; liveShown = 0; warmTarget = 0;
+    document.body.classList.remove('done');
+    $('result').hidden = true; $('note').hidden = true;
+    $('intro').hidden = true; $('livebox').hidden = false; $('big').innerHTML = '…';
+    $('go').textContent = 'Stopp'; $('go').classList.add('stop');
+    readout('ro-ping', '–', 'ms'); readout('ro-jit', '–', 'ms'); readout('ro-dl', '–', 'Mbit/s'); readout('ro-ul', '–', 'Mbit/s');
+    // Tauchgang beginnt an der Oberflaeche
+    if (D > 0.5) wrapDive(0);
+    diveNo = 1; D = 0;
+    $('depth').textContent = '';
+    schedule();
+    E.run({ streams: streams, duration: duration, label: label }, {
+      phase: function (p) {
+        phase = p; live = 0; liveShown = 0;
+        setPhase(phaseName[p], { ping: 'ping', download: 'dl', upload: 'ul' }[p]);
+        onRo({ ping: 'ro-ping', download: 'ro-dl', upload: 'ro-ul' }[p]);
+        $('jp').hidden = p !== 'ping';
+        if (p === 'upload') warmTarget = 1;
+        if (p !== 'ping') { $('big').innerHTML = '…'; setBar(0, p === 'upload' ? 'ul' : ''); }
+        else setBar(0, 'ping');
+      },
+      pingSample: function (ms, i, n) {
+        $('big').innerHTML = E.fmt(ms, ms < 10 ? 2 : 1) + '<small>ms</small>';
+        $('depth').innerHTML = 'Julia c = 0,7885·e<sup>iφ</sup> · φ folgt jedem Echo';
+        pingJulia(ms, i); setBar((i + 1) / n, 'ping');
+      },
+      ping: function (p, j) {
+        readout('ro-ping', E.fmt(p, p < 10 ? 1 : 0), 'ms', 'Median aus 20');
+        readout('ro-jit', E.fmt(j, 1), 'ms', 'Schwankung');
+      },
+      live: function (kind, m, p) {
+        if (m !== null) live = m;
+        setBar(p, kind === 'upload' ? 'ul' : '');
+      },
+      result: function (kind, r) {
+        res[kind] = r;
+        var a = E.fmtSpeed(r.avg);
+        readout(kind === 'download' ? 'ro-dl' : 'ro-ul', E.fmtSpeed(r.peak).v, E.fmtSpeed(r.peak).u, 'Spitze · Ø ' + a.v + ' ' + a.u);
+      },
+      done: function (rec) { finish(); showResult(rec); loadHistory(); },
+      error: function (msg) { finish(); setPhase(msg); }
+    });
+  }
+  function finish() {
+    running = false; phase = ''; live = 0; onRo('');
+    $('go').textContent = 'Neu messen'; $('go').classList.remove('stop');
+    $('jp').hidden = true; $('bar').hidden = true;
+  }
+  function stop() {
+    E.stop(); finish();
+    setPhase('Abgebrochen');
+    $('livebox').hidden = true; $('intro').hidden = false;
+    $('depth').textContent = 'Abgebrochen, nichts gespeichert.';
+  }
+
+  function cpuLine(r) { return r && r.core !== null && r.core !== undefined ? Math.round(r.core) + ' %' : '–'; }
+  function showResult(rec) {
+    var d = res.download, u = res.upload;
+    var c = cOf(rec.dl_peak, rec.ul_peak, rec.ping, rec.jitter);
+    document.body.classList.add('done');
+    setPhase('Aufgetaucht · Messung fertig');
+    $('big').innerHTML = sp(d.peak);
+    $('depth').innerHTML = 'Erreichte Vergrößerung <b>× ' + sci(Math.pow(2, D + (diveNo - 1) * (DMAX - 4))) + '</b> · dein Fraktal wartet unten';
+    var v = verdict(d.peak);
+    $('verdict').textContent = v[0]; $('verdict-s').textContent = v[1];
+    $('cval').innerHTML = fc(c);
+    $('r-dl').innerHTML = sp(d.peak); $('r-ul').innerHTML = sp(u.peak);
+    $('r-dla').innerHTML = sp(d.avg); $('r-ula').innerHTML = sp(u.avg);
+    $('r-ping').innerHTML = E.fmt(rec.ping, rec.ping < 10 ? 1 : 0) + '<small>ms</small>';
+    $('r-jit').innerHTML = E.fmt(rec.jitter || 0, 1) + '<small>ms</small>';
+    var core = Math.max(d.core || 0, u.core || 0);
+    $('r-cpu').innerHTML = (d.core === null && u.core === null) ? '–' :
+      Math.round(core) + '<small>%</small><span>Down ' + cpuLine(d) + ' · Up ' + cpuLine(u) + '</span>';
+    $('r-str').textContent = rec.streams || '–';
+    if (core >= 90) {
+      $('note').textContent = 'Ein Prozessorkern des Routers war voll ausgelastet. Das Ergebnis zeigt eher die Grenze des Routers als die des Netzes.';
+      $('note').hidden = false;
+    }
+    $('art-cap').textContent = 'Julia-Menge zu c = ' + fcPlain(c) + ' · berechnet aus Spitzen, Ping und Jitter';
+    $('result').hidden = false;
+    renderArt(c);
+    lastC = c;
+    setTimeout(function () { var r = $('result').getBoundingClientRect(); window.scrollTo({ top: window.pageYOffset + r.top - 30, behavior: reduced ? 'auto' : 'smooth' }); }, 350);
+  }
+  var lastC = null;
+  $('save').onclick = function () {
+    try {
+      var a = document.createElement('a');
+      a.href = art.toDataURL('image/png'); a.download = 'mein-fraktal.png';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    } catch (e) { }
+  };
+
+  // ================= Verlauf =================
+  var thumbs = {};
+  function thumb(e) {
+    var c = cOf(e.dl_peak || e.dl, e.ul_peak || e.ul, e.ping, e.jitter), key = c[0].toFixed(5) + ',' + c[1].toFixed(5);
+    if (!thumbs[key]) {
+      var cv = document.createElement('canvas'); cv.width = cv.height = 112;
+      renderJuliaSync(cv, c, 3.1, 160, 0.7);
+      try { thumbs[key] = cv.toDataURL('image/png'); } catch (x) { thumbs[key] = ''; }
+    }
+    return { src: thumbs[key], c: c };
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function n0(v) { return v === null || v === undefined ? '–' : E.fmt(v, 0); }
+  function pair(peak, avg) {
+    if (peak === null || peak === undefined) return n0(avg);
+    var s = E.fmtSpeed(peak), a = E.fmtSpeed(avg || 0);
+    return s.v + ' <small>' + s.u + '<span> · Ø ' + a.v + '</span></small>';
+  }
+  function loadHistory() {
+    E.history(function (h) {
+      if (!h.length) { $('history').innerHTML = '<p class="empty">Noch keine Messungen. Dein erstes Fraktal entsteht nach dem ersten Tauchgang.</p>'; return; }
+      var out = '<ul class="list">';
+      for (var i = h.length - 1; i >= 0; i--) {
+        var e = h[i], d = new Date(e.ts * 1000), t = thumb(e);
+        var when = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '. ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        var who = esc(e.label || e.host || e.ip || 'Unbekannt'), host = e.label && e.host ? esc(e.host) + ' · ' : '';
+        out += '<li class="item">' +
+          (t.src ? '<img src="' + t.src + '" alt="Fraktal dieser Messung" width="56" height="56">' : '<span></span>') +
+          '<div class="id"><div class="who">' + who + '</div><div class="when">' + host + when + ' · ' + (e.streams || '–') + ' Verb.</div><div class="c">c = ' + fcPlain(t.c) + '</div></div>' +
+          '<div class="cell pg"><div class="k">Ping</div><div class="v">' + (e.ping === null || e.ping === undefined ? '–' : E.fmt(e.ping, 1)) + ' <small>ms</small></div></div>' +
+          '<div class="cell dl"><div class="k">Down</div><div class="v">' + pair(e.dl_peak, e.dl) + '</div></div>' +
+          '<div class="cell ul"><div class="k">Up</div><div class="v">' + pair(e.ul_peak, e.ul) + '</div></div>' +
+          '</li>';
+      }
+      $('history').innerHTML = out + '</ul>';
+    });
+  }
+  function clearAsk() {
+    $('clear-wrap').innerHTML = '<span class="confirm">Alle Messungen löschen? <button class="btn warn" id="yes">Ja, löschen</button><button class="btn" id="no">Nein</button></span>';
+    $('yes').onclick = function () { E.clearHistory(function () { loadHistory(); clearReset(); }); };
+    $('no').onclick = clearReset;
+    $('no').focus();
+  }
+  function clearReset() { $('clear-wrap').innerHTML = '<button class="btn" id="clear">Verlauf löschen</button>'; $('clear').onclick = clearAsk; }
+  $('clear').onclick = clearAsk;
+
+  $('go').onclick = function () { if (running) stop(); else start(); };
+  $('again').onclick = function () { window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' }); start(); };
+
+  try {
+    var l = localStorage.getItem('st-label'), s = localStorage.getItem('st-streams'), du = localStorage.getItem('st-duration');
+    if (l) $('label').value = l; if (s) $('streams').value = s; if (du) $('duration').value = du;
+  } catch (e) { }
+
+  // Leerlauf: ein Stueck ins Seepferdchental, damit gleich etwas Schoenes zu sehen ist
+  D = 0;
+  resize(); schedule();
+
+  E.init(function (info) {
+    $('host').textContent = info.hostname;
+    $('meta').innerHTML = esc((info.model ? info.model + ' · ' : '') + info.cores + ' Kerne · Du: ' +
+      (info.client_host ? info.client_host + ' (' + info.client_ip + ')' : info.client_ip)) + (info.demo ? '<span class="demo">Demo</span>' : '');
+    $('go').disabled = false;
+    loadHistory();
+  });
+})();
+</script>
+</body>
+</html>
