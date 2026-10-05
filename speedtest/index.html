@@ -332,14 +332,14 @@ th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
       runTransfer(streams, duration, dlWorker, function (m, p) { setBig(m); bar(p); }, function (dl, dlPeak) {
        cpu.finish(function () {
         r.dl = Math.round(dl * 10) / 10; r.dl_peak = Math.round(dlPeak * 10) / 10; r.cpu_dl = round(cpu.avg); r.core_dl = round(cpu.core);
-        var s = fmtSpeed(dl); setRes('res-dl', s.v, s.u, peakText(dlPeak) + cpu.text());
+        var s = fmtSpeed(dlPeak); setRes('res-dl', s.v, s.u, avgText(dl) + cpu.text());
 
         phase('Upload'); setBig(null); bar(0);
         var cpu2 = new CpuWatch();
         runTransfer(streams, duration, ulWorker, function (m, p) { setBig(m); bar(p); }, function (ul, ulPeak) {
          cpu2.finish(function () {
           r.ul = Math.round(ul * 10) / 10; r.ul_peak = Math.round(ulPeak * 10) / 10; r.cpu_ul = round(cpu2.avg); r.core_ul = round(cpu2.core);
-          var s2 = fmtSpeed(ul); setRes('res-ul', s2.v, s2.u, peakText(ulPeak) + cpu2.text());
+          var s2 = fmtSpeed(ulPeak); setRes('res-ul', s2.v, s2.u, avgText(ul) + cpu2.text());
           finish(r);
          });
         }, cpu2.mark);
@@ -347,7 +347,7 @@ th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
       }, cpu.mark);
     });
   }
-  function peakText(m) { var p = fmtSpeed(m); return 'Spitze ' + p.v + ' ' + p.u + '\n'; }
+  function avgText(m) { var p = fmtSpeed(m); return 'Durchschnitt ' + p.v + ' ' + p.u + '\n'; }
   function round(v) { return v === null || v === undefined ? null : Math.round(v); }
 
   function finish(r) {
@@ -364,6 +364,11 @@ th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
 
   // ---------- Verlauf ----------
   function cell(v, d) { return (v === null || v === undefined) ? '–' : fmt(v, d); }
+  // Aeltere Eintraege ohne Spitze zeigen nur den Durchschnitt
+  function speedCell(peak, avg) {
+    if (peak === null || peak === undefined) return cell(avg, 0);
+    return cell(peak, 0) + ' <small>/ ' + cell(avg, 0) + '</small>';
+  }
   function loadHistory() {
     req('GET', API + '/history', null, function (h) {
       if (!h || !h.length) { $('history').innerHTML = '<div class="empty">Noch keine Messungen.</div>'; return; }
@@ -376,12 +381,11 @@ th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
         if (e.label && e.host) who += ' (' + e.host + ')';
         var core = Math.max(e.core_dl || 0, e.core_ul || 0);
         rows += '<tr><td>' + when + '</td><td title="' + esc(e.ip) + '">' + esc(who) + '</td><td>' +
-          cell(e.ping, 1) + '</td><td>' + cell(e.dl, 0) + (e.dl_peak ? ' <small>/ ' + cell(e.dl_peak, 0) + '</small>' : '') + '</td><td>' +
-          cell(e.ul, 0) + (e.ul_peak ? ' <small>/ ' + cell(e.ul_peak, 0) + '</small>' : '') + '</td><td>' +
+          cell(e.ping, 1) + '</td><td>' + speedCell(e.dl_peak, e.dl) + '</td><td>' + speedCell(e.ul_peak, e.ul) + '</td><td>' +
           (e.streams || '–') + '</td><td>' + (core ? core + ' %' : '–') + '</td></tr>';
       }
-      $('history').innerHTML = '<table><tr><th>Zeit</th><th>Gerät</th><th>Ping ms</th><th>Down Mbit/s<br><small>/ Spitze</small></th>' +
-        '<th>Up Mbit/s<br><small>/ Spitze</small></th><th>Verb.</th><th>CPU-Kern max</th></tr>' + rows + '</table>';
+      $('history').innerHTML = '<table><tr><th>Zeit</th><th>Gerät</th><th>Ping ms</th><th>Down Mbit/s<br><small>Spitze / Ø</small></th>' +
+        '<th>Up Mbit/s<br><small>Spitze / Ø</small></th><th>Verb.</th><th>CPU-Kern max</th></tr>' + rows + '</table>';
     });
   }
 
