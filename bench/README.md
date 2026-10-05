@@ -10,11 +10,12 @@ Vergleicht drei Wege, wie uhttpd Testdaten liefern und annehmen kann:
 
 `setup.sh` schaltet die HTTP->HTTPS-Umleitung von uhttpd fuer die Messung ab, `cleanup.sh` stellt den alten Wert wieder her.
 Fehlt `uhttpd-mod-ucode`, wird Variante C uebersprungen (nachinstallieren mit `apk add uhttpd-mod-ucode`).
-Zeilen mit `-` statt Mbit/s hatten keinen HTTP-Status 200.
+Der Download nutzt 256 MB, der Upload 32 MB. Zeilen mit `-` statt Mbit/s hatten keinen HTTP-Status 200.
 
 ## Ablauf
 
-1. `setup.sh` und `cleanup.sh` per WinSCP nach `/tmp/` auf den Router kopieren.
+1. `setup.sh` und `cleanup.sh` per WinSCP (Protokoll SCP) nach `/tmp/` auf den Router kopieren.
+   Mit dem Kommandozeilen-`scp` die Option `-O` setzen, weil dropbear kein SFTP kann.
 2. Per SSH: `sh /tmp/setup.sh`
 3. Parallel eine zweite SSH-Sitzung mit `top -d 1` offen lassen und die CPU-Last beobachten.
 4. Auf dem Windows-PC (PowerShell, im Ordner mit `client.ps1`):

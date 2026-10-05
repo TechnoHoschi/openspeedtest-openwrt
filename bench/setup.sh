@@ -6,7 +6,7 @@
 # Rueckgaengig: sh cleanup.sh
 set -e
 DIR=/www/speedtest-bench
-SIZE_MB=${SIZE_MB:-32}
+SIZE_MB=${SIZE_MB:-256}
 
 UCODE=1
 [ -f /usr/lib/uhttpd_ucode.so ] || { UCODE=0; echo "HINWEIS: uhttpd-mod-ucode fehlt, Variante C wird uebersprungen (nachinstallieren: apk add uhttpd-mod-ucode)"; }

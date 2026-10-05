@@ -5,7 +5,7 @@ param([string]$Router = "192.168.1.252", [int]$Runs = 3)
 $up = Join-Path $env:TEMP "st-up.bin"
 if (-not (Test-Path $up)) { [IO.File]::WriteAllBytes($up, (New-Object byte[] (32MB))) }
 
-function Measure($label, $curlArgs, $streams) {
+function Invoke-Bench($label, $curlArgs, $streams) {
     $best = 0
     for ($r = 0; $r -lt $Runs; $r++) {
         $sw = [Diagnostics.Stopwatch]::StartNew()
@@ -22,9 +22,9 @@ function Measure($label, $curlArgs, $streams) {
 
 $b = "http://$Router"
 foreach ($s in 1, 4) {
-    Measure "A Download statisch/RAM" @("-o", "NUL", "$b/speedtest-bench/data/dl.bin") $s
-    Measure "B Download CGI"          @("-o", "NUL", "$b/cgi-bin/bench-dl.cgi") $s
-    Measure "C Download ucode"        @("-o", "NUL", "$b/bench-uc") $s
-    Measure "B Upload CGI"            @("-o", "NUL", "--data-binary", "@$up", "$b/cgi-bin/bench-up.cgi") $s
-    Measure "C Upload ucode"          @("-o", "NUL", "--data-binary", "@$up", "$b/bench-uc") $s
+    Invoke-Bench "A Download statisch/RAM" @("-o", "NUL", "$b/speedtest-bench/data/dl.bin") $s
+    Invoke-Bench "B Download CGI"          @("-o", "NUL", "$b/cgi-bin/bench-dl.cgi") $s
+    Invoke-Bench "C Download ucode"        @("-o", "NUL", "$b/bench-uc") $s
+    Invoke-Bench "B Upload CGI"            @("-o", "NUL", "--data-binary", "@$up", "$b/cgi-bin/bench-up.cgi") $s
+    Invoke-Bench "C Upload ucode"          @("-o", "NUL", "--data-binary", "@$up", "$b/bench-uc") $s
 }
