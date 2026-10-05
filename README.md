@@ -1,121 +1,61 @@
-# OpenSpeedTest – OpenWrt / uhttpd CGI Fork
+# LAN-Speedtest für OpenWrt
 
-> **TL;DR:** OpenSpeedTest ohne NGINX, ohne Docker, ohne statische Download-Dateien – läuft direkt auf OpenWrt via uhttpd und drei Shell-CGIs. Weil manchmal muss es einfach der Router selbst richten.
+Ein Browser-Speedtest, den der eingebaute Webserver **uhttpd** (derselbe, der LuCI ausliefert) direkt vom Router bereitstellt.
+Gemessen wird die Strecke **Client ↔ Router** über LAN oder WLAN, nicht die Internetleitung.
+Läuft auf Desktop, Handy, Tablet und SmartTV, ohne App und ohne Zusatzpakete außer `uhttpd-mod-ucode`.
 
-Dieses Repository ist ein Fork von [OpenSpeedTest™](https://openspeedtest.com) und wurde für den Betrieb auf **OpenWrt mit uhttpd** angepasst. Das Original setzt NGINX oder Docker voraus. Beides ist auf einem Router-SoC entweder nicht verfügbar oder eine schlechte Idee.
+Früher war das ein Fork von OpenSpeedTest mit Shell-CGIs. Messungen auf einem Asus BT8 haben gezeigt, dass die CGIs der Flaschenhals sind,
+deshalb ist das hier ein Neuaufbau (alter Stand: Branch `main` vor dem Neuaufbau, siehe Git-Historie).
 
-Die eigentliche Arbeit hat größtenteils eine KI erledigt. Der Mensch hat primär auf den "Deploy"-Button gedrückt, Kaffee getrunken und gelegentlich den Browser-Tab neu geladen. Klassisches Vibecoding – aber es funktioniert. Kommentar: Das wäre zu schön gewesen, Debugging und der KI auf die Sprünge zu helfen, wenn sie vom Weg abgekommen ist, sind zu unterschätzen. ;)
+## So funktioniert es
 
----
+| Teil | Umsetzung | Warum |
+|---|---|---|
+| Download | statische Datei in einem RAM-tmpfs (`/www/speedtest/data/dl.bin`), uhttpd liefert direkt aus | schnellste Variante, kein Flash |
+| Upload | ucode-Handler `api.uc` in uhttpd, liest und verwirft die Daten | gut doppelt so schnell wie Shell-CGI |
+| Ping/Jitter | kleine Datei `ping.txt`, 20 Abfragen, Median | ohne Script-Overhead |
+| Router-CPU | `api.uc` liefert `/proc/stat`, die Seite zeigt Durchschnitt und stärksten Kern | zeigt, ob der Router oder das Netz begrenzt |
+| Verlauf | `/tmp/speedtest-history.json` (RAM), max. 200 Einträge, mit Hostname aus der DHCP-Liste und frei wählbarem Gerätenamen | kein Flash-Verschleiß, nach Neustart leer |
 
-## Was wird hier eigentlich gemessen?
+Die Download-Datei (64 MB, auf knappen Geräten weniger) legt `api.uc` beim ersten Aufruf der Seite selbst an, auch nach einem Neustart.
 
-> ⚠️ **Wichtig:** Dieser Speedtest misst die Geschwindigkeit zwischen dem Client (Browser) und der **LAN-Schnittstelle des Routers** – **nicht** die Internetgeschwindigkeit.
+Messwerte auf dem Asus BT8 (3 Kerne, PC per 2,5 GbE, Messkit in `bench/`):
 
-Das ist kein Bug, sondern der Sinn der Sache. Du misst damit:
-- Die Leistung deines LAN/WLAN-Links zum Router
-- Den Durchsatz des Router-SoC beim Streamen/Empfangen
-- Ob dein Switch, dein Patchkabel oder deine WLAN-Verbindung der Flaschenhals ist
+| | 1 Verbindung | 4 Verbindungen |
+|---|---|---|
+| Download, Datei im RAM | 1019 Mbit/s | 1842 Mbit/s |
+| Upload, ucode | 599 Mbit/s | 1142 Mbit/s |
+| Upload, Shell-CGI (alt) | 319 Mbit/s | 404 Mbit/s |
+| iperf3 -P4 (Referenz) | | 2320 / 1710 Mbit/s |
 
-Für einen WAN-Speedtest (Internet) nimm [fast.com](https://fast.com) oder [speedtest.net](https://speedtest.net).
+## Voraussetzungen
 
----
-
-## Was wurde geändert?
-
-| Original | Dieser Fork |
-|---|---|
-| Benötigt NGINX/Docker | Läuft auf uhttpd (OpenWrt built-in) |
-| Statische Download-Dateien | `downloading.cgi` streamt aus `/dev/zero` (kein Flash-Verschleiß) |
-| Upload via Static-File-POST | `upload.cgi` verwirft Body via `dd` nach exakt `CONTENT_LENGTH` Bytes |
-| Kein ICMP-Ping | `ping.cgi` pingt den Client via `$REMOTE_ADDR` und gibt echte RTT zurück |
-| Frontend in docroot | Frontend in `/www/speedtest/`, Endpoints absolut via `/cgi-bin/` referenziert |
-
----
-
-## Hardware-Anforderungen
-
-Das läuft nicht auf jedem OpenWrt-Router. Ein GL.iNet AR300M mit 64MB RAM und MIPS-SoC aus 2017 wird an 10 parallelen CGI-Threads und `/dev/zero`-Streaming herzlich wenig Freude haben.
-
-**Getestet auf:** TP-Link BE450 (WiFi 7, ARM-SoC, ausreichend RAM) – funktioniert problemlos.
-
-**Sollte ebenfalls funktionieren:**
-- Banana Pi R3 / R4 (MediaTek Filogic, ernstzunehmende Hardware)
-- ASUS BT-8 (ähnliche Liga)
-- Generell: alles mit ARM64-SoC, ≥256MB RAM und GbE
-
-**Wird wahrscheinlich leiden:** Alles mit MIPS, <128MB RAM oder einem SoC der hauptsächlich als Briefbeschwerer taugt.
-
----
+- OpenWrt 25.12 (getestet: Asus BT8), ab Dual-Core und 128 MB RAM
+- `uhttpd-mod-ucode` (ist mit LuCI meist schon da, sonst `apk add uhttpd-mod-ucode`)
+- Aufruf über **http://**: HTTPS kostet den Router viel CPU. Ist `redirect_https` aktiv, weist `install.sh` darauf hin.
 
 ## Installation
 
-### Voraussetzungen
+1. Den Ordner `speedtest/` per WinSCP (Protokoll SCP) nach `/www/speedtest` kopieren.
+   Mit Kommandozeilen-`scp` die Option `-O` verwenden, dropbear kann kein SFTP.
+2. Per SSH: `sh /www/speedtest/install.sh`
+3. Im Browser: `http://<router-ip>/speedtest/`
 
-`wget` und `tar` sind auf OpenWrt standardmäßig verfügbar – keine zusätzlichen Pakete nötig.
+`install.sh` trägt den ucode-Handler in `/etc/config/uhttpd` ein (`ucode_prefix /speedtest-api`), setzt `max_requests` auf mindestens 16
+und startet uhttpd neu. Läuft uhttpd danach nicht, stellt das Skript die alte Konfiguration sofort wieder her, damit LuCI erreichbar bleibt.
 
-> `cgi_prefix=/cgi-bin` ist OpenWrt-Default – da muss nichts verbogen werden. LuCI bleibt unangetastet.
+Für Backups: `/www/speedtest` und `/etc/config/uhttpd` sichern.
 
-### Sicherstellen dass `/www/cgi-bin` existiert
+## Entfernen
 
-```sh
-[ -d /www/cgi-bin ] || { echo "ERROR: /www/cgi-bin nicht gefunden. uhttpd korrekt konfiguriert?"; exit 1; }
-```
+`sh /www/speedtest/uninstall.sh` nimmt den Eintrag aus uhttpd heraus, gibt den RAM frei und löscht den Ordner.
 
-### Deployen
+## Hinweise
 
-```sh
-cd /tmp
-wget -O openspeedtest.tar.gz https://github.com/TechnoHoschi/openspeedtest-openwrt/archive/refs/heads/main.tar.gz
-tar -xzf openspeedtest.tar.gz
-mv openspeedtest-openwrt-main /www/speedtest
-
-# CGIs ins richtige Verzeichnis
-cp /www/speedtest/downloading.cgi /www/cgi-bin/
-cp /www/speedtest/upload.cgi      /www/cgi-bin/
-cp /www/speedtest/ping.cgi        /www/cgi-bin/
-chmod +x /www/cgi-bin/downloading.cgi /www/cgi-bin/upload.cgi /www/cgi-bin/ping.cgi
-
-# Aufräumen
-rm /tmp/openspeedtest.tar.gz
-```
-
-### uhttpd Timeouts anpassen
-
-```sh
-uci set uhttpd.main.network_timeout='120'
-uci set uhttpd.main.script_timeout='120'
-uci set uhttpd.main.max_requests='20'
-uci commit uhttpd
-service uhttpd restart
-```
-
-### Aufrufen
-
-```
-http://<router-ip>/speedtest/
-```
-
-### Updates
-
-Installation wiederholen – bestehende `/www/speedtest` vorher löschen:
-
-```sh
-rm -rf /www/speedtest
-```
-
----
-
-## Bekannte Eigenheiten
-
-- **Ping-Anzeige im Framework (~60ms):** Das OpenSpeedTest-JS misst Ping via XHR-Roundtrip, nicht via ICMP. Der Browser-Stack addiert ~55ms Overhead. Der echte LAN-Ping (unten rechts als ICMP-Overlay) ist deutlich realistischer.
-- **NS_BINDING_ABORTED im Browser-Log:** Normal. Das JS bricht Download/Upload-Requests nach Ablauf der Messdauer absichtlich ab.
-- **LuCI läuft parallel:** Solange `cgi_prefix=/cgi-bin` der Default bleibt und wir keine fremden Dateien anpacken, koexistieren LuCI und der Speedtest ohne Probleme.
-
----
+- **„Kern max“ nahe 100 %:** Ein Router-Kern war voll ausgelastet. uhttpd bearbeitet eine Verbindung auf einem Kern, mehr Verbindungen können helfen.
+- **iperf3** liefert die Referenz fürs Netz, ein Browser kann das Protokoll aber nicht sprechen. Wer es dauerhaft laufen lässt, sollte es mit `-B <lan-ip>` an das LAN binden.
+- Ältere Browser ohne Fetch-Streams messen den Download per XHR in 32-MB-Häppchen, damit der Browser-RAM klein bleibt.
 
 ## Lizenz
 
-MIT License – Copyright (c) 2013–2024 OpenSpeedTest™
-
-Dieser Fork übernimmt die MIT-Lizenz des Originals. Siehe [License.md](License.md).
+MIT, siehe [LICENSE](LICENSE).
