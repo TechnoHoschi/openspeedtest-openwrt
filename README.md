@@ -11,7 +11,7 @@ deshalb ist das hier ein Neuaufbau (alter Stand: Branch `main` vor dem Neuaufbau
 
 | Teil | Umsetzung | Warum |
 |---|---|---|
-| Download | statische Datei in einem RAM-tmpfs (`/www/speedtest/data/dl.bin`), uhttpd liefert direkt aus | schnellste Variante, kein Flash |
+| Download | statische Datei in `/tmp/speedtest` (RAM), per Bind-Mount unter `/www/speedtest/data/` eingeblendet, uhttpd liefert direkt aus | schnellste Variante, kein Flash |
 | Upload | ucode-Handler `api.uc` in uhttpd, liest und verwirft die Daten | gut doppelt so schnell wie Shell-CGI |
 | Ping/Jitter | kleine Datei `ping.txt`, 20 Abfragen, Median | ohne Script-Overhead |
 | Router-CPU | `api.uc` liefert `/proc/stat`, die Seite zeigt Durchschnitt und stärksten Kern | zeigt, ob der Router oder das Netz begrenzt |

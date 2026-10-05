@@ -8,6 +8,7 @@ const fs = require('fs');
 const WWW = '/www/speedtest';
 const DATA = WWW + '/data';
 const DL_FILE = DATA + '/dl.bin';
+const RAM_DIR = '/tmp/speedtest';
 const HISTORY = '/tmp/speedtest-history.json';
 const HISTORY_MAX = 200;
 
@@ -59,21 +60,31 @@ function client_name(ip) {
 	return null;
 }
 
-// Download-Datei im RAM (tmpfs) anlegen, falls noch nicht da (z. B. nach Neustart).
-// Groesse: 64 MB, auf knappen Geraeten weniger.
+// Download-Datei liegt in /tmp (RAM), nie im Flash. uhttpd liefert nur Dateien
+// innerhalb von /www aus (Symlinks nach draussen lehnt es ab), deshalb wird
+// /tmp/speedtest per Bind-Mount unter /www/speedtest/data eingeblendet.
+// Groesse: 64 MB, auf knappen Geraeten weniger. Nach einem Neustart neu angelegt.
+function mounted() {
+	return index(read('/proc/mounts') || '', ' ' + DATA + ' ') >= 0;
+}
+
 function prepare() {
+	if (!mounted()) {
+		// Reste aus aelteren Versionen im Flash entfernen
+		fs.unlink(DL_FILE);
+		fs.mkdir(DATA);
+		fs.mkdir(RAM_DIR);
+		system(sprintf("mount -o bind '%s' '%s'", RAM_DIR, DATA));
+		if (!mounted())
+			return 0;   // lieber ohne Testdatei als in den Flash schreiben
+	}
+	let st = fs.stat(DL_FILE);
+	if (st && st.size >= 8 * 1048576)
+		return st.size;
 	let mb = 64;
 	let avail = mem_available_mb();
 	while (mb > 8 && mb * 4 > avail)
 		mb /= 2;
-	let st = fs.stat(DL_FILE);
-	if (st && st.size >= 8 * 1048576)
-		return st.size;
-	let mounts = read('/proc/mounts') || '';
-	if (index(mounts, ' ' + DATA + ' ') < 0) {
-		fs.mkdir(DATA);
-		system(sprintf("mount -t tmpfs -o size=%dm,mode=0755 tmpfs '%s'", mb + 1, DATA));
-	}
 	system(sprintf("dd if=/dev/zero of='%s.tmp' bs=1048576 count=%d 2>/dev/null && mv '%s.tmp' '%s'",
 		DL_FILE, mb, DL_FILE, DL_FILE));
 	st = fs.stat(DL_FILE);
