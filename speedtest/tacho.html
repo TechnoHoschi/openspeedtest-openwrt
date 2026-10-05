@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Speedtest Tacho</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;500;600&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: ein Instrument in der Mitte (Tacho), darunter die drei Messgroessen als Anzeigefelder;
+   nach der Messung baut sich die Buehne zur Auswertung mit Verlaufskurven um. Bewusst nur dunkel. */
+:root {
+  --night: #0b0f1a;        /* Hintergrund, leicht blaustichig */
+  --panel: #131a2a;
+  --line: #233049;
+  --ink: #e9eef8;
+  --mute: #8592ab;
+  --down: #35d0ba;         /* Download: Tuerkis */
+  --up: #b98cff;           /* Upload: Violett */
+  --ping: #f2c14e;         /* Ping: Bernstein */
+  --warn: #ff8a65;
+  --f-num: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --f-ui: "Barlow", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { background: var(--night); color: var(--ink); }
+body { margin: 0; font: 15px/1.45 var(--f-ui); }
+main { max-width: 980px; margin: 0 auto; padding: 20px 16px 40px; display: grid; gap: 20px; }
+main > *, .stage > * { min-width: 0; }
+header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; }
+header h1 { margin: 0; font: 600 1.35rem/1.1 var(--f-num); letter-spacing: .04em; text-transform: uppercase; }
+header h1 span { color: var(--down); }
+.meta { color: var(--mute); font-size: .88rem; }
+.demo { color: var(--night); background: var(--ping); border-radius: 4px; padding: 1px 7px; font-weight: 600; font-size: .75rem; margin-left: 6px; }
+
+/* Anzeigefelder */
+.readouts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.ro { border-top: 2px solid var(--line); padding-top: 8px; transition: border-color .4s; }
+.ro .k { display: flex; align-items: center; gap: 6px; color: var(--mute); font-size: .75rem; letter-spacing: .12em; text-transform: uppercase; }
+.ro .k i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.ro .v { font: 500 2.2rem/1.05 var(--f-num); font-variant-numeric: tabular-nums; }
+.ro .v small { font: 400 .95rem var(--f-ui); color: var(--mute); margin-left: 4px; }
+.ro .s { color: var(--mute); font-size: .78rem; min-height: 1.2em; }
+.ro.ping .k { color: var(--ping); } .ro.dl .k { color: var(--down); } .ro.ul .k { color: var(--up); }
+.ro.on.ping { border-color: var(--ping); } .ro.on.dl { border-color: var(--down); } .ro.on.ul { border-color: var(--up); }
+
+/* Tacho */
+.stage { position: relative; display: grid; place-items: center; width: 100%; }
+.gauge { width: min(560px, 100%); aspect-ratio: 1 / .78; max-width: 100%; }
+.gauge text { font-family: var(--f-num); fill: var(--mute); font-size: 15px; }
+.center { position: absolute; left: 50%; top: 64%; transform: translate(-50%, -50%); }
+.live { position: absolute; left: 50%; top: 88%; transform: translate(-50%, -50%); text-align: center; display: grid; justify-items: center; gap: 0; }
+.big { font: 300 clamp(2.6rem, 10vw, 4.6rem)/1 var(--f-num); font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+.unit { color: var(--mute); font-size: .9rem; letter-spacing: .1em; text-transform: uppercase; }
+.phase { color: var(--mute); font-size: .78rem; letter-spacing: .2em; text-transform: uppercase; min-height: 1.2em; }
+.go { width: 128px; height: 128px; border-radius: 50%; border: 2px solid var(--down); background: radial-gradient(circle at 50% 40%, #173a42, var(--night) 70%);
+  color: var(--ink); font: 600 1.9rem/1 var(--f-num); letter-spacing: .14em; cursor: pointer; box-shadow: 0 0 0 0 rgba(53,208,186,.45); animation: pulse 2.4s infinite; }
+.go:hover { background: radial-gradient(circle at 50% 40%, #1d4c55, var(--night) 70%); }
+.go:focus-visible, .btn:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--down); outline-offset: 3px; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(53,208,186,.40); } 70% { box-shadow: 0 0 0 22px rgba(53,208,186,0); } 100% { box-shadow: 0 0 0 0 rgba(53,208,186,0); } }
+.btn { font: 600 .9rem var(--f-ui); color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 8px 20px; cursor: pointer; }
+.btn:hover { border-color: var(--mute); }
+.btn.stop { border-color: var(--warn); color: var(--warn); }
+
+.opts { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 18px; color: var(--mute); font-size: .85rem; }
+.opts label { display: flex; align-items: center; gap: 6px; }
+select, input { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+input { width: 10.5em; }
+
+/* Auswertung */
+.result { display: grid; gap: 16px; }
+.res-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.res-card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 6px; min-width: 0; }
+.res-card .k { font-size: .75rem; letter-spacing: .14em; text-transform: uppercase; }
+.res-card.dl .k { color: var(--down); } .res-card.ul .k { color: var(--up); }
+.res-card .v { font: 300 clamp(2.8rem, 9vw, 4.4rem)/1 var(--f-num); font-variant-numeric: tabular-nums; }
+.res-card .v small { font: 400 1rem var(--f-ui); color: var(--mute); margin-left: 6px; }
+.res-card .s { color: var(--mute); font-size: .85rem; }
+.res-card svg { width: 100%; height: 70px; display: block; }
+.verdict { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; justify-content: space-between; border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px; }
+.verdict b { font: 500 1.25rem var(--f-num); letter-spacing: .03em; }
+.verdict .s { color: var(--mute); font-size: .85rem; }
+.note { color: var(--warn); font-size: .85rem; }
+
+/* Verlauf */
+.hist h2 { font: 600 1rem var(--f-num); letter-spacing: .14em; text-transform: uppercase; color: var(--mute); margin: 0 0 6px; display: flex; justify-content: space-between; align-items: center; }
+.tbl { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .86rem; font-variant-numeric: tabular-nums; }
+th, td { padding: 7px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+th { color: var(--mute); font-weight: 500; font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; }
+th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
+td.dl { color: var(--down); } td.ul { color: var(--up); }
+td small { color: var(--mute); }
+.empty { color: var(--mute); padding: 8px 0; }
+.confirm { display: inline-flex; gap: 8px; align-items: center; font: 400 .8rem var(--f-ui); letter-spacing: 0; text-transform: none; }
+
+@media (max-width: 640px) {
+  .readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .res-grid { grid-template-columns: minmax(0, 1fr); }
+  .go { width: 104px; height: 104px; font-size: 1.6rem; }
+}
+@media (prefers-reduced-motion: reduce) { .go { animation: none; } * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>LAN-Speedtest <span id="host">…</span></h1>
+    <div class="meta" id="meta">Verbinde mit dem Router …</div>
+  </header>
+
+  <section id="measure">
+    <div class="stage">
+      <svg class="gauge" id="gauge" viewBox="0 0 400 312" aria-hidden="true"></svg>
+      <div class="center"><button class="go" id="go" disabled>LOS</button></div>
+      <div class="live">
+        <div class="big" id="big" hidden>0</div>
+        <div class="unit" id="unit" hidden>Mbit/s</div>
+        <div class="phase" id="phase">Bereit</div>
+      </div>
+    </div>
+    <div class="opts">
+      <label for="streams">Verbindungen
+        <select id="streams"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select></label>
+      <label for="duration">Dauer
+        <select id="duration"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></label>
+      <label for="label">Gerät <input id="label" maxlength="40" placeholder="z. B. Laptop WLAN"></label>
+      <button class="btn stop" id="stop" hidden>Stopp</button>
+    </div>
+  </section>
+
+  <div class="readouts">
+    <div class="ro ping" id="ro-ping"><div class="k"><i></i>Ping</div><div class="v">–<small>ms</small></div><div class="s"></div></div>
+    <div class="ro jit"><div class="k">Jitter</div><div class="v" id="v-jit">–<small>ms</small></div><div class="s"></div></div>
+    <div class="ro dl" id="ro-dl"><div class="k"><i></i>Download</div><div class="v">–<small>Mbit/s</small></div><div class="s"></div></div>
+    <div class="ro ul" id="ro-ul"><div class="k"><i></i>Upload</div><div class="v">–<small>Mbit/s</small></div><div class="s"></div></div>
+  </div>
+
+  <section class="result" id="result" hidden>
+    <div class="verdict"><div><b id="verdict">–</b><div class="s" id="verdict-s"></div></div>
+      <button class="btn" id="again">Neu messen</button></div>
+    <div class="res-grid">
+      <div class="res-card dl"><div class="k">Download · Spitze</div><div class="v" id="r-dl">–</div>
+        <div class="s" id="r-dl-s"></div><svg id="c-dl" viewBox="0 0 300 70" preserveAspectRatio="none"></svg></div>
+      <div class="res-card ul"><div class="k">Upload · Spitze</div><div class="v" id="r-ul">–</div>
+        <div class="s" id="r-ul-s"></div><svg id="c-ul" viewBox="0 0 300 70" preserveAspectRatio="none"></svg></div>
+    </div>
+    <div class="note" id="note" hidden></div>
+  </section>
+
+  <section class="hist">
+    <h2>Verlauf <span id="clear-wrap"><button class="btn" id="clear">Löschen</button></span></h2>
+    <div class="tbl" id="history"><div class="empty">Noch keine Messungen.</div></div>
+  </section>
+</main>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.SpeedEngine, $ = function (id) { return document.getElementById(id); };
+  var NS = 'http://www.w3.org/2000/svg';
+
+  // ---------- Tacho: Skala in Stufen wie bei Netzwerkklassen ----------
+  var TICKS = [0, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
+  var A0 = 135, SWEEP = 270, CX = 200, CY = 200, R = 160;
+  function frac(m) {
+    if (m <= 0) return 0;
+    for (var i = 1; i < TICKS.length; i++) {
+      if (m <= TICKS[i]) return (i - 1 + (m - TICKS[i - 1]) / (TICKS[i] - TICKS[i - 1])) / (TICKS.length - 1);
+    }
+    return 1;
+  }
+  function pt(deg, r) { var a = deg * Math.PI / 180; return [CX + r * Math.cos(a), CY + r * Math.sin(a)]; }
+  function arc(f0, f1, r) {
+    var a = pt(A0 + SWEEP * f0, r), b = pt(A0 + SWEEP * f1, r), large = SWEEP * (f1 - f0) > 180 ? 1 : 0;
+    return 'M' + a[0].toFixed(2) + ' ' + a[1].toFixed(2) + ' A' + r + ' ' + r + ' 0 ' + large + ' 1 ' + b[0].toFixed(2) + ' ' + b[1].toFixed(2);
+  }
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    (parent || gauge).appendChild(e); return e;
+  }
+  var gauge = $('gauge');
+  var defs = el('defs', {});
+  ['down', 'up'].forEach(function (k) {
+    var g = el('linearGradient', { id: 'g-' + k, x1: '0', y1: '1', x2: '1', y2: '0' }, defs);
+    el('stop', { offset: '0', 'stop-color': k === 'down' ? '#1b6f8f' : '#5b3fa8' }, g);
+    el('stop', { offset: '1', 'stop-color': k === 'down' ? '#35d0ba' : '#d9b8ff' }, g);
+  });
+  el('path', { d: arc(0, 1, R), fill: 'none', stroke: '#1b2438', 'stroke-width': 22, 'stroke-linecap': 'round' });
+  var fill = el('path', { d: arc(0, 0.0001, R), fill: 'none', stroke: 'url(#g-down)', 'stroke-width': 22, 'stroke-linecap': 'round' });
+  TICKS.forEach(function (t, i) {
+    var f = i / (TICKS.length - 1), a = pt(A0 + SWEEP * f, R - 20), b = pt(A0 + SWEEP * f, R - 28), c = pt(A0 + SWEEP * f, R - 46);
+    el('line', { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: '#3a4866', 'stroke-width': 2 });
+    var tx = el('text', { x: c[0], y: c[1] + 5, 'text-anchor': 'middle' });
+    tx.textContent = t >= 1000 ? (t / 1000) + 'G' : t;
+  });
+  var needle = el('path', { d: 'M ' + (CX - 5) + ' ' + CY + ' L ' + CX + ' ' + (CY - R + 34) + ' L ' + (CX + 5) + ' ' + CY + ' Z', fill: '#e9eef8', opacity: '0' });
+  el('circle', { cx: CX, cy: CY, r: 9, fill: '#e9eef8', opacity: '0', id: 'hub' });
+  var shown = 0;
+  function setGauge(m, kind) {
+    // weiche Nachfuehrung, damit die Nadel nicht springt
+    shown += (m - shown) * 0.55;
+    var f = frac(shown);
+    fill.setAttribute('d', arc(0, Math.max(0.0001, f), R));
+    fill.setAttribute('stroke-opacity', f < 0.003 ? '0' : '1');
+    fill.setAttribute('stroke', kind === 'upload' ? 'url(#g-up)' : 'url(#g-down)');
+    needle.setAttribute('transform', 'rotate(' + (A0 + SWEEP * f + 90) + ' ' + CX + ' ' + CY + ')');
+  }
+  function needleVisible(v) { needle.setAttribute('opacity', v ? '1' : '0'); $('hub').setAttribute('opacity', v ? '1' : '0'); }
+
+  // ---------- Anzeige ----------
+  function readout(id, val, unit, sub) {
+    var r = $(id);
+    r.querySelector('.v').innerHTML = val + '<small>' + unit + '</small>';
+    r.querySelector('.s').textContent = sub || '';
+  }
+  function cpuText(r) { return r.cpu === null ? '' : 'Router-CPU Ø ' + Math.round(r.cpu) + ' %, Kern max ' + Math.round(r.core) + ' %'; }
+  function setBig(m) {
+    if (m === null) { $('big').textContent = '…'; return; }
+    var s = E.fmtSpeed(m); $('big').textContent = s.v; $('unit').textContent = s.u;
+  }
+  function spark(svg, series, color) {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    if (!series.length) return;
+    var max = 0; series.forEach(function (v) { if (v > max) max = v; });
+    var W = 300, H = 70, n = series.length, pts = series.map(function (v, i) {
+      return [(n === 1 ? 0 : i / (n - 1)) * W, H - 6 - (v / (max * 1.08)) * (H - 10)];
+    });
+    var line = pts.map(function (p, i) { return (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join(' ');
+    [0.33, 0.66].forEach(function (g) { el('line', { x1: 0, x2: W, y1: H * g, y2: H * g, stroke: '#233049', 'stroke-width': 1 }, svg); });
+    el('path', { d: line + ' L' + W + ' ' + H + ' L0 ' + H + ' Z', fill: color, 'fill-opacity': '.16' }, svg);
+    el('path', { d: line, fill: 'none', stroke: color, 'stroke-width': 2, 'vector-effect': 'non-scaling-stroke' }, svg);
+  }
+  // Einordnung nach Netzwerkklassen (Nettodurchsatz liegt ~6 % unter der Leitungsrate)
+  function verdict(dl) {
+    if (dl >= 4700) return ['Über 5 Gbit/s', 'Das schafft nur eine 10-GbE-Strecke.'];
+    if (dl >= 2000) return ['2,5 Gbit/s ausgeschöpft', 'Die 2,5-GbE-Verbindung läuft nahe am Maximum.'];
+    if (dl >= 940) return ['Mehr als Gigabit', 'Schneller als 1 GbE, also 2,5 GbE oder schnelles WLAN.'];
+    if (dl >= 600) return ['Gigabit-Klasse', 'Typisch für 1-GbE-Kabel oder gutes WLAN 6/7.'];
+    if (dl >= 90) return ['Ordentlich', 'Typisch für WLAN mit Abstand oder 100-Mbit-Kabel.'];
+    return ['Langsam', 'Kabel, Port oder WLAN-Empfang prüfen.'];
+  }
+
+  // ---------- Ablauf ----------
+  var phaseName = { ping: 'Ping', download: 'Download', upload: 'Upload' };
+  function mode(running) {
+    $('go').hidden = running; $('big').hidden = !running; $('unit').hidden = !running;
+    $('stop').hidden = !running; needleVisible(running);
+    if (!running) { shown = 0; setGauge(0, 'download'); }
+  }
+  function start() {
+    var streams = +$('streams').value, duration = +$('duration').value, label = $('label').value.replace(/^\s+|\s+$/g, '');
+    try { localStorage.setItem('st-label', label); localStorage.setItem('st-streams', streams); localStorage.setItem('st-duration', duration); } catch (e) { }
+    $('result').hidden = true; $('note').hidden = true;
+    readout('ro-ping', '–', 'ms'); $('v-jit').innerHTML = '–<small>ms</small>';
+    readout('ro-dl', '–', 'Mbit/s'); readout('ro-ul', '–', 'Mbit/s');
+    mode(true); shown = 0; setGauge(0, 'download'); setBig(null);
+    var res = {};
+    E.run({ streams: streams, duration: duration, label: label }, {
+      phase: function (p) {
+        $('phase').textContent = phaseName[p];
+        ['ro-ping', 'ro-dl', 'ro-ul'].forEach(function (id) { $(id).classList.remove('on'); });
+        $({ ping: 'ro-ping', download: 'ro-dl', upload: 'ro-ul' }[p]).classList.add('on');
+        if (p !== 'ping') { shown = 0; setGauge(0, p); setBig(null); }
+      },
+      pingSample: function (ms) { $('big').textContent = E.fmt(ms, 1); $('unit').textContent = 'ms'; },
+      ping: function (p, j) { readout('ro-ping', E.fmt(p, p < 10 ? 1 : 0), 'ms'); $('v-jit').innerHTML = E.fmt(j, 1) + '<small>ms</small>'; },
+      live: function (kind, m) { if (m !== null) { setGauge(m, kind); setBig(m); } },
+      result: function (kind, r) {
+        res[kind] = r;
+        var s = E.fmtSpeed(r.peak), a = E.fmtSpeed(r.avg);
+        readout(kind === 'download' ? 'ro-dl' : 'ro-ul', s.v, s.u, 'Ø ' + a.v + ' ' + a.u);
+      },
+      done: function () { mode(false); $('phase').textContent = 'Fertig'; showResult(res); loadHistory(); },
+      error: function (msg) { mode(false); $('phase').textContent = msg; }
+    });
+  }
+  function showResult(res) {
+    var d = res.download, u = res.upload, sd = E.fmtSpeed(d.peak), su = E.fmtSpeed(u.peak);
+    $('r-dl').innerHTML = sd.v + '<small>' + sd.u + '</small>';
+    $('r-ul').innerHTML = su.v + '<small>' + su.u + '</small>';
+    $('r-dl-s').textContent = 'Ø ' + E.fmtSpeed(d.avg).v + ' ' + E.fmtSpeed(d.avg).u + ' · ' + cpuText(d);
+    $('r-ul-s').textContent = 'Ø ' + E.fmtSpeed(u.avg).v + ' ' + E.fmtSpeed(u.avg).u + ' · ' + cpuText(u);
+    spark($('c-dl'), d.series, '#35d0ba'); spark($('c-ul'), u.series, '#b98cff');
+    var v = verdict(d.peak); $('verdict').textContent = v[0]; $('verdict-s').textContent = v[1];
+    if (Math.max(d.core || 0, u.core || 0) >= 90) {
+      $('note').textContent = 'Ein Prozessorkern des Routers war voll ausgelastet. Das Ergebnis zeigt eher die Grenze des Routers als die des Netzes.';
+      $('note').hidden = false;
+    }
+    $('result').hidden = false;
+    $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ---------- Verlauf ----------
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function n0(v) { return v === null || v === undefined ? '–' : E.fmt(v, 0); }
+  function sp(peak, avg) { return peak === null || peak === undefined ? n0(avg) : n0(peak) + ' <small>/ ' + n0(avg) + '</small>'; }
+  function loadHistory() {
+    E.history(function (h) {
+      if (!h.length) { $('history').innerHTML = '<div class="empty">Noch keine Messungen.</div>'; return; }
+      var rows = '';
+      for (var i = h.length - 1; i >= 0; i--) {
+        var e = h[i], d = new Date(e.ts * 1000);
+        var when = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '. ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        var who = e.label || e.host || e.ip; if (e.label && e.host) who += ' <small>' + esc(e.host) + '</small>';
+        else who = esc(who);
+        rows += '<tr><td>' + when + '</td><td>' + who + '</td><td>' + (e.ping === null ? '–' : E.fmt(e.ping, 1)) + '</td><td class="dl">' + sp(e.dl_peak, e.dl) +
+          '</td><td class="ul">' + sp(e.ul_peak, e.ul) + '</td><td>' + (e.streams || '–') + '</td></tr>';
+      }
+      $('history').innerHTML = '<table><tr><th>Zeit</th><th>Gerät</th><th>Ping ms</th><th>Down Mbit/s<br>Spitze / Ø</th><th>Up Mbit/s<br>Spitze / Ø</th><th>Verb.</th></tr>' + rows + '</table>';
+    });
+  }
+  // Loeschen mit Rueckfrage direkt auf der Seite
+  function clearAsk() {
+    $('clear-wrap').innerHTML = '<span class="confirm">Alles löschen? <button class="btn" id="yes">Ja</button><button class="btn" id="no">Nein</button></span>';
+    $('yes').onclick = function () { E.clearHistory(function () { loadHistory(); clearReset(); }); };
+    $('no').onclick = clearReset;
+  }
+  function clearReset() { $('clear-wrap').innerHTML = '<button class="btn" id="clear">Löschen</button>'; $('clear').onclick = clearAsk; }
+  $('clear').onclick = clearAsk;
+
+  $('go').onclick = start;
+  $('again').onclick = function () { window.scrollTo({ top: 0, behavior: 'smooth' }); start(); };
+  $('stop').onclick = function () { E.stop(); mode(false); $('phase').textContent = 'Abgebrochen'; };
+
+  try {
+    var l = localStorage.getItem('st-label'), s = localStorage.getItem('st-streams'), d = localStorage.getItem('st-duration');
+    if (l) $('label').value = l; if (s) $('streams').value = s; if (d) $('duration').value = d;
+  } catch (e) { }
+
+  E.init(function (info) {
+    $('host').textContent = info.hostname;
+    $('meta').innerHTML = esc((info.model ? info.model + ' · ' : '') + info.cores + ' Kerne · Du: ' +
+      (info.client_host ? info.client_host + ' (' + info.client_ip + ')' : info.client_ip)) + (info.demo ? '<span class="demo">Demo</span>' : '');
+    $('go').disabled = false;
+    loadHistory();
+  });
+})();
+</script>
+</body>
+</html>
