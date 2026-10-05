@@ -64,6 +64,11 @@ Für Backups: `/www/speedtest` und `/etc/config/uhttpd` sichern.
 
 ## Hinweise
 
+- **Ping:** uhttpd in OpenWrt 25.12 setzt kein `TCP_NODELAY` und hält dadurch den Rest kleiner Antworten auf einer bestehenden Verbindung ~40 ms zurück
+  (behoben in uhttpd [82b4c79](https://github.com/openwrt/uhttpd/commit/82b4c79), in 25.12 noch nicht enthalten). Die Seite misst deshalb die Zeit bis zum ersten Antwort-Byte.
+  Aus demselben Grund schickt der Upload große 32-MB-Stücke.
+- **Diagnose:** `diag.html` vergleicht Ping-, Download- und Upload-Varianten im Browser, falls Werte unplausibel wirken.
+
 - **„Kern max“ nahe 100 %:** Ein Router-Kern war voll ausgelastet. uhttpd bearbeitet eine Verbindung auf einem Kern, mehr Verbindungen können helfen.
 - **iperf3** liefert die Referenz fürs Netz, ein Browser kann das Protokoll aber nicht sprechen. Wer es dauerhaft laufen lässt, sollte es mit `-B <lan-ip>` an das LAN binden.
 - Ältere Browser ohne Fetch-Streams messen den Download per XHR in 32-MB-Häppchen, damit der Browser-RAM klein bleibt.

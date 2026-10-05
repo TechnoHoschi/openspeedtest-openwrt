@@ -102,7 +102,7 @@ th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
   'use strict';
   var API = '/speedtest-api';
   var PING_URL = '/speedtest/ping.txt';
-  var UL_CHUNK = 8 * 1048576;     // Groesse eines Upload-Requests
+  var UL_CHUNK = 32 * 1048576;    // Groesse eines Upload-Requests (gross, weil uhttpd jede Antwort ~40 ms verzoegert)
   var XHR_DL_CHUNK = 32 * 1048576; // XHR-Fallback: nach so vielen Bytes neu anfragen, haelt den Browser-RAM klein
   var WARMUP = 1.5;               // Sekunden, die am Anfang nicht in das Ergebnis eingehen
 
@@ -155,41 +155,49 @@ th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
   }
 
   // ---------- Router-CPU ----------
-  // Fragt /proc/stat ueber die API ab und merkt sich Durchschnitt (gesamt) und Spitze (staerkster Kern).
+  // Zwei Schnappschuesse von /proc/stat (nach dem Anlauf und am Ende) statt laufender Abfragen,
+  // damit die Messung den Router nicht zusaetzlich belastet. Ergebnis: Durchschnitt aller Kerne
+  // und der am staerksten ausgelastete Kern ueber das Messfenster.
   function CpuWatch() {
-    var self = this, prev = null, timer = null;
-    self.sum = 0; self.n = 0; self.core = 0;
-    function poll() {
+    var self = this, first = null;
+    self.avg = null; self.core = null;
+    self.mark = function () { req('GET', API + '/cpu', null, function (d) { if (d && d.length) first = d; }); };
+    self.finish = function (cb) {
       req('GET', API + '/cpu', null, function (d) {
-        if (d && d.length && prev && prev.length === d.length) {
-          var i, busy = [];
-          for (i = 0; i < d.length; i++) {
-            var dt = d[i][0] - prev[i][0], di = d[i][1] - prev[i][1];
-            busy.push(dt > 0 ? 100 * (dt - di) / dt : 0);
+        if (d && first && d.length === first.length) {
+          for (var i = 0; i < d.length; i++) {
+            var dt = d[i][0] - first[i][0], di = d[i][1] - first[i][1];
+            var busy = dt > 0 ? 100 * (dt - di) / dt : 0;
+            if (i === 0) self.avg = busy;
+            else if (self.core === null || busy > self.core) self.core = busy;
           }
-          self.sum += busy[0]; self.n++;
-          for (i = 1; i < busy.length; i++) if (busy[i] > self.core) self.core = busy[i];
         }
-        if (d) prev = d;
+        cb();
       });
-    }
-    self.start = function () { poll(); timer = setInterval(poll, 1000); };
-    self.stop = function () { clearInterval(timer); };
-    self.avg = function () { return self.n ? self.sum / self.n : null; };
+    };
     self.text = function () {
-      if (!self.n) return '';
-      return 'Router-CPU Ø ' + Math.round(self.avg()) + ' %, Kern max ' + Math.round(self.core) + ' %';
+      if (self.avg === null) return '';
+      return 'Router-CPU Ø ' + Math.round(self.avg) + ' %, Kern max ' + Math.round(self.core) + ' %';
     };
   }
 
   // ---------- Ping ----------
+  // Gemessen wird bis zum ersten Antwort-Byte (Resource Timing). Die Gesamtzeit waere unbrauchbar:
+  // uhttpd in OpenWrt 25.12 haelt den Rest einer kleinen Antwort ~40 ms zurueck (kein TCP_NODELAY).
   function runPing(done) {
     var times = [], n = 0, COUNT = 20;
+    var rt = !!(window.performance && performance.getEntriesByName);
+    if (rt && performance.clearResourceTimings) performance.clearResourceTimings();
     function one() {
-      var x = new XMLHttpRequest(), t0 = now();
-      x.open('GET', bust(PING_URL));
+      var x = new XMLHttpRequest(), t0 = now(), url = bust(PING_URL);
+      x.open('GET', url);
       x.onload = function () {
-        if (n++ >= 2) times.push(now() - t0);   // die ersten zwei waermen die Verbindung an
+        var v = now() - t0;
+        if (rt) {
+          var e = performance.getEntriesByName(location.protocol + '//' + location.host + url).pop();
+          if (e && e.responseStart > 0 && e.requestStart > 0) v = e.responseStart - e.requestStart;
+        }
+        if (n++ >= 2) times.push(v);   // die ersten zwei waermen die Verbindung an
         if (n < COUNT + 2) one(); else finish();
       };
       x.onerror = function () { finish(); };
@@ -208,7 +216,7 @@ th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
   // ---------- Durchsatz ----------
   // Startet `streams` parallele Verbindungen fuer `duration` Sekunden.
   // worker(state, count) startet eine Verbindung und ruft count(bytes) fuer jedes empfangene/gesendete Stueck.
-  function runTransfer(streams, duration, worker, onLive, done) {
+  function runTransfer(streams, duration, worker, onLive, done, onWarm) {
     var state = { stop: false, aborts: [] }, bytes = 0, t0 = now(), warmBytes = null, warmT = 0, samples = [];
     function count(b) { bytes += b; }
     for (var i = 0; i < streams; i++) worker(state, count);
@@ -220,10 +228,11 @@ th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
         var s = samples[0];
         onLive((bytes - s[1]) * 8 / 1e6 / (t - s[0]), Math.min(1, t / duration));
       }
-      if (warmBytes === null && t >= WARMUP) { warmBytes = bytes; warmT = t; }
+      if (warmBytes === null && t >= WARMUP) { warmBytes = bytes; warmT = t; if (onWarm) onWarm(); }
       if (t >= duration) {
         clearInterval(timer);
         state.stop = true;
+        if (window.performance && performance.clearResourceTimings) performance.clearResourceTimings();
         for (var k = 0; k < state.aborts.length; k++) { try { state.aborts[k](); } catch (e) { } }
         var mbit = (warmBytes !== null && t > warmT) ? (bytes - warmBytes) * 8 / 1e6 / (t - warmT) : 0;
         done(mbit);
@@ -308,24 +317,26 @@ th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
       setRes('res-jitter', fmt(jitter, jitter < 10 ? 1 : 0));
 
       phase('Download'); bar(0);
-      var cpu = new CpuWatch(); cpu.start();
+      var cpu = new CpuWatch();
       runTransfer(streams, duration, dlWorker, function (m, p) { setBig(m); bar(p); }, function (dl) {
-        cpu.stop();
-        r.dl = Math.round(dl * 10) / 10; r.cpu_dl = round(cpu.avg()); r.core_dl = round(cpu.n ? cpu.core : null);
+       cpu.finish(function () {
+        r.dl = Math.round(dl * 10) / 10; r.cpu_dl = round(cpu.avg); r.core_dl = round(cpu.core);
         var s = fmtSpeed(dl); setRes('res-dl', s.v, s.u, cpu.text());
 
         phase('Upload'); setBig(null); bar(0);
-        var cpu2 = new CpuWatch(); cpu2.start();
+        var cpu2 = new CpuWatch();
         runTransfer(streams, duration, ulWorker, function (m, p) { setBig(m); bar(p); }, function (ul) {
-          cpu2.stop();
-          r.ul = Math.round(ul * 10) / 10; r.cpu_ul = round(cpu2.avg()); r.core_ul = round(cpu2.n ? cpu2.core : null);
+         cpu2.finish(function () {
+          r.ul = Math.round(ul * 10) / 10; r.cpu_ul = round(cpu2.avg); r.core_ul = round(cpu2.core);
           var s2 = fmtSpeed(ul); setRes('res-ul', s2.v, s2.u, cpu2.text());
           finish(r);
-        });
-      });
+         });
+        }, cpu2.mark);
+       });
+      }, cpu.mark);
     });
   }
-  function round(v) { return v === null ? null : Math.round(v); }
+  function round(v) { return v === null || v === undefined ? null : Math.round(v); }
 
   function finish(r) {
     phase('Fertig'); bar(1); setBig(null);
