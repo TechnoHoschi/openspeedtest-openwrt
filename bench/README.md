@@ -8,6 +8,10 @@ Vergleicht drei Wege, wie uhttpd Testdaten liefern und annehmen kann:
 | B | Shell-CGI (bisheriger Weg) | ja | ja |
 | C | ucode-Handler in uhttpd | ja | ja |
 
+`setup.sh` schaltet die HTTP->HTTPS-Umleitung von uhttpd fuer die Messung ab, `cleanup.sh` stellt den alten Wert wieder her.
+Fehlt `uhttpd-mod-ucode`, wird Variante C uebersprungen (nachinstallieren mit `apk add uhttpd-mod-ucode`).
+Zeilen mit `-` statt Mbit/s hatten keinen HTTP-Status 200.
+
 ## Ablauf
 
 1. `setup.sh` und `cleanup.sh` per WinSCP nach `/tmp/` auf den Router kopieren.

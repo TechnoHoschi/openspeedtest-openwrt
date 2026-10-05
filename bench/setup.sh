@@ -8,7 +8,12 @@ set -e
 DIR=/www/speedtest-bench
 SIZE_MB=${SIZE_MB:-32}
 
-[ -f /usr/lib/uhttpd_ucode.so ] || echo "WARNUNG: uhttpd-mod-ucode fehlt, Variante C geht nicht"
+UCODE=1
+[ -f /usr/lib/uhttpd_ucode.so ] || { UCODE=0; echo "HINWEIS: uhttpd-mod-ucode fehlt, Variante C wird uebersprungen (nachinstallieren: apk add uhttpd-mod-ucode)"; }
+
+# HTTP->HTTPS-Umleitung fuer die Messung abschalten, alten Wert fuer cleanup.sh merken
+uci -q get uhttpd.main.redirect_https > /tmp/bench-redirect_https || echo 0 > /tmp/bench-redirect_https
+uci set uhttpd.main.redirect_https='0'
 
 mkdir -p "$DIR/data"
 grep -q " $DIR/data " /proc/mounts || mount -t tmpfs -o size=$((SIZE_MB + 8))m tmpfs "$DIR/data"
@@ -51,9 +56,9 @@ global.handle_request = function(env) {
 UC
 
 uci -q del_list uhttpd.main.ucode_prefix="/bench-uc=$DIR/bench.uc" || true
-uci add_list uhttpd.main.ucode_prefix="/bench-uc=$DIR/bench.uc"
+[ "$UCODE" = 1 ] && uci add_list uhttpd.main.ucode_prefix="/bench-uc=$DIR/bench.uc"
 uci commit uhttpd
 service uhttpd restart
 
-echo "Fertig. Redirect auf HTTPS aktiv? -> $(uci -q get uhttpd.main.redirect_https || echo 0)"
+echo "Fertig. HTTPS-Umleitung voruebergehend aus (vorher: $(cat /tmp/bench-redirect_https)), ucode: $UCODE"
 echo "CPU: $(grep -c ^processor /proc/cpuinfo) Kerne, RAM frei: $(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo) MB"

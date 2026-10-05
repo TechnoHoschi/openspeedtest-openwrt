@@ -16,6 +16,7 @@ function Measure($label, $curlArgs, $streams) {
         $mbit = [math]::Round($bytes * 8 / $sw.Elapsed.TotalSeconds / 1e6)
         if ($mbit -gt $best) { $best = $mbit }
     }
+    if (($codes | Where-Object { $_ -ne "200" }).Count -gt 0) { $best = "-" }
     "{0,-28} {1,2} Verb.  {2,6} Mbit/s   HTTP {3}" -f $label, $streams, $best, ($codes | Select-Object -Unique)
 }
 
