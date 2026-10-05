@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Speedtest Testkammer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: light;
+  --bg: #e6eaee;
+  --paper: #ffffff;
+  --panel: #f7f9fa;
+  --ink: #1a2026;
+  --mute: #55606b;
+  --line: #d2d9df;
+  --seam: #c3cbd2;
+  --dark: #21262c;
+  --blue: #1f9cf2;
+  --blue-t: #0a67a8;
+  --orange: #ff8a1c;
+  --orange-t: #ad5200;
+  --ok: #1c9f72;
+  --sans: "Barlow", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --cond: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", "Segoe UI", Arial, sans-serif;
+}
+[hidden] { display: none !important; }
+* { box-sizing: border-box; }
+html { background: var(--bg); -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; color: var(--ink); font-family: var(--sans); font-size: 16px; line-height: 1.45;
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(rgba(255,255,255,.55) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.55) 1px, transparent 1px);
+  background-size: 96px 96px;
+}
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- Kopf ---------- */
+.top {
+  max-width: 1260px; margin: 0 auto; padding: 18px 16px 14px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+}
+.brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.brand svg { width: 46px; height: 46px; flex: none; }
+.brand b { display: block; font-family: var(--cond); font-weight: 700; font-size: 22px; letter-spacing: .02em; line-height: 1.05; text-transform: uppercase; }
+.brand span { display: block; font-size: 13.5px; color: var(--mute); letter-spacing: .04em; }
+.hostinfo { text-align: right; font-size: 13.5px; color: var(--mute); min-width: 0; }
+.hostinfo b { color: var(--ink); font-family: var(--cond); font-size: 18px; letter-spacing: .03em; }
+.demo { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 3px; background: var(--orange); color: #1a1206; font-weight: 700; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; vertical-align: 2px; }
+
+main { max-width: 1260px; margin: 0 auto; padding: 0 16px 40px; }
+
+/* ---------- Buehne ---------- */
+.stage { display: grid; grid-template-columns: 252px minmax(0, 1fr); gap: 18px; align-items: stretch; }
+.stage > *, .deck > *, .gauges > *, .cert-grid > * { min-width: 0; }
+
+.sign {
+  background: #fbfbfa; border-radius: 6px; padding: 22px 20px 18px;
+  box-shadow: 0 1px 0 #fff inset, 0 0 0 1px #cfd6dc, 0 18px 40px -22px rgba(20,30,40,.45);
+  display: flex; flex-direction: column; position: relative;
+}
+.sign::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -6px; height: 6px; border-radius: 0 0 4px 4px; background: #b8c0c7; }
+.sign-cap { font-family: var(--cond); font-weight: 600; font-size: 14px; letter-spacing: .22em; text-transform: uppercase; color: var(--mute); }
+.sign-num { font-family: var(--cond); font-weight: 600; font-size: 132px; line-height: .82; letter-spacing: -.02em; margin: 6px 0 4px; font-variant-numeric: tabular-nums; }
+.sign-of { font-family: var(--cond); font-size: 22px; font-weight: 500; color: var(--mute); border-bottom: 2px solid var(--ink); padding-bottom: 8px; display: flex; justify-content: space-between; }
+.sign-bar { margin: 14px 0 6px; height: 12px; background: repeating-linear-gradient(90deg, #d6dce1 0 9px, transparent 9px 12px); position: relative; overflow: hidden; }
+.sign-bar i { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, var(--ink) 0 9px, transparent 9px 12px); transform-origin: 0 50%; transform: scaleX(0); transition: transform .35s linear; }
+.sign-st { display: flex; justify-content: space-between; gap: 8px; font-family: var(--cond); font-weight: 600; font-size: 17px; letter-spacing: .06em; text-transform: uppercase; }
+.sign-st #pct { font-variant-numeric: tabular-nums; color: var(--mute); }
+.picto { list-style: none; margin: 16px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.picto li { aspect-ratio: 1 / 1; border-radius: 4px; display: flex; align-items: center; justify-content: center; background: #e4e8ec; color: #a5aeb6; transition: background .3s, color .3s; }
+.picto li.on { background: var(--ink); color: #f5f7f8; }
+.picto li.cur { background: var(--orange); color: #1a1206; }
+.picto li.cur.b { background: var(--blue); color: #04192a; }
+.picto svg { width: 72%; height: 72%; }
+.sign-foot { margin-top: auto; padding-top: 14px; font-size: 12.5px; color: var(--mute); line-height: 1.35; }
+
+.chamber { position: relative; border-radius: 10px; overflow: hidden; background: #cfd6dc; box-shadow: 0 0 0 1px #c3cbd2, 0 22px 50px -28px rgba(15,25,35,.55); display: flex; flex-direction: column; }
+#cv { display: block; width: 100%; height: 500px; background: #d6dce1; }
+.hud {
+  position: absolute; left: 16px; top: 16px; padding: 10px 16px 10px 14px; border-radius: 6px;
+  background: rgba(255,255,255,.86); box-shadow: 0 0 0 1px rgba(30,40,50,.12), 0 10px 24px -14px rgba(0,0,0,.4);
+  border-left: 5px solid var(--blue); max-width: calc(100% - 32px);
+}
+.hud.up { border-left-color: var(--orange); }
+.hud.ping { border-left-color: #f2b01e; }
+.hud-k { display: block; font-family: var(--cond); font-weight: 600; font-size: 14px; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+.hud-v { display: block; font-family: var(--cond); font-weight: 600; line-height: 1; white-space: nowrap; }
+.hud-v b { font-size: 50px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.hud-v small { font-size: 20px; color: var(--mute); margin-left: 4px; }
+.subs { background: #15191d; color: #eef1f3; padding: 13px 18px 14px; display: flex; gap: 12px; align-items: baseline; min-height: 74px; }
+.who { flex: none; font-family: var(--cond); font-weight: 700; letter-spacing: .12em; color: #ffa24a; font-size: 15px; }
+.subs p { margin: 0; font-size: 17px; line-height: 1.4; min-width: 0; }
+.subs p::after { content: ""; display: inline-block; width: .5em; height: 1.05em; margin-left: 2px; vertical-align: -2px; background: #ffa24a; opacity: .0; }
+.subs p.typing::after { opacity: .85; }
+
+/* ---------- Konsole und Instrumente ---------- */
+.deck { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 18px; margin-top: 22px; }
+.panel { background: var(--paper); border-radius: 8px; box-shadow: 0 0 0 1px var(--line), 0 14px 30px -24px rgba(15,25,35,.5); }
+.console { padding: 18px 18px 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-content: start; }
+.console h2, .gauges h2 { grid-column: 1 / -1; margin: 0; font-family: var(--cond); font-weight: 600; font-size: 15px; letter-spacing: .18em; text-transform: uppercase; color: var(--mute); }
+.fld { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--mute); font-weight: 500; min-width: 0; }
+.fld.wide { grid-column: 1 / -1; }
+.fld select, .fld input { width: 100%; min-width: 0; border: 1px solid #c4ccd3; background: var(--panel); color: var(--ink); border-radius: 5px; padding: 9px 10px; font-size: 16px; }
+.fld select { appearance: none; -webkit-appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--mute) 50%), linear-gradient(135deg, var(--mute) 50%, transparent 50%); background-position: calc(100% - 17px) 55%, calc(100% - 12px) 55%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 28px; }
+#go {
+  grid-column: 1 / -1; margin-top: 4px; border: 0; border-radius: 999px; cursor: pointer; padding: 15px 20px;
+  font-family: var(--cond); font-weight: 700; font-size: 22px; letter-spacing: .1em; text-transform: uppercase;
+  color: #1c1004; background: linear-gradient(180deg, #ffad55, #ff8414); box-shadow: 0 0 0 1px #d96c06 inset, 0 3px 0 #c45f00, 0 10px 22px -8px rgba(255,120,10,.6);
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+}
+#go::before { content: ""; width: 16px; height: 22px; border-radius: 50%; border: 3px solid currentColor; flex: none; }
+#go:active { transform: translateY(2px); box-shadow: 0 0 0 1px #d96c06 inset, 0 1px 0 #c45f00; }
+#go:disabled { opacity: .5; cursor: default; }
+#go.stop { color: #eef2f5; background: linear-gradient(180deg, #3a4148, #22272c); box-shadow: 0 0 0 1px #11151a inset, 0 3px 0 #0c0f12, 0 10px 22px -10px rgba(0,0,0,.6); }
+#go.stop::before { border-radius: 2px; width: 14px; height: 14px; background: currentColor; }
+#go.again { color: #f3f9ff; background: linear-gradient(180deg, #43b2ff, #1688db); box-shadow: 0 0 0 1px #0f6fb5 inset, 0 3px 0 #0b5d99, 0 10px 22px -8px rgba(20,140,230,.55); }
+
+.gauges { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 18px; align-content: start; }
+.g { border-radius: 6px; background: var(--panel); padding: 14px 16px 14px; position: relative; overflow: hidden; box-shadow: 0 0 0 1px #e0e5e9 inset; }
+.g::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #c7cfd6; transition: background .3s; }
+.g.dl::before { background: var(--blue); }
+.g.ul::before { background: var(--orange); }
+.g.ping::before { background: #f2b01e; }
+.g.on { background: #fff; box-shadow: 0 0 0 2px var(--ink) inset; }
+.g-k { font-family: var(--cond); font-weight: 600; font-size: 14px; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); display: flex; justify-content: space-between; gap: 6px; }
+.g-k i { font-style: normal; letter-spacing: .04em; text-transform: none; font-family: var(--sans); font-weight: 500; font-size: 12.5px; }
+.g-v { font-family: var(--cond); font-weight: 600; font-size: 44px; line-height: 1.05; margin-top: 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.g-v small { font-size: 18px; color: var(--mute); margin-left: 4px; font-weight: 500; }
+.g-s { font-size: 13.5px; color: var(--mute); min-height: 1.4em; font-variant-numeric: tabular-nums; }
+.g.dl .g-v { color: var(--blue-t); }
+.g.ul .g-v { color: var(--orange-t); }
+
+/* ---------- Zertifikat ---------- */
+.cert { margin-top: 30px; scroll-margin-top: 12px; }
+.cert-in { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 0; border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 1px #c9d1d8, 0 30px 60px -34px rgba(15,25,35,.55); animation: rise .7s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: none; } }
+.lift { background: #22272d; color: #dfe5ea; padding: 22px 18px; position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 10px; }
+.lift::before { content: ""; position: absolute; left: 50%; top: -10%; width: 120px; height: 120%; transform: translateX(-50%); border-left: 2px solid rgba(160,205,235,.25); border-right: 2px solid rgba(160,205,235,.25); background: linear-gradient(90deg, rgba(150,200,235,.06), rgba(150,200,235,.16) 30%, rgba(150,200,235,.04)); }
+.lift > * { position: relative; }
+.lift .k { font-family: var(--cond); letter-spacing: .2em; text-transform: uppercase; font-size: 13px; color: #9aa6b1; }
+.lift .n { font-family: var(--cond); font-weight: 600; font-size: 92px; line-height: .85; color: #fff; }
+.lift .lamp { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: #bfe9d6; margin-top: auto; }
+.lift .lamp::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: #3ee0a0; box-shadow: 0 0 10px #3ee0a0; }
+.paper { background: #fffefb; padding: 26px 30px 26px; position: relative; overflow: hidden;
+  background-image: linear-gradient(90deg, transparent 0 calc(100% - 1px), rgba(30,40,50,.035) 0), linear-gradient(transparent 0 calc(100% - 1px), rgba(30,40,50,.035) 0); background-size: 22px 22px; }
+.c-head { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid var(--ink); padding-bottom: 12px; flex-wrap: wrap; }
+.c-head svg { width: 38px; height: 38px; flex: none; }
+.c-head .inst { font-family: var(--cond); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; font-size: 17px; line-height: 1.1; flex: 1 1 220px; min-width: 0; }
+.c-head .inst small { display: block; font-family: var(--sans); font-weight: 500; text-transform: none; letter-spacing: .02em; font-size: 13px; color: var(--mute); }
+.c-head .no { font-size: 13px; color: var(--mute); text-align: right; font-variant-numeric: tabular-nums; }
+.c-head .no b { display: block; color: var(--ink); font-family: var(--cond); font-size: 18px; letter-spacing: .05em; }
+.paper h2 { margin: 18px 0 2px; font-family: var(--cond); font-weight: 700; font-size: 40px; letter-spacing: .01em; line-height: 1.05; }
+.c-sub { margin: 0 0 18px; color: var(--mute); max-width: 60ch; }
+.c-sub b { color: var(--ink); }
+.cert-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--seam); border-left: 1px solid var(--seam); }
+.cf { padding: 12px 14px 12px; border-right: 1px solid var(--seam); border-bottom: 1px solid var(--seam); }
+.cf .k { display: block; font-family: var(--cond); font-weight: 600; font-size: 13.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+.cf b { display: block; font-family: var(--cond); font-weight: 600; font-size: 40px; line-height: 1.05; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cf b small { font-size: 17px; color: var(--mute); margin-left: 3px; font-weight: 500; }
+.cf .s { display: block; font-size: 13.5px; color: var(--mute); font-variant-numeric: tabular-nums; }
+.cf.dl b { color: var(--blue-t); } .cf.ul b { color: var(--orange-t); }
+.cf svg { display: block; width: 100%; height: 34px; margin-top: 8px; }
+.c-ver { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 22px; margin-top: 20px; align-items: start; }
+.c-ver .k { display: block; font-family: var(--cond); font-weight: 600; font-size: 13.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+.c-ver strong { display: block; font-family: var(--cond); font-size: 30px; font-weight: 700; line-height: 1.1; margin: 2px 0 4px; }
+.c-ver p { margin: 0; color: #36404a; }
+.c-ver .eva p { color: #eef1f3; margin: 0 0 6px; }
+.eva { margin: 0; padding: 14px 16px 12px 18px; background: #15191d; color: #eef1f3; border-radius: 6px; position: relative; }
+.eva p { margin: 0 0 6px; font-size: 16.5px; line-height: 1.45; }
+.eva cite { font-style: normal; font-family: var(--cond); font-weight: 700; letter-spacing: .12em; color: #ffa24a; font-size: 13.5px; }
+.note { margin-top: 16px; padding: 10px 14px; border-radius: 5px; background: #fff1e2; border: 1px solid #ffc893; color: #6d3600; font-size: 14.5px; }
+.stamp { position: absolute; right: 30px; top: 104px; transform: rotate(-11deg); border: 4px solid rgba(28,159,114,.75); color: rgba(28,159,114,.82); padding: 4px 14px 2px; border-radius: 6px; font-family: var(--cond); font-weight: 700; font-size: 30px; letter-spacing: .18em; text-transform: uppercase; pointer-events: none; animation: stamp .5s .5s cubic-bezier(.3,1.6,.5,1) both; }
+@keyframes stamp { from { opacity: 0; transform: rotate(-11deg) scale(1.8); } to { opacity: 1; transform: rotate(-11deg) scale(1); } }
+.c-foot { display: flex; justify-content: space-between; gap: 18px; margin-top: 22px; font-size: 12.5px; color: var(--mute); flex-wrap: wrap; }
+.c-foot span { border-top: 1px solid #9aa4ad; padding-top: 4px; min-width: 160px; }
+
+/* ---------- Verlauf ---------- */
+.hist { margin-top: 34px; }
+.hist-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.hist-h h2 { margin: 0; font-family: var(--cond); font-weight: 700; font-size: 26px; letter-spacing: .04em; text-transform: uppercase; }
+.btn { border: 1px solid #b9c2ca; background: #fff; border-radius: 5px; padding: 7px 14px; cursor: pointer; font-size: 14.5px; font-weight: 600; }
+.btn:hover { border-color: var(--ink); }
+.btn.warn { background: #22272c; color: #fff; border-color: #22272c; }
+.confirm { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14.5px; }
+.rooms { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.room { display: grid; grid-template-columns: 74px minmax(0, 1.5fr) minmax(0, .7fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, .5fr); align-items: center; gap: 14px; background: #fff; border-radius: 6px; padding: 10px 16px 10px 10px; box-shadow: 0 0 0 1px var(--line); }
+.room > * { min-width: 0; }
+.rn { background: #fbfbfa; border-radius: 4px; box-shadow: 0 0 0 1px #d0d7dd inset; padding: 6px 8px 5px; text-align: left; }
+.rn small { display: block; font-family: var(--cond); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--mute); }
+.rn b { display: block; font-family: var(--cond); font-weight: 600; font-size: 34px; line-height: .9; }
+.rc .l { display: block; font-family: var(--cond); font-weight: 600; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+.rc .v { display: block; font-family: var(--cond); font-weight: 600; font-size: 22px; line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rc .v small { font-size: 15px; color: var(--mute); font-weight: 500; }
+.rc.dev .v { font-family: var(--sans); font-size: 16px; font-weight: 600; }
+.rc.dev .t { display: block; font-size: 12.5px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rc.dl .v { color: var(--blue-t); } .rc.ul .v { color: var(--orange-t); }
+.empty { padding: 22px; text-align: center; color: var(--mute); background: #fff; border-radius: 6px; box-shadow: 0 0 0 1px var(--line); }
+footer { max-width: 1260px; margin: 0 auto; padding: 0 16px 30px; font-size: 12.5px; color: var(--mute); }
+
+/* ---------- Groessen ---------- */
+@media (min-width: 1500px) {
+  #cv { height: 560px; }
+}
+@media (max-width: 1080px) {
+  .deck { grid-template-columns: minmax(0, 1fr); }
+  .cert-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .room { grid-template-columns: 68px minmax(0, 1.4fr) minmax(0, .7fr) minmax(0, 1fr) minmax(0, 1fr); }
+  .room .rc.st { display: none; }
+}
+@media (max-width: 860px) {
+  .stage { grid-template-columns: minmax(0, 1fr); }
+  .sign { order: 2; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 18px; padding: 16px; }
+  .sign-cap { grid-column: 1 / -1; }
+  .sign-num { font-size: 92px; grid-row: 2 / span 3; align-self: center; margin: 0; }
+  .sign-of { font-size: 18px; padding-bottom: 6px; }
+  .sign-bar { margin: 8px 0 4px; }
+  .picto { grid-column: 1 / -1; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 4px; margin-top: 12px; }
+  .sign-foot { display: none; }
+  .cert-in { grid-template-columns: minmax(0, 1fr); }
+  .lift { flex-direction: row; align-items: center; padding: 14px 18px; flex-wrap: wrap; }
+  .lift .n { font-size: 54px; }
+  .lift .lamp { margin: 0 0 0 auto; }
+  .lift::before { display: none; }
+  .c-ver { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+}
+@media (max-width: 640px) {
+  .top { padding: 14px 16px 12px; }
+  .brand b { font-size: 18px; }
+  .brand svg { width: 38px; height: 38px; }
+  .hostinfo { text-align: left; }
+  #cv { height: 380px; }
+  .hud { position: static; order: 2; max-width: none; border-radius: 0; box-shadow: none; background: #fff; padding: 8px 14px 8px 12px; border-bottom: 1px solid #d2d9df; }
+  .subs { order: 3; }
+  .hud-k { font-size: 12.5px; letter-spacing: .1em; }
+  .hud-v b { font-size: 36px; }
+  .hud-v small { font-size: 16px; }
+  .subs { padding: 11px 14px 12px; min-height: 88px; }
+  .subs p { font-size: 15.5px; }
+  .gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 14px; gap: 10px; }
+  .g.ping { grid-column: 1 / -1; }
+  .g { padding: 12px 12px 12px 14px; }
+  .g-v { font-size: 34px; }
+  .g-v small { font-size: 15px; }
+  .console { padding: 14px; }
+  .paper { padding: 20px 16px 20px; }
+  .paper h2 { font-size: 31px; padding-right: 0; }
+  .stamp { top: auto; bottom: 64px; right: 14px; font-size: 22px; }
+  .cf { padding: 10px 10px 10px; }
+  .cf b { font-size: 30px; }
+  .cf b small { font-size: 14px; }
+  .room { grid-template-columns: minmax(0, .75fr) minmax(0, 1fr) minmax(0, 1fr); gap: 8px 10px; padding: 10px 12px 10px 10px; }
+  .room .rn { display: flex; align-items: baseline; gap: 6px; padding: 5px 8px; }
+  .room .rn b { font-size: 24px; }
+  .room .rn small { display: none; }
+  .room .rn { justify-self: start; min-width: 52px; }
+  .c-head .no { text-align: left; flex-basis: 100%; }
+  .room .rc.dev { grid-column: 2 / -1; }
+  .rc .l { font-size: 11px; letter-spacing: .1em; }
+  .rc .v { font-size: 19px; }
+  .g-k { flex-wrap: wrap; }
+  .stamp { position: static; display: inline-block; margin-top: 16px; transform: rotate(-4deg); animation: none; }
+  .rc .v small { font-size: 13px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="emblem" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="22" fill="#fff" stroke="#1a2026" stroke-width="3"/>
+      <ellipse cx="24" cy="24" rx="15" ry="6" fill="none" stroke="#1a2026" stroke-width="2.4"/>
+      <ellipse cx="24" cy="24" rx="9.5" ry="3.6" fill="none" stroke="#1a2026" stroke-width="2.2"/>
+      <ellipse cx="24" cy="24" rx="4.5" ry="1.8" fill="#1a2026"/>
+      <path d="M24 2 A22 22 0 0 1 46 24" fill="none" stroke="#ff8a1c" stroke-width="3.4"/>
+      <path d="M24 46 A22 22 0 0 1 2 24" fill="none" stroke="#1f9cf2" stroke-width="3.4"/>
+    </symbol>
+  </defs>
+</svg>
+
+<header class="top">
+  <div class="brand">
+    <svg aria-hidden="true"><use href="#emblem"/></svg>
+    <div><b>Institut für angewandte Wurmlochforschung</b><span>Abteilung Durchsatzprüfung · Testreihe Heimnetz</span></div>
+  </div>
+  <div class="hostinfo">
+    <div>Prüfling: <b id="host">…</b><span class="demo" id="demo" hidden>Demo</span></div>
+    <div id="meta">Verbindung zur Einrichtung wird aufgebaut …</div>
+  </div>
+</header>
+
+<main>
+  <section class="stage" aria-label="Testkammer">
+    <aside class="sign" aria-label="Kammerschild">
+      <div class="sign-cap">Testkammer</div>
+      <div class="sign-num" id="cnum">01</div>
+      <div class="sign-of"><span id="cnum2">01</span><span>/ 99</span></div>
+      <div class="sign-bar" role="progressbar" aria-label="Fortschritt" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="sbarw"><i id="sbar"></i></div>
+      <div class="sign-st"><span id="phase">Bereit</span><span id="pct">0 %</span></div>
+      <ul class="picto" id="picto">
+        <li data-k="router" title="Router"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="16" width="24" height="10" rx="2"/><path d="M10 16 8 6M22 16l2-10"/><circle cx="10" cy="21" r="1.3" fill="currentColor" stroke="none"/><circle cx="15" cy="21" r="1.3" fill="currentColor" stroke="none"/><path d="M20 21h4"/></svg></li>
+        <li data-k="ping" title="Energieball (Ping)"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="16" cy="16" r="5.5" fill="currentColor"/><path d="M16 3v4M16 25v4M3 16h4M25 16h4M7 7l2.8 2.8M22.2 22.2 25 25M25 7l-2.8 2.8M9.8 22.2 7 25"/></svg></li>
+        <li data-k="portal" title="Portalpaar"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.6"><ellipse cx="9" cy="16" rx="4.6" ry="11"/><ellipse cx="23" cy="16" rx="4.6" ry="11"/></svg></li>
+        <li data-k="down" title="Datenwürfel zu dir (Download)"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"><path d="M8 17l8-4 8 4v9l-8 4-8-4z"/><path d="M8 17l8 4 8-4M16 21v9"/><path d="M16 2v8M12 7l4 4 4-4"/></svg></li>
+        <li data-k="beam" title="Datenstrahl"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16h4l3-8 5 16 4-12 3 4h7"/></svg></li>
+        <li data-k="up" title="Datenwürfel zum Router (Upload)"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"><path d="M8 17l8-4 8 4v9l-8 4-8-4z"/><path d="M8 17l8 4 8-4M16 21v9"/><path d="M16 11V3M12 6l4-4 4 4"/></svg></li>
+        <li data-k="cpu" title="Router-Prozessor"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="9" y="9" width="14" height="14" rx="1.5"/><rect x="13" y="13" width="6" height="6" fill="currentColor"/><path d="M13 9V4M19 9V4M13 28v-5M19 28v-5M9 13H4M9 19H4M28 13h-5M28 19h-5"/></svg></li>
+        <li data-k="eye" title="Beobachtung"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"><path d="M3 16c4-6 8.5-9 13-9s9 3 13 9c-4 6-8.5 9-13 9S7 22 3 16z"/><circle cx="16" cy="16" r="4.5" fill="currentColor"/></svg></li>
+        <li data-k="lift" title="Aufzug"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><rect x="7" y="3" width="18" height="26" rx="2"/><path d="M12 13l4-5 4 5zM12 19l4 5 4-5z" fill="currentColor"/></svg></li>
+      </ul>
+      <div class="sign-foot">Bitte nicht in die Portale greifen. Datenwürfel sind Eigentum der Einrichtung.</div>
+    </aside>
+
+    <div class="chamber">
+      <canvas id="cv" aria-hidden="true"></canvas>
+      <div class="hud" id="hud" hidden aria-hidden="true">
+        <span class="hud-k" id="hudk">Download</span>
+        <span class="hud-v"><b id="big">…</b><small id="unit">Mbit/s</small></span>
+      </div>
+      <div class="subs">
+        <span class="who">EVA-7</span>
+        <p id="sub" aria-hidden="true"></p>
+        <span class="sr" id="sub-sr" aria-live="polite"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="deck">
+    <form class="panel console" id="console" onsubmit="return false">
+      <h2>Versuchsaufbau</h2>
+      <label class="fld wide" for="label">Gerät (Prüfling)
+        <input id="label" maxlength="40" placeholder="z. B. Laptop WLAN" autocomplete="off">
+      </label>
+      <label class="fld" for="duration">Dauer je Richtung
+        <select id="duration"><option value="5">5 Sekunden</option><option value="10" selected>10 Sekunden</option><option value="20">20 Sekunden</option></select>
+      </label>
+      <label class="fld" for="streams">Parallele Ströme
+        <select id="streams"><option value="1">1</option><option value="2">2</option><option value="4" selected>4</option><option value="6">6</option><option value="8">8</option></select>
+      </label>
+      <button type="button" id="go" disabled>Test starten</button>
+    </form>
+
+    <div class="panel gauges" aria-label="Messwerte">
+      <h2>Messinstrumente</h2>
+      <div class="g ping" id="g-ping"><div class="g-k">Ping <i>Energieball</i></div><div class="g-v" id="v-ping">–<small>ms</small></div><div class="g-s" id="s-ping">Jitter –</div></div>
+      <div class="g dl" id="g-dl"><div class="g-k">Download <i>Spitze</i></div><div class="g-v" id="v-dl">–<small>Mbit/s</small></div><div class="g-s" id="s-dl">Ø –</div></div>
+      <div class="g ul" id="g-ul"><div class="g-k">Upload <i>Spitze</i></div><div class="g-v" id="v-ul">–<small>Mbit/s</small></div><div class="g-s" id="s-ul">Ø –</div></div>
+    </div>
+  </section>
+
+  <section class="cert" id="cert" hidden aria-label="Testzertifikat">
+    <div class="cert-in">
+      <div class="lift" aria-hidden="true">
+        <span class="k">Aufzug</span>
+        <span class="n" id="l-no">01</span>
+        <span class="k">Kammer absolviert</span>
+        <span class="lamp">Aufzug eingetroffen</span>
+      </div>
+      <div class="paper">
+        <div class="c-head">
+          <svg aria-hidden="true"><use href="#emblem"/></svg>
+          <div class="inst">Institut für angewandte Wurmlochforschung<small>Abteilung Durchsatzprüfung · Testaufsicht EVA-7</small></div>
+          <div class="no">Zertifikat Nr.<b id="c-no">–</b></div>
+        </div>
+        <h2>Testzertifikat · Kammer <span id="c-k">01</span></h2>
+        <p class="c-sub">Hiermit wird bescheinigt, dass <b id="c-who">dieses Gerät</b> die Testkammer vollständig durchquert hat. Alle Datenwürfel wurden gezählt.</p>
+        <div class="cert-grid">
+          <div class="cf dl"><span class="k">Download Spitze</span><b id="c-dl">–</b><span class="s" id="c-dl-s">Ø –</span><svg id="sp-dl" viewBox="0 0 300 34" preserveAspectRatio="none" aria-hidden="true"></svg></div>
+          <div class="cf ul"><span class="k">Upload Spitze</span><b id="c-ul">–</b><span class="s" id="c-ul-s">Ø –</span><svg id="sp-ul" viewBox="0 0 300 34" preserveAspectRatio="none" aria-hidden="true"></svg></div>
+          <div class="cf"><span class="k">Ping</span><b id="c-ping">–</b><span class="s" id="c-jit">Jitter –</span></div>
+          <div class="cf"><span class="k">CPU stärkster Kern</span><b id="c-core">–</b><span class="s" id="c-core-s">–</span></div>
+        </div>
+        <div class="note" id="note" hidden></div>
+        <div class="c-ver">
+          <div><span class="k">Urteil</span><strong id="v-t">–</strong><p id="v-s"></p></div>
+          <blockquote class="eva"><p id="c-eva"></p><cite>EVA-7 · Testaufsicht</cite></blockquote>
+        </div>
+        <div class="c-foot"><span id="c-date">Datum</span><span>Unterschrift Testaufsicht: EVA-7 (digital)</span></div>
+        <div class="stamp" aria-hidden="true">Bestanden</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="hist" aria-label="Verlauf">
+    <div class="hist-h">
+      <h2>Absolvierte Testkammern</h2>
+      <span id="clear-wrap"><button class="btn" id="clear" type="button">Protokolle löschen</button></span>
+    </div>
+    <div id="history"><div class="empty">Noch keine Kammer absolviert.</div></div>
+  </section>
+</main>
+<footer>Messung zwischen diesem Gerät und dem Router im lokalen Netz. Die Einrichtung übernimmt keine Haftung für verlorene Datenwürfel.</footer>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.SpeedEngine;
+  function $(id) { return document.getElementById(id); }
+  var RM = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function now() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
+
+  // =====================================================================
+  //  Testkammer (Canvas)
+  // =====================================================================
+  var cv = $('cv'), ctx = cv.getContext('2d');
+  var room = document.createElement('canvas'), rctx = room.getContext('2d');
+  var CW = 0, CH = 0, DPR = 1, F = 1, CX = 0, CY = 0;
+  var H = 4, W = 6, ZN = 3.2, ZF = 13, ZP = 6.7, PX = -2, PRX = 1.45, PRZ = 1.95;
+  var LAUNCH, RECV, ELX, ELZ = 11.7, ELR = 0.9;
+  var chamberNo = 1;
+
+  function P(x, y, z) { return [CX + F * x / z, CY - F * y / z]; }
+
+  function hexRgb(h) { return [parseInt(h.substr(1, 2), 16), parseInt(h.substr(3, 2), 16), parseInt(h.substr(5, 2), 16)]; }
+  function shade(h, k) {
+    var c = hexRgb(h);
+    return 'rgb(' + Math.round(Math.min(255, c[0] * k)) + ',' + Math.round(Math.min(255, c[1] * k)) + ',' + Math.round(Math.min(255, c[2] * k)) + ')';
+  }
+  function depthK(z) { return 1 - 0.2 * (z - ZN) / (ZF - ZN); }
+  function hash(i, j) { var s = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return s - Math.floor(s); }
+
+  function poly(c, pts) {
+    c.beginPath(); c.moveTo(pts[0][0], pts[0][1]);
+    for (var i = 1; i < pts.length; i++) c.lineTo(pts[i][0], pts[i][1]);
+    c.closePath();
+  }
+  function quad3(c, a, b, d, e) { poly(c, [P(a[0], a[1], a[2]), P(b[0], b[1], b[2]), P(d[0], d[1], d[2]), P(e[0], e[1], e[2])]); }
+
+  // Paneelflaeche: fn(u,v) -> [x,y,z], colorFn(i,j,z) -> Basisfarbe
+  function surface(c, fn, nu, nv, colorFn) {
+    for (var i = 0; i < nu; i++) {
+      for (var j = 0; j < nv; j++) {
+        var a = fn(i / nu, j / nv), b = fn((i + 1) / nu, j / nv), d = fn((i + 1) / nu, (j + 1) / nv), e = fn(i / nu, (j + 1) / nv);
+        var zm = (a[2] + d[2]) / 2, base = colorFn(i, j), k = depthK(zm) * (0.975 + hash(i + nu, j) * 0.05);
+        quad3(c, a, b, d, e);
+        c.fillStyle = shade(base, k); c.fill();
+        c.strokeStyle = shade(base, k * 0.8); c.lineWidth = 1.2; c.stroke();
+        // Innenkante: zartes Licht auf dem Paneel
+        var m = 0.06, ia = mix3(a, d, m), ib = mix3(b, e, m), id = mix3(d, a, m), ie = mix3(e, b, m);
+        quad3(c, ia, ib, id, ie);
+        c.strokeStyle = 'rgba(255,255,255,' + (base === DARK ? 0.06 : 0.35) + ')'; c.lineWidth = 1; c.stroke();
+      }
+    }
+  }
+  function mix3(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+
+  var WHITE = '#f6f7f8', DARK = '#33383e', FLOOR = '#c9cfd4', CEIL = '#dfe4e8';
+
+  function wallCircle(c, x, y0, z0, r, n) {
+    var pts = [];
+    for (var i = 0; i < n; i++) { var a = i / n * Math.PI * 2; pts.push(P(x, y0 + r * Math.sin(a), z0 + r * Math.cos(a))); }
+    poly(c, pts);
+  }
+
+  function renderRoom() {
+    room.width = cv.width; room.height = cv.height;
+    var c = rctx;
+    c.setTransform(DPR, 0, 0, DPR, 0, 0);
+    c.clearRect(0, 0, CW, CH);
+    var nx = Math.max(4, Math.round(2 * W / 1.6)), nz = 7, ny = 5;
+    // Decke
+    surface(c, function (u, v) { return [-W + 2 * W * u, H, ZN + (ZF - ZN) * v]; }, nx, nz, function () { return CEIL; });
+    // Boden
+    surface(c, function (u, v) { return [-W + 2 * W * u, -H, ZN + (ZF - ZN) * v]; }, nx, nz, function (i) { return (i === 0 || i === nx - 1) ? DARK : FLOOR; });
+    // linke Wand
+    surface(c, function (u, v) { return [-W, -H + 2 * H * v, ZN + (ZF - ZN) * u]; }, nz, ny, function (i, j) { return (j === 0 || i === 5) ? DARK : WHITE; });
+    // rechte Wand
+    surface(c, function (u, v) { return [W, -H + 2 * H * v, ZN + (ZF - ZN) * u]; }, nz, ny, function (i, j) { return (j === 0 || (j === 4 && i < 5)) ? DARK : WHITE; });
+    // Rueckwand
+    surface(c, function (u, v) { return [-W + 2 * W * u, -H + 2 * H * v, ZF]; }, nx, ny, function (i, j) { return (j === 0 || (j === 4 && i < 2)) ? DARK : WHITE; });
+
+    // Lichtbaender an der Decke
+    [-1, 1].forEach(function (s) {
+      var x0 = s * W * 0.5, x1 = s * W * 0.64;
+      for (var g = 3; g >= 0; g--) {
+        var e = g * 0.09;
+        quad3(c, [x0 - s * e, H, 4.6 - e], [x1 + s * e, H, 4.6 - e], [x1 + s * e, H, 12.2 + e], [x0 - s * e, H, 12.2 + e]);
+        c.fillStyle = g ? 'rgba(255,255,255,' + (0.22 - g * 0.05) + ')' : '#ffffff'; c.fill();
+      }
+    });
+
+    // Beobachtungsfenster rechts oben
+    var wz0 = 5.0, wz1 = 8.8, wy0 = 0.9, wy1 = 3.1;
+    quad3(c, [W, wy0 - 0.25, wz0 - 0.3], [W, wy0 - 0.25, wz1 + 0.3], [W, wy1 + 0.25, wz1 + 0.3], [W, wy1 + 0.25, wz0 - 0.3]);
+    c.fillStyle = '#23282d'; c.fill();
+    quad3(c, [W, wy0, wz0], [W, wy0, wz1], [W, wy1, wz1], [W, wy1, wz0]);
+    var p0 = P(W, wy1, wz0), p1 = P(W, wy0, wz1);
+    var gr = c.createLinearGradient(p0[0], p0[1], p1[0], p1[1]);
+    gr.addColorStop(0, '#6f8ea3'); gr.addColorStop(0.55, '#3b5466'); gr.addColorStop(1, '#2a3c49');
+    c.fillStyle = gr; c.fill();
+    // Licht im Beobachtungsraum
+    var lp = P(W, 2.5, 7.8), lr = F * 0.9 / 7.8;
+    var lg = c.createRadialGradient(lp[0], lp[1], 0, lp[0], lp[1], lr);
+    lg.addColorStop(0, 'rgba(255,214,150,.75)'); lg.addColorStop(1, 'rgba(255,214,150,0)');
+    c.save(); quad3(c, [W, wy0, wz0], [W, wy0, wz1], [W, wy1, wz1], [W, wy1, wz0]); c.clip();
+    c.fillStyle = lg; c.fillRect(lp[0] - lr, lp[1] - lr, lr * 2, lr * 2);
+    // Silhouette einer Konsole
+    quad3(c, [W, wy0, 6.9], [W, wy0, 8.6], [W, wy0 + 0.55, 8.6], [W, wy0 + 0.55, 6.9]); c.fillStyle = 'rgba(15,22,28,.65)'; c.fill();
+    // Spiegelungen
+    for (var r = 0; r < 2; r++) {
+      var za = wz0 + 0.5 + r * 1.6, zb = za + 0.5 + r * 0.3;
+      quad3(c, [W, wy0, za + 0.9], [W, wy0, zb + 0.9], [W, wy1, zb], [W, wy1, za]);
+      c.fillStyle = 'rgba(255,255,255,' + (0.16 - r * 0.05) + ')'; c.fill();
+    }
+    c.restore();
+    [6.3, 7.6].forEach(function (z) {
+      var a = P(W, wy0, z), b = P(W, wy1, z);
+      c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.strokeStyle = '#23282d'; c.lineWidth = Math.max(2, F * 0.08 / z); c.stroke();
+    });
+
+    // Abschussvorrichtung (links) und Empfaenger (rechts)
+    [[LAUNCH, '#ff9d2e'], [RECV, '#ffcc4d']].forEach(function (d, idx) {
+      var p = d[0];
+      quad3(c, [p[0], p[1] - 0.75, p[2] - 0.75], [p[0], p[1] - 0.75, p[2] + 0.75], [p[0], p[1] + 0.75, p[2] + 0.75], [p[0], p[1] + 0.75, p[2] - 0.75]);
+      c.fillStyle = '#2a2f35'; c.fill(); c.strokeStyle = '#15191d'; c.lineWidth = 1.5; c.stroke();
+      wallCircle(c, p[0], p[1], p[2], 0.52, 28); c.fillStyle = '#4a525a'; c.fill();
+      wallCircle(c, p[0], p[1], p[2], 0.36, 28); c.fillStyle = idx ? '#15191d' : '#1b1f24'; c.fill();
+      c.strokeStyle = d[1]; c.lineWidth = Math.max(1.5, F * 0.07 / p[2]); c.stroke();
+    });
+
+    // Kammernummer an der Rueckwand
+    var tp = P(-W * 0.05, H - 0.35, ZF), fs = Math.max(14, F * 1.9 / ZF);
+    if (CW / CH > 1.2) {
+    c.font = '600 ' + fs + 'px "Barlow Condensed", "Arial Narrow", sans-serif';
+    c.textBaseline = 'top'; c.fillStyle = 'rgba(245,247,248,.9)';
+    c.fillText(pad2(chamberNo), tp[0], tp[1]);
+    }
+
+    // Schatten in den Ecken (Vignette)
+    var vg = c.createRadialGradient(CX, CY, Math.min(CW, CH) * 0.25, CX, CY, Math.max(CW, CH) * 0.78);
+    vg.addColorStop(0, 'rgba(20,30,40,0)'); vg.addColorStop(1, 'rgba(20,30,40,.28)');
+    c.fillStyle = vg; c.fillRect(0, 0, CW, CH);
+  }
+
+  function resize() {
+    var r = cv.getBoundingClientRect();
+    CW = Math.max(200, r.width); CH = Math.max(200, r.height);
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.round(CW * DPR); cv.height = Math.round(CH * DPR);
+    var asp = CW / CH;
+    W = H * Math.max(0.8, Math.min(2.0, asp)) * 1.02;
+    F = Math.max((CW / 2) / (W / ZN), (CH / 2) / (H / ZN)) * 1.01;
+    CX = CW / 2; CY = CH / 2;
+    PX = asp < 1.2 ? -W * 0.34 : -W * 0.3;
+    ELX = W * 0.52;
+    LAUNCH = [-W, -1.5, 10.2]; RECV = [W, -1.5, 5.5];
+    renderRoom();
+    dirty = true;
+  }
+
+  // ---------- Portale ----------
+  var BLUE = [31, 156, 242], ORANGE = [255, 138, 28];
+  function rgba(c, a) { return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')'; }
+  function portalGeo(y) {
+    var c = P(PX, y, ZP), n = P(PX, y, ZP - PRZ), f = P(PX, y, ZP + PRZ), l = P(PX - PRX, y, ZP), r = P(PX + PRX, y, ZP);
+    return { x: c[0], y: (n[1] + f[1]) / 2, rx: (r[0] - l[0]) / 2, ry: Math.abs(n[1] - f[1]) / 2, cy: c[1] };
+  }
+  function drawPortal(g, col, t, act) {
+    var k = g.ry / g.rx;
+    ctx.save();
+    ctx.translate(g.x, g.y); ctx.scale(1, k);
+    var R = g.rx;
+    // Leuchten auf der Flaeche
+    var halo = ctx.createRadialGradient(0, 0, R * 0.6, 0, 0, R * (1.75 + act * 0.35));
+    halo.addColorStop(0, rgba(col, 0.42 + act * 0.2)); halo.addColorStop(1, rgba(col, 0));
+    ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(0, 0, R * (1.75 + act * 0.35), 0, Math.PI * 2); ctx.fill();
+    // Innenraum
+    var inner = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
+    inner.addColorStop(0, 'rgba(255,255,255,.95)');
+    inner.addColorStop(0.45, rgba([Math.round(col[0] * 0.4 + 153), Math.round(col[1] * 0.4 + 153), Math.round(col[2] * 0.4 + 153)], 0.95));
+    inner.addColorStop(0.85, rgba(col, 0.95));
+    inner.addColorStop(1, rgba([Math.round(col[0] * 0.55), Math.round(col[1] * 0.55), Math.round(col[2] * 0.55)], 1));
+    ctx.fillStyle = inner; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    // Wirbel
+    var sp = RM ? 0 : t * (0.7 + act * 2.4);
+    ctx.lineCap = 'round';
+    for (var i = 0; i < 7; i++) {
+      var rr = R * (0.32 + i * 0.09), a0 = sp * (i % 2 ? -1 : 1) * (1 + i * 0.12) + i * 1.7;
+      ctx.beginPath(); ctx.arc(0, 0, rr, a0, a0 + 1.1 + (i % 3) * 0.5);
+      ctx.strokeStyle = 'rgba(255,255,255,' + (0.28 + (i % 3) * 0.12) + ')';
+      ctx.lineWidth = Math.max(1, R * 0.035); ctx.stroke();
+    }
+    // wabernder Rand
+    var n = 64, amp = R * (0.035 + act * 0.03);
+    ctx.beginPath();
+    for (var j = 0; j <= n; j++) {
+      var a = j / n * Math.PI * 2;
+      var rr2 = R * 1.0 + amp * Math.sin(a * 7 + sp * 3.1) + amp * 0.6 * Math.sin(a * 12 - sp * 4.3);
+      var x = Math.cos(a) * rr2, y = Math.sin(a) * rr2;
+      if (j) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+    }
+    ctx.strokeStyle = rgba(col, 1); ctx.lineWidth = Math.max(3, R * 0.16); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = Math.max(1, R * 0.04); ctx.stroke();
+    // Funken auf dem Rand
+    if (!RM) {
+      for (var s = 0; s < 10; s++) {
+        var aa = sp * (0.6 + s * 0.07) + s * 0.63, rs = R * (1.04 + 0.08 * Math.sin(t * 5 + s));
+        ctx.beginPath(); ctx.arc(Math.cos(aa) * rs, Math.sin(aa) * rs, Math.max(1, R * 0.028), 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  // ---------- Datenwuerfel ----------
+  var FACES = [[0, 1, 2, 3], [5, 4, 7, 6], [4, 0, 3, 7], [1, 5, 6, 2], [3, 2, 6, 7], [4, 5, 1, 0]];
+  var NORM = [[0, 0, -1], [0, 0, 1], [-1, 0, 0], [1, 0, 0], [0, 1, 0], [0, -1, 0]];
+  var CUBE_V = [[-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1], [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]];
+  var LIGHT = (function () { var l = [0.35, 0.85, -0.45], m = Math.sqrt(l[0] * l[0] + l[1] * l[1] + l[2] * l[2]); return [l[0] / m, l[1] / m, l[2] / m]; })();
+  var VIS = 0.62; // Anteil der Schleife, in dem ein Wuerfel sichtbar ist
+  var cubes = [];
+  for (var ci = 0; ci < 12; ci++) {
+    cubes.push({ ph: (ci * 0.618034) % 1, on: ci === 0, ax: ci * 1.3, ay: ci * 0.7, sx: 0.6 + hash(ci, 1) * 1.2, sy: 0.5 + hash(ci, 2) * 1.2,
+                 dx: (hash(ci, 3) - 0.5) * 0.7, dz: (hash(ci, 4) - 0.5) * 0.7 });
+  }
+  function rot(v, ax, ay) {
+    var ca = Math.cos(ax), sa = Math.sin(ax), cb = Math.cos(ay), sb = Math.sin(ay);
+    var y = v[1] * ca - v[2] * sa, z = v[1] * sa + v[2] * ca;
+    var x = v[0] * cb + z * sb; z = -v[0] * sb + z * cb;
+    return [x, y, z];
+  }
+  function lerp2(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; }
+  function bil(q, u, v) { return lerp2(lerp2(q[0], q[1], u), lerp2(q[3], q[2], u), v); }
+
+  function drawCube(px, py, pz, s, ax, ay, acc, vy) {
+    // Bewegungsschleier
+    var sp = Math.abs(vy);
+    if (sp > 6 && !RM) {
+      var c0 = P(px, py, pz), c1 = P(px, py + (vy > 0 ? -1 : 1) * Math.min(3, sp * 0.07), pz);
+      var gg = ctx.createLinearGradient(c0[0], c0[1], c1[0], c1[1]);
+      gg.addColorStop(0, rgba(acc, 0.45)); gg.addColorStop(1, rgba(acc, 0));
+      ctx.strokeStyle = gg; ctx.lineWidth = F * s * 1.3 / pz; ctx.lineCap = 'butt';
+      ctx.beginPath(); ctx.moveTo(c0[0], c0[1]); ctx.lineTo(c1[0], c1[1]); ctx.stroke();
+    }
+    var vs = [], i;
+    for (i = 0; i < 8; i++) {
+      var r = rot(CUBE_V[i], ax, ay);
+      vs.push(P(px + r[0] * s, py + r[1] * s, pz + r[2] * s));
+    }
+    for (i = 0; i < 6; i++) {
+      var n = rot(NORM[i], ax, ay);
+      var fc = [px + n[0] * s, py + n[1] * s, pz + n[2] * s];
+      if (n[0] * fc[0] + n[1] * fc[1] + n[2] * fc[2] >= 0) continue;
+      var b = 0.6 + 0.45 * Math.max(0, n[0] * LIGHT[0] + n[1] * LIGHT[1] + n[2] * LIGHT[2]);
+      var f = FACES[i], q = [vs[f[0]], vs[f[1]], vs[f[2]], vs[f[3]]];
+      poly(ctx, q);
+      ctx.fillStyle = shade('#e3e8ec', b); ctx.fill();
+      ctx.strokeStyle = '#4c555e'; ctx.lineWidth = Math.max(1, F * s * 0.07 / pz); ctx.lineJoin = 'round'; ctx.stroke();
+      // Innenplatte
+      var ip = [bil(q, 0.16, 0.16), bil(q, 0.84, 0.16), bil(q, 0.84, 0.84), bil(q, 0.16, 0.84)];
+      poly(ctx, ip); ctx.fillStyle = shade('#c9d1d8', b); ctx.fill();
+      // Netzwerk-Symbol: Knoten in der Mitte, drei Endpunkte
+      var m = bil(q, 0.5, 0.5), e1 = bil(q, 0.3, 0.3), e2 = bil(q, 0.7, 0.3), e3 = bil(q, 0.5, 0.74);
+      ctx.strokeStyle = rgba(acc, 0.95); ctx.lineWidth = Math.max(1, F * s * 0.09 / pz);
+      ctx.beginPath(); ctx.moveTo(e1[0], e1[1]); ctx.lineTo(m[0], m[1]); ctx.lineTo(e2[0], e2[1]); ctx.moveTo(m[0], m[1]); ctx.lineTo(e3[0], e3[1]); ctx.stroke();
+      var dr = Math.max(1.2, F * s * 0.1 / pz);
+      ctx.fillStyle = rgba(acc, 1);
+      [m, e1, e2, e3].forEach(function (p, k) { ctx.beginPath(); ctx.arc(p[0], p[1], k ? dr : dr * 1.5, 0, Math.PI * 2); ctx.fill(); });
+    }
+  }
+
+  // ---------- Szenenzustand ----------
+  var S = { mode: 'idle', tv: 0, dv: 0, dir: 1, ball: 0, ballT: 0, ballOn: false, trail: [], flashL: 0, flashR: 0, lastLeg: 0, elev: 0, elevTarget: 0, t: 0 };
+  var dirty = true, raf = null, lastTs = 0, acc = 0;
+
+  function sceneDraw(dt) {
+    S.t += dt;
+    var t = S.t;
+    // Durchsatz weich nachfuehren
+    S.dv += (S.tv - S.dv) * (1 - Math.exp(-dt * 4));
+    var u = S.dv > 0 ? Math.min(1, Math.log(1 + S.dv) / Math.LN10 / 4) : 0;
+    var measuring = S.mode === 'download' || S.mode === 'upload';
+    var N, speed;
+    if (measuring) { N = 1 + Math.round(u * 10); speed = 2.4 + 30 * u * u; if (RM) { N = Math.min(N, 2); speed = Math.min(speed, 5); } }
+    else if (S.mode === 'ping') { N = 0; speed = 3.5; }
+    else { N = RM ? 0 : 1; speed = 2.6; }
+    if (measuring && S.tv > 0) { var fs0 = E.fmtSpeed(S.dv); hudVal(fs0.v, fs0.u); }
+    var act = measuring ? 0.25 + u * 0.75 : (S.mode === 'ping' ? 0.25 : 0.1);
+
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.drawImage(room, 0, 0, CW, CH);
+
+    // Aufzug (Glasroehre an der Rueckwand)
+    S.elev += (S.elevTarget - S.elev) * (1 - Math.exp(-dt * (S.elevTarget ? 1.6 : 3)));
+    drawElevator(t);
+
+    var top = portalGeo(H), bot = portalGeo(-H);
+    drawPortal(top, ORANGE, t, act);
+    drawPortal(bot, BLUE, t + 3, act);
+
+    // Energieball (Ping)
+    drawBall(dt);
+
+    // Wuerfel
+    var span = 2 * H + 1.4, loopLen = span / VIS, dph = speed * dt / loopLen;
+    var clipT = CY - F * H / ZP, clipB = CY + F * H / ZP;
+    ctx.save(); ctx.beginPath(); ctx.rect(0, clipT, CW, clipB - clipT); ctx.clip();
+    var accCol = S.dir > 0 ? BLUE : ORANGE;
+    for (var i = 0; i < cubes.length; i++) {
+      var c = cubes[i], before = c.ph;
+      c.ph += dph;
+      if (c.ph >= 1) c.ph -= 1;
+      if ((before < VIS && c.ph >= VIS) || before > c.ph) c.on = i < N;
+      if (!c.on || c.ph >= VIS) continue;
+      var k = c.ph / VIS, y = S.dir > 0 ? (H + 0.7) - k * span : (-H - 0.7) + k * span;
+      c.ax += dt * c.sx * (0.6 + speed * 0.08); c.ay += dt * c.sy * (0.6 + speed * 0.08);
+      drawCube(PX + c.dx, y, ZP + c.dz, 0.5, RM ? 0.5 : c.ax, RM ? 0.6 : c.ay, accCol, S.dir > 0 ? -speed : speed);
+    }
+    ctx.restore();
+
+    // Beschriftung der Portale
+    var fs = Math.max(11, Math.min(16, CW / 60));
+    ctx.font = '700 ' + fs + 'px "Barlow Condensed", "Arial Narrow", sans-serif';
+    ctx.textBaseline = 'middle';
+    label('ROUTER', top.x + top.rx * 1.25, top.y + top.ry * 0.2, '#b65a00');
+    label('DEIN GERÄT', bot.x + bot.rx * 1.25, bot.y - bot.ry * 0.2, '#0a67a8');
+  }
+  function label(txt, x, y, col) {
+    var w = ctx.measureText(txt).width + 12, h = 20;
+    ctx.fillStyle = 'rgba(255,255,255,.82)';
+    ctx.fillRect(x, y - h / 2, w, h);
+    ctx.fillStyle = col; ctx.fillRect(x, y - h / 2, 3, h);
+    ctx.fillStyle = '#1a2026'; ctx.fillText(txt, x + 8, y + 1);
+  }
+
+  function drawElevator(t) {
+    var x = ELX, z = ELZ, r = ELR;
+    var a = P(x - r, H, z), b = P(x + r, -H, z);
+    // Lichtschacht
+    var g = ctx.createLinearGradient(a[0], 0, b[0], 0);
+    g.addColorStop(0, 'rgba(160,200,225,.25)'); g.addColorStop(0.3, 'rgba(235,248,255,.5)'); g.addColorStop(0.55, 'rgba(160,200,225,.18)'); g.addColorStop(1, 'rgba(120,160,190,.3)');
+    ctx.fillStyle = g; ctx.fillRect(a[0], a[1], b[0] - a[0], b[1] - a[1]);
+    // Plattform
+    var py = (H - 0.3) - (2 * H - 0.45) * ease(S.elev);
+    var pl = P(x - r * 0.95, py, z), pr = P(x + r * 0.95, py, z), pn = P(x, py, z - r * 0.95), pf = P(x, py, z + r * 0.95);
+    var cx = (pl[0] + pr[0]) / 2, cyy = (pn[1] + pf[1]) / 2, rx = (pr[0] - pl[0]) / 2, ry = Math.max(1, Math.abs(pn[1] - pf[1]) / 2);
+    ctx.save(); ctx.translate(cx, cyy); ctx.scale(1, ry / rx);
+    ctx.beginPath(); ctx.arc(0, 0, rx, 0, Math.PI * 2); ctx.fillStyle = '#e7ebee'; ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = '#3b434b'; ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = '#3b434b'; ctx.fillRect(cx - rx, cyy, rx * 2, Math.max(2, F * 0.14 / z));
+    // Roehrenkanten
+    ctx.strokeStyle = 'rgba(70,90,105,.55)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(a[0], b[1]); ctx.moveTo(b[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 2;
+    var hx = a[0] + (b[0] - a[0]) * 0.22;
+    ctx.beginPath(); ctx.moveTo(hx, a[1]); ctx.lineTo(hx, b[1]); ctx.stroke();
+    // Statuslampe am Boden
+    var arrived = S.elev > 0.97;
+    var lp = P(x, -H, z - r - 0.2), lr = F * 0.18 / z;
+    ctx.beginPath(); ctx.arc(lp[0], lp[1], lr, 0, Math.PI * 2);
+    ctx.fillStyle = arrived ? 'rgba(62,224,160,' + (0.75 + 0.25 * Math.sin(t * 4)) + ')' : '#7d8790'; ctx.fill();
+  }
+  function ease(x) { return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2; }
+
+  function drawBall(dt) {
+    var on = S.mode === 'ping';
+    if (on) S.ballT += dt / (RM ? 1.2 : 0.42);
+    var leg = Math.floor(S.ballT), fr = S.ballT - leg;
+    if (leg !== S.lastLeg) { if (leg % 2) S.flashR = 1; else S.flashL = 1; S.lastLeg = leg; }
+    var from = leg % 2 ? RECV : LAUNCH, to = leg % 2 ? LAUNCH : RECV;
+    var off = 0.55;
+    var pos = [from[0] + (to[0] - from[0]) * fr, from[1] + Math.sin(fr * Math.PI) * 0.25, from[2] + (to[2] - from[2]) * fr];
+    pos[0] = Math.max(-W + off, Math.min(W - off, pos[0]));
+    S.flashL = Math.max(0, S.flashL - dt * 3); S.flashR = Math.max(0, S.flashR - dt * 3);
+    glowAt(LAUNCH, S.flashL + (on ? 0.25 : 0));
+    glowAt(RECV, S.flashR + (on ? 0.25 : 0));
+    var sp = P(pos[0], pos[1], pos[2]);
+    if (on) { S.trail.push(sp); if (S.trail.length > 12) S.trail.shift(); }
+    else if (S.trail.length) S.trail.shift();
+    if (!on && !S.trail.length) return;
+    var rad = F * 0.3 / pos[2];
+    for (var i = 0; i < S.trail.length; i++) {
+      var p = S.trail[i], k = i / S.trail.length;
+      ctx.beginPath(); ctx.arc(p[0], p[1], rad * (0.3 + k * 0.6), 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,170,40,' + (k * 0.35) + ')'; ctx.fill();
+    }
+    if (!on) return;
+    var g = ctx.createRadialGradient(sp[0], sp[1], 0, sp[0], sp[1], rad * 2.4);
+    g.addColorStop(0, 'rgba(255,255,240,1)'); g.addColorStop(0.3, 'rgba(255,214,90,1)'); g.addColorStop(0.55, 'rgba(255,150,30,.55)'); g.addColorStop(1, 'rgba(255,140,20,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sp[0], sp[1], rad * 2.4, 0, Math.PI * 2); ctx.fill();
+  }
+  function glowAt(p, a) {
+    if (a <= 0.01) return;
+    var c = P(p[0], p[1], p[2]), r = F * 0.95 / p[2];
+    var g = ctx.createRadialGradient(c[0], c[1], 0, c[0], c[1], r);
+    g.addColorStop(0, 'rgba(255,200,80,' + Math.min(1, a) + ')'); g.addColorStop(1, 'rgba(255,170,40,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c[0], c[1], r, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // ---------- Schleife ----------
+  function frame(ts) {
+    raf = null;
+    if (document.hidden) return;
+    var dt = lastTs ? Math.min(0.05, (ts - lastTs) / 1000) : 0.016;
+    lastTs = ts;
+    var busy = S.mode === 'ping' || S.mode === 'download' || S.mode === 'upload' || Math.abs(S.elev - S.elevTarget) > 0.002;
+    var minStep = RM ? 1 / 12 : (busy ? 0 : 1 / 30);
+    acc += dt;
+    if (acc >= minStep || dirty) { sceneDraw(acc); acc = 0; dirty = false; }
+    schedule();
+  }
+  function schedule() { if (!raf && !document.hidden) raf = requestAnimationFrame(frame); }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { lastTs = 0; schedule(); } });
+  var rzT = null;
+  window.addEventListener('resize', function () { clearTimeout(rzT); rzT = setTimeout(function () { resize(); schedule(); }, 120); });
+
+  // =====================================================================
+  //  EVA-7 (Untertitel)
+  // =====================================================================
+  var subT = null, subTxt = '', subI = 0;
+  function say(text) {
+    subTxt = text; subI = 0; clearTimeout(subT);
+    $('sub-sr').textContent = text;
+    if (RM) { $('sub').textContent = text; return; }
+    $('sub').className = 'typing';
+    (function step() {
+      subI = Math.min(subTxt.length, subI + 2);
+      $('sub').textContent = subTxt.slice(0, subI);
+      if (subI < subTxt.length) subT = setTimeout(step, 26);
+      else $('sub').className = '';
+    })();
+  }
+  var IDLE = [
+    'Willkommen in der Testkammer. Bitte treten Sie nicht in die Portale. Danke.',
+    'Diese Kammer wurde gründlich gereinigt. Die Datenwürfel ebenfalls. Fast alle.',
+    'Drücken Sie auf „Test starten“. Ich zähle mit. Ich zähle immer mit.',
+    'Dieser Würfel fällt seit Ihrer Ankunft. Er beschwert sich nicht. Nehmen Sie sich ein Beispiel.',
+    'Zur Erinnerung: Die Einrichtung haftet nicht für Daten, die zwischen zwei Portalen verloren gehen.'
+  ];
+  var idleI = 0;
+  setInterval(function () {
+    if (S.mode === 'idle' && !document.hidden) { idleI = (idleI + 1) % IDLE.length; say(IDLE[idleI]); }
+  }, 15000);
+
+  // =====================================================================
+  //  Anzeige
+  // =====================================================================
+  var TILES = ['router', 'ping', 'portal', 'down', 'beam', 'up', 'cpu', 'eye', 'lift'];
+  function pictos(on, cur, blue) {
+    var li = $('picto').getElementsByTagName('li');
+    for (var i = 0; i < li.length; i++) {
+      var k = li[i].getAttribute('data-k');
+      li[i].className = k === cur ? 'cur' + (blue ? ' b' : '') : (on.indexOf(k) >= 0 ? 'on' : '');
+    }
+  }
+  function progress(p) {
+    p = Math.max(0, Math.min(1, p));
+    $('sbar').style.transform = 'scaleX(' + p.toFixed(3) + ')';
+    $('pct').textContent = Math.round(p * 100) + ' %';
+    $('sbarw').setAttribute('aria-valuenow', Math.round(p * 100));
+  }
+  function setNo(n) {
+    var s = pad2(n);
+    $('cnum').textContent = s; $('cnum2').textContent = s;
+    if (chamberNo !== n) { chamberNo = n; if (CW) { renderRoom(); dirty = true; } }
+  }
+  function gauge(id, v, unit, sub) {
+    $('v-' + id).innerHTML = v + '<small>' + unit + '</small>';
+    if (sub !== undefined) $('s-' + id).textContent = sub;
+  }
+  function onGauge(id) {
+    ['ping', 'dl', 'ul'].forEach(function (k) { $('g-' + k).classList.remove('on'); });
+    if (id) $('g-' + id).classList.add('on');
+  }
+  var hudShown = '';
+  function hud(kind, label) {
+    var h = $('hud');
+    if (!kind) { h.hidden = true; return; }
+    h.hidden = false; h.className = 'hud' + (kind === 'upload' ? ' up' : kind === 'ping' ? ' ping' : '');
+    $('hudk').textContent = label;
+  }
+  function hudVal(v, u) {
+    var s = v + '|' + u;
+    if (s === hudShown) return;
+    hudShown = s; $('big').textContent = v; $('unit').textContent = u;
+  }
+  function cpuText(r) { return r.core === null || r.core === undefined ? '' : 'Kern max ' + Math.round(r.core) + ' %'; }
+
+  // Einordnung nach Netzwerkklassen (Nettodurchsatz liegt ~6 % unter der Leitungsrate)
+  function verdict(dl) {
+    if (dl >= 4700) return ['Über 5 Gbit/s', 'Das schafft nur eine 10-GbE-Strecke.',
+      'Bemerkenswert. Ihre Datenwürfel waren schneller durch die Portale, als ich diesen Satz beenden konnte. Ich habe nachgezählt. Zweimal.'];
+    if (dl >= 2000) return ['2,5 Gbit/s ausgeschöpft', 'Die 2,5-GbE-Verbindung läuft nahe am Maximum.',
+      'Hervorragend. Ihre Leitung ist fast so schnell, wie meine Geduld kurz ist. Die Würfel bitten um eine Pause.'];
+    if (dl >= 940) return ['Mehr als Gigabit', 'Schneller als 1 GbE, also 2,5 GbE oder schnelles WLAN.',
+      'Sie haben die Gigabit-Marke überschritten. Ich vermerke das in Ihrer Akte, unter „überraschend kompetent“.'];
+    if (dl >= 600) return ['Gigabit-Klasse', 'Typisch für 1-GbE-Kabel oder gutes WLAN 6/7.',
+      'Solide Gigabit-Leistung. Nicht spektakulär, aber alle Würfel sind heil angekommen. Ich bin fast stolz. Fast.'];
+    if (dl >= 90) return ['Ordentlich', 'Typisch für WLAN mit Abstand oder 100-Mbit-Kabel.',
+      'Ordentlich. Die Würfel fielen etwa so zügig wie Laub im Herbst. Ein Kabel würde hier Wunder wirken.'];
+    return ['Langsam', 'Kabel, Port oder WLAN-Empfang prüfen.',
+      'Die Testwürfel sind unterwegs eingeschlafen. Prüfen Sie Kabel, Port oder WLAN. Ich warte. Ich bin sehr gut im Warten.'];
+  }
+
+  // =====================================================================
+  //  Ablauf
+  // =====================================================================
+  var nextNo = 1, curNo = 1, phaseBase = 0, phaseSpan = 0, peakLive = 0, liveSaid = {}, phaseT0 = 0;
+  function setGo(mode) {
+    var g = $('go');
+    g.className = mode === 'stop' ? 'stop' : mode === 'again' ? 'again' : '';
+    g.textContent = mode === 'stop' ? 'Abbrechen' : mode === 'again' ? 'Neu messen' : 'Test starten';
+  }
+  function lockInputs(v) { ['duration', 'streams', 'label'].forEach(function (id) { $(id).disabled = v; }); }
+
+  function start() {
+    var streams = +$('streams').value, duration = +$('duration').value, label = $('label').value.replace(/^\s+|\s+$/g, '');
+    try { localStorage.setItem('st-label', label); localStorage.setItem('st-streams', streams); localStorage.setItem('st-duration', duration); } catch (e) { }
+    curNo = nextNo; setNo(curNo);
+    $('cert').hidden = true; $('note').hidden = true;
+    gauge('ping', '–', 'ms', 'Jitter –'); gauge('dl', '–', 'Mbit/s', 'Ø –'); gauge('ul', '–', 'Mbit/s', 'Ø –');
+    setGo('stop'); lockInputs(true);
+    S.elevTarget = 0; S.tv = 0; S.dv = 0; S.dir = 1;
+    progress(0);
+    say('Test beginnt. Bitte bleiben Sie ruhig und atmen Sie in normaler Datenrate.');
+    var res = {};
+    E.run({ streams: streams, duration: duration, label: label }, {
+      phase: function (p) {
+        S.mode = p; phaseT0 = now(); peakLive = 0; liveSaid = {}; schedule();
+        if (p === 'ping') {
+          $('phase').textContent = 'Ping'; phaseBase = 0; phaseSpan = 0.08;
+          pictos(['router', 'portal', 'eye'], 'ping'); onGauge('ping'); hud('ping', 'Ping · Energieball'); hudVal('…', 'ms');
+          setTimeout(function () { if (S.mode === 'ping') say('Zuerst der Energieball. Er misst, wie schnell der Router antwortet. Bitte nicht berühren.'); }, 1800);
+        } else {
+          var dl = p === 'download';
+          $('phase').textContent = dl ? 'Download' : 'Upload';
+          phaseBase = dl ? 0.08 : 0.54; phaseSpan = 0.46;
+          // Richtungswechsel: Wuerfel kehren in der Luft um
+          if (!dl && S.dir > 0) { S.dir = -1; for (var i = 0; i < cubes.length; i++) if (cubes[i].ph < VIS) cubes[i].ph = VIS - cubes[i].ph; }
+          S.tv = 0; S.dv = Math.min(S.dv, 50);
+          pictos(dl ? ['router', 'ping', 'portal', 'beam', 'eye'] : ['router', 'ping', 'portal', 'down', 'beam', 'cpu', 'eye'], dl ? 'down' : 'up', dl);
+          onGauge(dl ? 'dl' : 'ul');
+          hud(p, dl ? 'Download · Router → Dein Gerät' : 'Upload · Dein Gerät → Router'); hudVal('…', 'Mbit/s');
+          say(dl ? 'Datenwürfel aus Richtung Router. Fangen ist nicht nötig, das Portal erledigt das für Sie.'
+                 : 'Jetzt umgekehrt. Ihre Würfel fliegen zum Router. Schwerkraft ist hier eher eine Empfehlung.');
+        }
+        progress(phaseBase);
+      },
+      pingSample: function (ms, i, count) {
+        hudVal(E.fmt(ms, 1), 'ms');
+        progress(phaseBase + phaseSpan * (i + 1) / count);
+      },
+      ping: function (p, j) {
+        gauge('ping', E.fmt(p, p < 10 ? 1 : 0), 'ms', 'Jitter ' + E.fmt(j, 1) + ' ms');
+        say('Antwortzeit ' + E.fmt(p, 1) + ' Millisekunden. Schneller als die meisten Ausreden, die ich hier höre.');
+      },
+      live: function (kind, m, prog) {
+        if (prog !== undefined && prog !== null) progress(phaseBase + phaseSpan * Math.min(1, prog));
+        if (m === null) return;
+        S.tv = m;
+        if (m > peakLive) peakLive = m;
+        var pk = E.fmtSpeed(peakLive), id = kind === 'download' ? 'dl' : 'ul';
+        gauge(id, pk.v, pk.u, 'live ' + E.fmtSpeed(m).v + ' ' + E.fmtSpeed(m).u);
+        var el = (now() - phaseT0) / 1000;
+        if (kind === 'download' && !liveSaid.a && m >= 1500 && el > 2.5) { liveSaid.a = 1; say('Hervorragend. Ihre Leitung ist fast so schnell, wie meine Geduld kurz ist.'); }
+        else if (kind === 'download' && !liveSaid.a && m >= 500 && m < 1500 && el > 3) { liveSaid.a = 1; say('Die Würfel fallen zügig. Ich bin beinahe beeindruckt. Beinahe.'); }
+        else if (!liveSaid.a && m < 100 && el > 3.5) { liveSaid.a = 1; say('Die Würfel lassen sich Zeit. Vielleicht genießen sie die Aussicht.'); }
+        else if (kind === 'upload' && !liveSaid.b && el > 3 && m >= 800) { liveSaid.b = 1; say('Ihre Würfel steigen schneller auf, als ich erwartet habe. Ich passe meine Erwartungen nur ungern an.'); }
+      },
+      result: function (kind, r) {
+        res[kind] = r;
+        var s = E.fmtSpeed(r.peak), a = E.fmtSpeed(r.avg), c = cpuText(r);
+        gauge(kind === 'download' ? 'dl' : 'ul', s.v, s.u, 'Ø ' + a.v + ' ' + a.u + (c ? ' · ' + c : ''));
+      },
+      done: function (rec) {
+        S.mode = 'done'; S.tv = 0; S.elevTarget = 1; schedule();
+        progress(1); $('phase').textContent = 'Bestanden';
+        pictos(TILES.slice(0, 8), 'lift'); onGauge(null); hud(null);
+        setGo('again'); lockInputs(false);
+        say('Test abgeschlossen. Der Aufzug ist unterwegs. Ihr Zertifikat ebenfalls.');
+        setTimeout(function () { showCert(res, rec); }, 900);
+        loadHistory();
+      },
+      error: function (msg) {
+        S.mode = 'idle'; S.tv = 0; schedule();
+        $('phase').textContent = 'Fehler'; hud(null); onGauge(null); setGo(''); lockInputs(false);
+        pictos(['router', 'portal', 'eye'], null);
+        say(msg + ' Ich nehme das nicht persönlich.');
+      }
+    });
+  }
+
+  function stop() {
+    E.stop();
+    S.mode = 'idle'; S.tv = 0; S.dir = 1; schedule();
+    $('phase').textContent = 'Abgebrochen'; hud(null); onGauge(null); setGo(''); lockInputs(false);
+    pictos(['router', 'portal', 'eye'], null);
+    say('Abgebrochen. Kein Problem. Ich notiere nur, dass Sie aufgegeben haben. Gespeichert wird nichts.');
+  }
+
+  function spark(svg, series, color) {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    if (!series || !series.length) return;
+    var max = 0, NS = 'http://www.w3.org/2000/svg';
+    series.forEach(function (v) { if (v > max) max = v; });
+    var Wd = 300, Hd = 34, n = series.length, d = '';
+    series.forEach(function (v, i) {
+      var x = (n === 1 ? 0 : i / (n - 1)) * Wd, y = Hd - 3 - (v / (max * 1.06 || 1)) * (Hd - 6);
+      d += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
+    });
+    var a = document.createElementNS(NS, 'path');
+    a.setAttribute('d', d + 'L' + Wd + ' ' + Hd + ' L0 ' + Hd + ' Z'); a.setAttribute('fill', color); a.setAttribute('fill-opacity', '.14');
+    var l = document.createElementNS(NS, 'path');
+    l.setAttribute('d', d); l.setAttribute('fill', 'none'); l.setAttribute('stroke', color); l.setAttribute('stroke-width', '2'); l.setAttribute('vector-effect', 'non-scaling-stroke');
+    svg.appendChild(a); svg.appendChild(l);
+  }
+
+  function showCert(res, rec) {
+    var d = res.download, u = res.upload;
+    if (!d || !u) return;
+    var sd = E.fmtSpeed(d.peak), su = E.fmtSpeed(u.peak), ad = E.fmtSpeed(d.avg), au = E.fmtSpeed(u.avg);
+    var no = pad2(curNo), dt = new Date();
+    $('l-no').textContent = no; $('c-k').textContent = no;
+    $('c-no').textContent = 'IAW-' + String(dt.getFullYear()).slice(2) + pad2(dt.getMonth() + 1) + pad2(dt.getDate()) + '-' + no;
+    $('c-who').textContent = (rec && (rec.label || rec.host)) || $('label').value || 'dieses Gerät';
+    $('c-dl').innerHTML = sd.v + '<small>' + sd.u + '</small>'; $('c-dl-s').textContent = 'Ø ' + ad.v + ' ' + ad.u;
+    $('c-ul').innerHTML = su.v + '<small>' + su.u + '</small>'; $('c-ul-s').textContent = 'Ø ' + au.v + ' ' + au.u;
+    spark($('sp-dl'), d.series, '#1f9cf2'); spark($('sp-ul'), u.series, '#ff8a1c');
+    var p = rec && rec.ping !== undefined ? rec.ping : null, j = rec && rec.jitter !== undefined ? rec.jitter : null;
+    $('c-ping').innerHTML = (p === null ? '–' : E.fmt(p, p < 10 ? 1 : 0)) + '<small>ms</small>';
+    $('c-jit').textContent = 'Jitter ' + (j === null ? '–' : E.fmt(j, 1) + ' ms');
+    var core = Math.max(d.core || 0, u.core || 0), hasCore = d.core !== null && d.core !== undefined;
+    $('c-core').innerHTML = hasCore ? Math.round(core) + '<small>%</small>' : '–';
+    $('c-core-s').textContent = hasCore ? 'Down ' + Math.round(d.core) + ' % · Up ' + Math.round(u.core || 0) + ' %' : 'nicht verfügbar';
+    var v = verdict(d.peak);
+    $('v-t').textContent = v[0]; $('v-s').textContent = v[1]; $('c-eva').textContent = v[2];
+    if (core >= 90) {
+      $('note').textContent = 'Ein Prozessorkern des Routers war voll ausgelastet. Das Ergebnis zeigt eher die Grenze des Routers als die des Netzes.';
+      $('note').hidden = false;
+    }
+    $('c-date').textContent = 'Ausgestellt am ' + pad2(dt.getDate()) + '.' + pad2(dt.getMonth() + 1) + '.' + dt.getFullYear() + ', ' + pad2(dt.getHours()) + ':' + pad2(dt.getMinutes()) + ' Uhr';
+    $('cert').hidden = false;
+    say(v[2]);
+    try { $('cert').scrollIntoView({ behavior: RM ? 'auto' : 'smooth', block: 'start' }); } catch (e) { $('cert').scrollIntoView(); }
+  }
+
+  // ---------- Verlauf ----------
+  function n0(v) { return v === null || v === undefined ? '–' : E.fmt(v, 0); }
+  function sp(peak, avg) { return (peak === null || peak === undefined ? n0(avg) : n0(peak)) + ' <small>/ ' + n0(avg) + '</small>'; }
+  function loadHistory() {
+    E.history(function (h) {
+      nextNo = h.length + 1;
+      if (S.mode === 'idle' && !E.running()) setNo(nextNo);
+      if (!h.length) { $('history').innerHTML = '<div class="empty">Noch keine Kammer absolviert.</div>'; $('clear-wrap').hidden = true; return; }
+      $('clear-wrap').hidden = false;
+      var rows = '';
+      for (var i = h.length - 1; i >= 0; i--) {
+        var e = h[i], d = new Date(e.ts * 1000);
+        var when = pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + '. ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ' Uhr';
+        var who = esc(e.label || e.host || e.ip || 'Unbekannt'), sub = e.label && e.host ? esc(e.host) + ' · ' + when : when;
+        rows += '<li class="room">' +
+          '<div class="rn"><small>Kammer</small><b>' + pad2(i + 1) + '</b></div>' +
+          '<div class="rc dev"><span class="v">' + who + '</span><span class="t">' + sub + '</span></div>' +
+          '<div class="rc"><span class="l">Ping ms</span><span class="v">' + (e.ping === null || e.ping === undefined ? '–' : E.fmt(e.ping, 1)) + '</span></div>' +
+          '<div class="rc dl"><span class="l">Down Spitze / Ø</span><span class="v">' + sp(e.dl_peak, e.dl) + '</span></div>' +
+          '<div class="rc ul"><span class="l">Up Spitze / Ø</span><span class="v">' + sp(e.ul_peak, e.ul) + '</span></div>' +
+          '<div class="rc st"><span class="l">Ströme</span><span class="v">' + (e.streams || '–') + '</span></div>' +
+          '</li>';
+      }
+      $('history').innerHTML = '<ol class="rooms" aria-label="Kammerprotokolle, neueste zuerst">' + rows + '</ol>';
+    });
+  }
+  function clearAsk() {
+    $('clear-wrap').innerHTML = '<span class="confirm">Alle Kammerprotokolle vernichten? <button class="btn warn" id="yes" type="button">Ja, löschen</button><button class="btn" id="no" type="button">Nein</button></span>';
+    $('yes').onclick = function () { E.clearHistory(function () { clearReset(); loadHistory(); if (S.mode === 'idle' || S.mode === 'done') say('Protokolle vernichtet. Ich habe natürlich eine Sicherungskopie. In meinem Gedächtnis.'); }); };
+    $('no').onclick = clearReset;
+    $('no').focus();
+  }
+  function clearReset() { $('clear-wrap').innerHTML = '<button class="btn" id="clear" type="button">Protokolle löschen</button>'; $('clear').onclick = clearAsk; }
+  $('clear').onclick = clearAsk;
+
+  $('go').onclick = function () {
+    if (E.running() || S.mode === 'ping' || S.mode === 'download' || S.mode === 'upload') stop();
+    else {
+      if (S.mode === 'done') { S.mode = 'idle'; }
+      start();
+    }
+  };
+
+  try {
+    var l = localStorage.getItem('st-label'), s = localStorage.getItem('st-streams'), du = localStorage.getItem('st-duration');
+    if (l) $('label').value = l;
+    if (s && /^(1|2|4|6|8)$/.test(s)) $('streams').value = s;
+    if (du && /^(5|10|20)$/.test(du)) $('duration').value = du;
+  } catch (e) { }
+
+  resize();
+  schedule();
+  pictos(['router', 'portal', 'eye'], null);
+  say(IDLE[0]);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { renderRoom(); dirty = true; schedule(); });
+
+  E.init(function (info) {
+    $('host').textContent = info.hostname || 'Router';
+    $('demo').hidden = !info.demo;
+    $('meta').textContent = (info.model ? info.model + ' · ' : '') + (info.cores ? info.cores + ' Kerne · ' : '') + 'Proband: ' +
+      (info.client_host ? info.client_host + ' (' + info.client_ip + ')' : (info.client_ip || 'unbekannt'));
+    $('go').disabled = false;
+    loadHistory();
+  });
+})();
+</script>
+</body>
+</html>
