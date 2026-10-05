@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Speedtest Datensand</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,400&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+/* Datensand: Daten werden als Sand sichtbar. Zwei Sanduhren (Download, Upload) mit echter
+   Fallsand-Simulation; nach der Messung ordnet sich der Sand zum Säulendiagramm je Sekunde.
+   Warme Wüsten- und Bernsteinwelt, hell und dunkel ueber Theme-Tokens. */
+:root {
+  --bg: #f4ebdc;
+  --bg-glow: rgba(236, 170, 80, .30);
+  --panel: rgba(255, 250, 240, .62);
+  --line: rgba(96, 62, 28, .16);
+  --ink: #2a1c0e;
+  --mute: #6b5640;
+  --dl: #a8690a;           /* Download: Bernstein */
+  --ul: #a8452a;           /* Upload: Terrakotta */
+  --ping: #7a5a10;
+  --warn: #b5401c;
+  --btn: #2a1c0e;
+  --btn-ink: #fbf3e4;
+  --f-num: "Fraunces", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --f-ui: "Instrument Sans", "Segoe UI", Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #140f0a;
+    --bg-glow: rgba(226, 150, 60, .20);
+    --panel: rgba(255, 232, 196, .045);
+    --line: rgba(255, 222, 176, .14);
+    --ink: #f6e9d6;
+    --mute: #b9a387;
+    --dl: #f0b94f;
+    --ul: #ec8a62;
+    --ping: #ffe7ad;
+    --warn: #ff9a6c;
+    --btn: #f0c062;
+    --btn-ink: #1f1306;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { background: var(--bg); }
+body {
+  margin: 0; color: var(--ink); font: 15px/1.5 var(--f-ui);
+  background: radial-gradient(1100px 560px at 50% -140px, var(--bg-glow), transparent 70%), var(--bg);
+  background-repeat: no-repeat; min-height: 100vh;
+}
+main { max-width: 1100px; margin: 0 auto; padding: 22px 16px 48px; display: grid; gap: 22px; }
+main > * { min-width: 0; }
+button, select, input { font: inherit; }
+:focus-visible { outline: 2px solid var(--dl); outline-offset: 3px; }
+
+header { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 6px 20px; }
+header > * { min-width: 0; }
+h1 { margin: 0; font: italic 400 2.3rem/1 var(--f-num); letter-spacing: -.01em; }
+h1 em { font-style: normal; font-weight: 300; color: var(--dl); }
+.sub { margin: 4px 0 0; color: var(--mute); font-size: .86rem; letter-spacing: .04em; }
+.meta { color: var(--mute); font-size: .84rem; text-align: right; }
+.demo { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 99px; border: 1px solid var(--dl); color: var(--dl); font-size: .72rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+
+/* Befund */
+.befund { display: grid; gap: 18px; padding: 26px 26px 22px; border: 1px solid var(--line); border-radius: 22px; background: var(--panel); animation: rise .9s cubic-bezier(.2,.8,.2,1) both; }
+.befund > * { min-width: 0; }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.kicker { margin: 0; color: var(--mute); font-size: .74rem; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; }
+.verdict { margin: 4px 0 0; font: 400 clamp(1.9rem, 5.4vw, 3.1rem)/1.05 var(--f-num); letter-spacing: -.015em; }
+.verdict-s { margin: 6px 0 0; color: var(--mute); font-size: 1rem; }
+.figs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 28px; }
+.fig { min-width: 0; border-top: 1px solid var(--line); padding-top: 12px; }
+.fig .k { display: flex; align-items: center; gap: 8px; color: var(--mute); font-size: .74rem; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; }
+.fig .k i { width: 9px; height: 9px; border-radius: 2px; background: currentColor; }
+.fig.dl .k { color: var(--dl); } .fig.ul .k { color: var(--ul); }
+.fig .n { font: 300 clamp(3.2rem, 11vw, 5.6rem)/.95 var(--f-num); font-variant-numeric: lining-nums tabular-nums; letter-spacing: -.03em; margin-top: 6px; }
+.fig .n small { font: 400 1rem var(--f-ui); letter-spacing: 0; color: var(--mute); margin-left: 8px; }
+.fig .s { color: var(--mute); font-size: .9rem; margin-top: 6px; }
+.fig .s b { color: var(--ink); font-weight: 600; }
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 28px; }
+.fact { min-width: 0; border-top: 1px solid var(--line); padding-top: 10px; }
+.fact .k { color: var(--mute); font-size: .72rem; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; }
+.fact .v { font: 400 1.9rem/1.1 var(--f-num); font-variant-numeric: lining-nums tabular-nums; margin-top: 4px; }
+.fact .v small { font: 400 .85rem var(--f-ui); color: var(--mute); margin-left: 5px; }
+.fact .s { color: var(--mute); font-size: .82rem; }
+.note { margin: 0; color: var(--warn); font-size: .92rem; border-left: 3px solid var(--warn); padding: 2px 0 2px 12px; }
+
+/* Buehne */
+.status { text-align: center; margin: 0; min-height: 1.5em; color: var(--mute); font: italic 400 1.12rem/1.4 var(--f-num); }
+.stage { position: relative; width: 100%; }
+.box { position: relative; margin: 0 auto; }
+.box canvas { position: absolute; left: 0; top: 0; display: block; }
+#glass { transition: opacity .9s ease; }
+.glow { position: absolute; border-radius: 50%; pointer-events: none; opacity: .35; transition: opacity 1.2s ease;
+  background: radial-gradient(closest-side, var(--gc), transparent); }
+.glow.on { opacity: 1; }
+.glow.dl { --gc: rgba(240, 175, 70, .30); } .glow.ul { --gc: rgba(236, 130, 90, .26); }
+.lab { position: absolute; transform: translateX(-50%); text-align: center; white-space: nowrap; transition: opacity .7s ease; pointer-events: none; }
+.lab .k { font-size: .72rem; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; }
+.lab .w { color: var(--mute); font-size: .84rem; }
+.lab.dl .k { color: var(--dl); } .lab.ul .k { color: var(--ul); }
+.lv { font: 300 2.05rem/1.05 var(--f-num); font-variant-numeric: lining-nums tabular-nums; letter-spacing: -.02em; min-height: 1.05em; }
+.lv small { font: 400 .8rem var(--f-ui); color: var(--mute); margin-left: 4px; letter-spacing: 0; }
+.ls { color: var(--mute); font-size: .78rem; min-height: 1.2em; }
+.pl { color: var(--mute); }
+.pl .lv { font-size: 1.5rem; color: var(--ping); }
+.fade { opacity: 0; }
+.chartlab { position: absolute; inset: 0; pointer-events: none; transition: opacity .9s ease; }
+.chartlab > div { position: absolute; }
+.cl-side { left: 4px; font-size: .74rem; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; }
+.cl-side.dl { color: var(--dl); top: 4px; } .cl-side.ul { color: var(--ul); bottom: 4px; }
+.cl-legend { right: 4px; top: 4px; color: var(--mute); font-size: .8rem; }
+.cl-sec { transform: translate(-50%, -50%); color: var(--mute); font-size: .7rem; font-variant-numeric: tabular-nums; }
+.cl-tick { left: 0; right: 0; border-top: 1px dashed var(--line); }
+.cl-tick span { position: absolute; right: 2px; top: -.7em; padding-left: 6px; background: var(--bg); color: var(--mute); font-size: .7rem; }
+.cl-tick.down span { top: -.7em; }
+.legend { text-align: center; color: var(--mute); font-size: .84rem; margin: 6px 0 0; }
+.legend i { display: inline-block; width: 7px; height: 7px; margin: 0 5px 1px 10px; vertical-align: middle; }
+.legend i.dl { background: var(--dl); } .legend i.ul { background: var(--ul); }
+
+/* Bedienung */
+.controls { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.go { min-width: 220px; padding: 15px 34px; border-radius: 99px; border: 0; cursor: pointer; background: var(--btn); color: var(--btn-ink);
+  font: 600 1.05rem var(--f-ui); letter-spacing: .04em; box-shadow: 0 10px 30px -12px rgba(200, 130, 40, .8); transition: transform .2s ease, box-shadow .2s ease; }
+.go:hover { transform: translateY(-1px); box-shadow: 0 14px 34px -12px rgba(200, 130, 40, .9); }
+.go:disabled { opacity: .5; cursor: default; transform: none; }
+.go.stop { background: transparent; color: var(--warn); box-shadow: inset 0 0 0 1.5px var(--warn); }
+.opts { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 20px; color: var(--mute); font-size: .86rem; }
+.opts label { display: flex; align-items: center; gap: 7px; }
+select, input { color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; }
+select option { color: #2a1c0e; background: #fbf3e4; }
+input { width: 11em; max-width: 52vw; }
+
+/* Anzeigen */
+.readouts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 22px; }
+.ro { min-width: 0; border-top: 1px solid var(--line); padding-top: 9px; }
+.ro .k { color: var(--mute); font-size: .72rem; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; }
+.ro.dl .k { color: var(--dl); } .ro.ul .k { color: var(--ul); }
+.ro .v { font: 400 1.75rem/1.1 var(--f-num); font-variant-numeric: lining-nums tabular-nums; }
+.ro .v small { font: 400 .8rem var(--f-ui); color: var(--mute); margin-left: 4px; }
+.ro .s { color: var(--mute); font-size: .78rem; min-height: 1.2em; }
+
+/* Verlauf */
+.hist { display: grid; gap: 8px; }
+.hh { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hh h2 { margin: 0; font: italic 400 1.5rem var(--f-num); }
+.btn { color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 99px; padding: 6px 16px; cursor: pointer; font-size: .86rem; }
+.btn:hover { border-color: var(--mute); }
+.btn.danger { color: var(--warn); border-color: var(--warn); }
+.confirm { display: inline-flex; gap: 8px; align-items: center; font-size: .86rem; color: var(--mute); flex-wrap: wrap; }
+ol.hl { list-style: none; margin: 0; padding: 0; }
+.hl li { display: grid; grid-template-columns: 112px minmax(0, 1.4fr) minmax(0, .7fr) minmax(0, 1fr) minmax(0, 1fr); gap: 6px 18px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.hl li > * { min-width: 0; }
+.hl canvas { width: 112px; height: 46px; display: block; }
+.hl .who b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hl .who small { color: var(--mute); font-size: .8rem; }
+.hl .m .k { display: block; color: var(--mute); font-size: .68rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+.hl .m.dl .k { color: var(--dl); } .hl .m.ul .k { color: var(--ul); }
+.hl .m .v { font: 400 1.15rem var(--f-num); font-variant-numeric: lining-nums tabular-nums; }
+.hl .m .v small { white-space: nowrap; }
+.hl .m .v small { font: 400 .76rem var(--f-ui); color: var(--mute); }
+.empty { color: var(--mute); padding: 10px 0; }
+
+@media (max-width: 760px) {
+  .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hl li { grid-template-columns: 96px minmax(0, 1fr) minmax(0, 1fr); }
+  .hl canvas { width: 96px; height: 40px; }
+  .hl .who { grid-column: 2 / 4; }
+  .hl .m.p { grid-column: 1; }
+  .hl .m .v small { display: block; }
+}
+@media (max-width: 560px) {
+  h1 { font-size: 2rem; }
+  .meta { text-align: left; }
+  .befund { padding: 20px 16px 18px; border-radius: 18px; }
+  .figs { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lv { font-size: 1.55rem; }
+  .lab .w { font-size: .76rem; }
+  .lab .k { font-size: .66rem; letter-spacing: .14em; }
+  .go { min-width: 0; width: 100%; max-width: 340px; }
+}
+@media (min-width: 1500px) { body { font-size: 17px; } main { max-width: 1320px; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Daten<em>sand</em></h1>
+      <p class="sub">LAN-Speedtest · <span id="host">…</span></p>
+    </div>
+    <div class="meta" id="meta">Verbinde mit dem Router …</div>
+  </header>
+
+  <section class="befund" id="befund" hidden aria-labelledby="verdict">
+    <div>
+      <p class="kicker">Befund</p>
+      <h2 class="verdict" id="verdict">–</h2>
+      <p class="verdict-s" id="verdict-s"></p>
+    </div>
+    <div class="figs">
+      <div class="fig dl"><div class="k"><i></i>Download · Spitze</div><div class="n" id="f-dl">–</div><div class="s" id="f-dl-s"></div></div>
+      <div class="fig ul"><div class="k"><i></i>Upload · Spitze</div><div class="n" id="f-ul">–</div><div class="s" id="f-ul-s"></div></div>
+    </div>
+    <div class="facts">
+      <div class="fact"><div class="k">Ping</div><div class="v" id="x-ping">–</div><div class="s" id="x-ping-s"></div></div>
+      <div class="fact"><div class="k">Router-CPU</div><div class="v" id="x-cpu">–</div><div class="s" id="x-cpu-s">stärkster Kern</div></div>
+      <div class="fact"><div class="k">Durchgerieselt</div><div class="v" id="x-tot">–</div><div class="s" id="x-tot-s"></div></div>
+    </div>
+    <p class="note" id="note" hidden></p>
+  </section>
+
+  <section aria-label="Messung">
+    <p class="status" id="status" aria-live="polite">Bereit. Ein Druck, und die Daten rieseln.</p>
+    <div class="stage" id="stage">
+      <div class="box" id="box">
+        <div class="glow dl" id="glow-dl"></div>
+        <div class="glow ul" id="glow-ul"></div>
+        <canvas id="sand" aria-hidden="true"></canvas>
+        <canvas id="glass" aria-hidden="true"></canvas>
+        <div class="lab dl" id="lt-dl"><div class="k">Download</div><div class="w">Router</div></div>
+        <div class="lab dl" id="lb-dl"><div class="w">dein Gerät</div><div class="lv" id="lv-dl"></div><div class="ls" id="ls-dl"></div></div>
+        <div class="lab ul" id="lt-ul"><div class="k">Upload</div><div class="w">dein Gerät</div></div>
+        <div class="lab ul" id="lb-ul"><div class="w">Router</div><div class="lv" id="lv-ul"></div><div class="ls" id="ls-ul"></div></div>
+        <div class="lab pl fade" id="pl"><div class="lab-k">Ping</div><div class="lv" id="pv"></div></div>
+        <div class="chartlab fade" id="chartlab" aria-hidden="true"></div>
+      </div>
+    </div>
+    <p class="legend" id="legend"><i class="dl"></i>Download: 1 Korn = <span id="mb-dl">4 MB</span><i class="ul"></i>Upload: 1 Korn = <span id="mb-ul">4 MB</span></p>
+  </section>
+
+  <div class="controls">
+    <button class="go" id="go" disabled>Messung starten</button>
+    <div class="opts">
+      <label for="streams">Verbindungen
+        <select id="streams"><option value="1">1</option><option value="2">2</option><option value="4" selected>4</option><option value="6">6</option><option value="8">8</option></select></label>
+      <label for="duration">Dauer
+        <select id="duration"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></label>
+      <label for="label">Gerät <input id="label" maxlength="40" placeholder="z. B. Laptop WLAN"></label>
+    </div>
+  </div>
+
+  <div class="readouts">
+    <div class="ro"><div class="k">Ping</div><div class="v" id="r-ping">–<small>ms</small></div><div class="s" id="r-ping-s"></div></div>
+    <div class="ro"><div class="k">Jitter</div><div class="v" id="r-jit">–<small>ms</small></div><div class="s"></div></div>
+    <div class="ro dl"><div class="k">Download · Spitze</div><div class="v" id="r-dl">–<small>Mbit/s</small></div><div class="s" id="r-dl-s"></div></div>
+    <div class="ro ul"><div class="k">Upload · Spitze</div><div class="v" id="r-ul">–<small>Mbit/s</small></div><div class="s" id="r-ul-s"></div></div>
+  </div>
+
+  <section class="hist" aria-label="Verlauf">
+    <div class="hh"><h2>Verlauf</h2><span id="clear-wrap"><button class="btn" id="clear">Löschen</button></span></div>
+    <ol class="hl" id="history"><li class="empty">Noch keine Messungen.</li></ol>
+  </section>
+</main>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.SpeedEngine, $ = function (id) { return document.getElementById(id); };
+  var mm = window.matchMedia ? function (q) { return window.matchMedia(q); } : function () { return { matches: false }; };
+  var reduce = mm('(prefers-reduced-motion: reduce)').matches;
+  var dpr = Math.min(2, window.devicePixelRatio || 1);
+  var rnd = Math.random;
+
+  // ================= Sand-Raster =================
+  // Jede Zelle ist ein Korn (CELL css-px). g: 0 = leer, sonst Farbindex in die Palette.
+  // Gezeichnet wird in ein kleines Offscreen-Canvas (1 Pixel je Zelle), danach scharf hochskaliert.
+  var CELL, GW, GH, N, g, wall, wallGlass, wallNone, colAct, actList, flip = false;
+  var off, offCtx, img, buf, sandCtx, glassCtx, pal = new Uint32Array(256);
+  var glasses = [], dirty = true;
+  // Farbindizes: 1-40 Download, 41-80 Upload, 81-86 Pendelkorn und Spur, 87 Faden
+  var DL0 = 1, UL0 = 41, PING0 = 81, THREAD = 87;
+  var M = { mode: 'glass', running: false, phase: '', lastW: 0, series: null, chartMB: 0 };
+  var morph = null, pend = { on: false, t0: 0, until: 0 };
+
+  function hsl(h, s, l) {
+    s /= 100; l /= 100;
+    var k = function (n) { return (n + h / 30) % 12; }, a = s * Math.min(l, 1 - l);
+    var f = function (n) { return l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))); };
+    return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255)];
+  }
+  function px(c, a) { return ((a << 24) | (c[2] << 16) | (c[1] << 8) | c[0]) >>> 0; }
+  var dark = false;
+  function buildPalette() {
+    dark = mm('(prefers-color-scheme: dark)').matches;
+    var i, r;
+    pal[0] = 0;
+    for (i = 0; i < 40; i++) {     // Bernstein mit leichter Varianz, ein paar dunkle und helle Koerner
+      r = rnd();
+      pal[DL0 + i] = px(hsl(34 + rnd() * 12, 66 + rnd() * 22, (dark ? 50 : 40) + r * (dark ? 22 : 20) + (i % 9 === 0 ? 10 : 0) - (i % 7 === 0 ? 10 : 0)), 255);
+      r = rnd();
+      pal[UL0 + i] = px(hsl(8 + rnd() * 14, 52 + rnd() * 20, (dark ? 48 : 38) + r * (dark ? 20 : 18) + (i % 9 === 0 ? 9 : 0) - (i % 7 === 0 ? 9 : 0)), 255);
+    }
+    var pc = dark ? hsl(44, 100, 86) : hsl(38, 90, 30);
+    pal[PING0] = px(pc, 255);
+    for (i = 1; i < 6; i++) pal[PING0 + i] = px(pc, Math.round(200 * Math.pow(0.62, i)));
+    pal[THREAD] = px(dark ? hsl(40, 40, 70) : hsl(30, 30, 35), 90);
+  }
+  function grain(kind) { return (kind === 'download' ? DL0 : UL0) + Math.floor(rnd() * 40); }
+  function kindOf(c) { return c >= DL0 && c < UL0 ? 'download' : (c >= UL0 && c < PING0 ? 'upload' : null); }
+
+  // ---------- Glasform: Halbbreite je Zeile ----------
+  function profile(d) {          // d: 0 am Hals, 1 an der Kappe
+    if (d < 0.66) return Math.pow(Math.sin(d / 0.66 * Math.PI / 2), 1.35);
+    var e = (d - 0.66) / 0.34; return 1 - 0.24 * e * e;
+  }
+  function makeGlass(kind, cx, y0, y1, R) {
+    var gl = { kind: kind, cx: cx, y0: y0, y1: y1, ym: Math.round((y0 + y1) / 2), R: R, n: 1,
+      hc: new Float32Array(GH), hi: new Int16Array(GH), top: 0, low: 0, capTop: 0, capLow: 0,
+      mb: 4, allow: 0, disp: 0, target: 0, flow: false, peakShown: 0 };
+    gl.half = (y1 - y0) / 2;
+    for (var y = 0; y < GH; y++) {
+      if (y < y0 || y > y1) { gl.hi[y] = -1; continue; }
+      var d = Math.abs(y - gl.ym) / gl.half, h = gl.n + (R - gl.n) * profile(Math.min(1, d));
+      gl.hc[y] = h; gl.hi[y] = Math.floor(h + 0.15);
+      for (var x = cx - gl.hi[y]; x <= cx + gl.hi[y]; x++) {
+        if (y === gl.ym) continue;           // Ventil im Hals: dort regelt der Durchsatz den Fluss
+        wallGlass[y * GW + x] = 0;
+        if (y < gl.ym) gl.capTop++; else gl.capLow++;
+      }
+    }
+    return gl;
+  }
+
+  function build() {
+    var stage = $('stage'), w = stage.clientWidth;
+    CELL = w >= 1100 ? 4 : 3;
+    var h = w < 600 ? 476 : (w < 900 ? 520 : (CELL === 4 ? 620 : 560));
+    GW = Math.floor(w / CELL); GH = Math.floor(h / CELL); N = GW * GH;
+    var cw = GW * CELL, ch = GH * CELL, box = $('box');
+    box.style.width = cw + 'px'; box.style.height = ch + 'px';
+    g = new Uint8Array(N); wallGlass = new Uint8Array(N); wallNone = new Uint8Array(N);
+    for (var i = 0; i < N; i++) wallGlass[i] = 1;
+    colAct = new Uint8Array(GW); actList = new Int16Array(GW);
+    off = document.createElement('canvas'); off.width = GW; off.height = GH;
+    offCtx = off.getContext('2d'); img = offCtx.createImageData(GW, GH); buf = new Uint32Array(img.data.buffer);
+    var cs = [$('sand'), $('glass')];
+    for (i = 0; i < 2; i++) {
+      cs[i].width = Math.round(cw * dpr); cs[i].height = Math.round(ch * dpr);
+      cs[i].style.width = cw + 'px'; cs[i].style.height = ch + 'px';
+    }
+    sandCtx = cs[0].getContext('2d'); glassCtx = cs[1].getContext('2d');
+    var y0 = Math.ceil((w < 600 ? 66 : 74) / CELL), y1 = GH - 1 - Math.ceil((w < 600 ? 104 : 112) / CELL);
+    var cx = Math.round(GW * (w < 600 ? 0.25 : 0.27));
+    var R = Math.max(10, Math.floor(Math.min(GW * (w < 600 ? 0.17 : 0.19), (y1 - y0) * 0.36)));
+    glasses = [makeGlass('download', cx, y0, y1, R), makeGlass('upload', GW - 1 - cx, y0, y1, R)];
+    wall = wallGlass;
+    placeLabels();
+    drawGlass();
+  }
+
+  // ---------- Fuellen ohne Animation ----------
+  function fillTop(grid, gl, frac) {
+    var want = Math.round(gl.capTop * frac), c = 0;
+    for (var y = gl.ym - 1; y >= gl.y0 && c < want; y--) {
+      var hi = gl.hi[y];
+      for (var x = gl.cx - hi; x <= gl.cx + hi && c < want; x++) { grid[y * GW + x] = grain(gl.kind); c++; }
+    }
+    return c;
+  }
+  // Ein Korn fallen lassen und sofort zur Ruhe bringen (fuer reduzierte Bewegung und Neuaufbau)
+  function settle(gl, x) {
+    var y = gl.ym + 1, i = y * GW + x;
+    if (g[i] || wall[i]) return false;
+    for (var guard = 0; guard < 600; guard++) {
+      var j = i + GW;
+      if (!g[j] && !wall[j]) { i = j; continue; }
+      var d = rnd() < 0.5 ? -1 : 1;
+      if (!g[j + d] && !wall[j + d]) { i = j + d; continue; }
+      if (!g[j - d] && !wall[j - d]) { i = j - d; continue; }
+      break;
+    }
+    g[i] = grain(gl.kind); gl.low++; return true;
+  }
+  function fresh() {
+    g = new Uint8Array(N); wall = wallGlass;
+    for (var k = 0; k < 2; k++) { var gl = glasses[k]; gl.top = fillTop(g, gl, 0.74); gl.low = 0; gl.flow = false; gl.allow = 0; }
+    dirty = true;
+  }
+
+  // ---------- Physik ----------
+  function mark(x) { colAct[x] = 1; if (x > 0) colAct[x - 1] = 1; if (x < GW - 1) colAct[x + 1] = 1; }
+  function step() {
+    var n = 0, x, y, k, i, j, d, c;
+    for (x = 0; x < GW; x++) { if (colAct[x]) actList[n++] = x; colAct[x] = 0; }
+    if (!n) return false;
+    flip = !flip;
+    for (y = GH - 2; y >= 0; y--) {
+      var row = y * GW;
+      for (k = 0; k < n; k++) {
+        x = actList[flip ? n - 1 - k : k]; i = row + x; c = g[i];
+        if (!c) continue;
+        j = i + GW;
+        if (!g[j] && !wall[j]) { g[j] = c; g[i] = 0; mark(x); continue; }
+        d = rnd() < 0.5 ? -1 : 1;
+        if (!g[j + d] && !wall[j + d]) { g[j + d] = c; g[i] = 0; mark(x); mark(x + d); continue; }
+        if (!g[j - d] && !wall[j - d]) { g[j - d] = c; g[i] = 0; mark(x); mark(x - d); }
+      }
+    }
+    dirty = true;
+    return true;
+  }
+  // Ein Korn durch das Ventil im Hals lassen
+  function pass(gl) {
+    var nw = gl.hi[gl.ym];
+    for (var tries = 0; tries < 3; tries++) {
+      var x = gl.cx - nw + Math.floor(rnd() * (2 * nw + 1));
+      var below = (gl.ym + 1) * GW + x, above = (gl.ym - 1) * GW + x;
+      if (g[below]) continue;
+      var c;
+      if (g[above]) { c = g[above]; g[above] = 0; gl.top--; } else c = grain(gl.kind);
+      g[below] = c; gl.low++; mark(x); return true;
+    }
+    return false;
+  }
+  function refill(gl, max) {         // der Router liefert nach, wenn das obere Gefaess knapp wird
+    if (gl.top > gl.capTop * 0.3) return;
+    for (var k = 0; k < max; k++) {
+      var hi = gl.hi[gl.y0 + 1], x = gl.cx - hi + Math.floor(rnd() * (2 * hi + 1)), i = (gl.y0 + 1) * GW + x;
+      if (!g[i]) { g[i] = grain(gl.kind); gl.top++; mark(x); }
+    }
+  }
+  // Zu viele Koerner: je zwei verschmelzen zu einem, der Haufen setzt sich
+  function merge(gl) {
+    var kept = 0;
+    for (var y = gl.ym + 1; y <= gl.y1; y++) {
+      var hi = gl.hi[y];
+      for (var x = gl.cx - hi; x <= gl.cx + hi; x++) {
+        var i = y * GW + x;
+        if (!g[i]) continue;
+        if (rnd() < 0.5) { g[i] = 0; mark(x); } else kept++;
+      }
+    }
+    gl.low = kept; gl.mb *= 2; gl.allow = gl.allow / 2;
+    showMB(); dirty = true;
+  }
+  function mbText(v) { return (v < 0.1 ? E.fmt(v, 3) : v < 1 ? E.fmt(v, 2) : v % 1 ? E.fmt(v, 1) : E.fmt(v, 0)).replace(/(,\d*?)0+$/, '$1').replace(/,$/, '') + ' MB'; }
+  function showMB() {
+    $('mb-dl').textContent = mbText(glasses[0].mb);
+    $('mb-ul').textContent = mbText(glasses[1].mb);
+  }
+  var NICE = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024];
+  function nice(v) { for (var i = 0; i < NICE.length; i++) if (NICE[i] >= v) return NICE[i]; return NICE[NICE.length - 1]; }
+  // feinere Stufen fuer das Diagramm, damit die Saeulen die Hoehe gut nutzen
+  function fine(v) {
+    var m = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10], p = Math.pow(10, Math.floor(Math.log(v) / Math.LN10));
+    for (var i = 0; i < m.length; i++) if (m[i] * p >= v - 1e-9) return Math.round(m[i] * p * 1000) / 1000;
+    return 10 * p;
+  }
+
+  // ================= Animation =================
+  var raf = 0, last = 0;
+  function wake() { if (!raf && !document.hidden) raf = requestAnimationFrame(frame); }
+  function frame(ts) {
+    raf = 0;
+    var minGap = morph ? 0 : (reduce ? 150 : 32);   // waehrend der Messung hoechstens ~30 Bilder/s
+    if (last && ts - last < minGap) { raf = requestAnimationFrame(frame); return; }
+    var dt = last ? Math.min(0.1, (ts - last) / 1000) : 0.033;
+    last = ts;
+    var busy = tick(dt, ts);
+    if (dirty) render(ts);
+    if (busy) raf = requestAnimationFrame(frame); else last = 0;
+  }
+  function tick(dt, ts) {
+    var busy = false, k, gl;
+    if (morph) { busy = true; dirty = true; if (ts - morph.t0 > morph.total * 1000) endMorph(); return true; }
+    if (M.mode !== 'glass') return false;
+    for (k = 0; k < 2; k++) {
+      gl = glasses[k];
+      // weich zum Live-Wert nachfuehren; nie ueber den zuletzt gemeldeten Wert hinaus
+      var a = 1 - Math.exp(-dt * 6);
+      gl.disp += (gl.target - gl.disp) * a;
+      if (gl.flow) {
+        busy = true;
+        var rate = gl.disp / 8 / gl.mb;                 // Koerner je Sekunde
+        if (rate > 240 || gl.low > gl.capLow * 0.8) { merge(gl); rate /= 2; }
+        gl.allow = Math.min(gl.allow + rate * dt, 14);
+      }
+    }
+    if (reduce) {
+      for (k = 0; k < 2; k++) {
+        gl = glasses[k];
+        while (gl.allow >= 1) {
+          gl.allow -= 1;
+          if (gl.top > 0) { removeTop(gl); }
+          settle(gl, gl.cx + Math.round((rnd() - 0.5) * 2 * gl.hi[gl.ym]));
+          dirty = true;
+        }
+      }
+    } else {
+      for (var s = 0; s < 4; s++) {
+        for (k = 0; k < 2; k++) {
+          gl = glasses[k];
+          if (gl.flow) refill(gl, 2);
+          var nw = 2 * gl.hi[gl.ym] + 1, p = 0;
+          while (gl.allow >= 1 && p < nw) { if (!pass(gl)) break; gl.allow -= 1; p++; }
+        }
+        if (step()) busy = true;
+      }
+    }
+    if (pend.on) { busy = true; dirty = true; if (ts > pend.until && pend.until) { pend.on = false; $('pl').className = 'lab pl fade'; } }
+    return busy;
+  }
+  function removeTop(gl) {       // reduzierte Bewegung: oberstes Korn ueber dem Hals wegnehmen
+    for (var y = gl.y0; y < gl.ym; y++) {
+      var hi = gl.hi[y];
+      for (var x = gl.cx - hi; x <= gl.cx + hi; x++) { var i = y * GW + x; if (g[i]) { g[i] = 0; gl.top--; return; } }
+    }
+  }
+  function plot(x, y, c) {
+    x = Math.round(x); y = Math.round(y);
+    if (x >= 0 && x < GW && y >= 0 && y < GH) buf[y * GW + x] = pal[c];
+  }
+  function render(ts) {
+    dirty = false;
+    var i;
+    if (morph) {
+      for (i = 0; i < N; i++) buf[i] = 0;
+      var t = (ts - morph.t0) / 1000, P = morph.n, lift = morph.lift;
+      for (i = 0; i < P; i++) {
+        var e = (t - morph.dl[i]) / morph.dur;
+        e = e <= 0 ? 0 : (e >= 1 ? 1 : (e < 0.5 ? 4 * e * e * e : 1 - Math.pow(-2 * e + 2, 3) / 2));
+        if (e >= 1 && !morph.keep[i]) continue;
+        var x = morph.sx[i] + (morph.tx[i] - morph.sx[i]) * e;
+        var y = morph.sy[i] + (morph.ty[i] - morph.sy[i]) * e - Math.sin(Math.PI * e) * lift * morph.lf[i];
+        plot(x, y, morph.c[i]);
+      }
+    } else {
+      for (i = 0; i < N; i++) buf[i] = pal[g[i]];
+      if (pend.on) drawPendulum(ts);
+    }
+    offCtx.putImageData(img, 0, 0);
+    var W = sandCtx.canvas.width, H = sandCtx.canvas.height;
+    sandCtx.setTransform(1, 0, 0, 1, 0, 0);
+    sandCtx.clearRect(0, 0, W, H);
+    sandCtx.imageSmoothingEnabled = false;
+    sandCtx.drawImage(off, 0, 0, W, H);
+  }
+  // Ping: ein einzelnes Korn pendelt zwischen Router und Geraet
+  function pendPos(ts) {
+    var gl = glasses[0], L = (gl.y1 - gl.y0) * 0.66, th = 0.5 * Math.sin((ts - pend.t0) / 1000 * Math.PI * 2 / 1.25);
+    var bx = GW / 2, by = gl.y0 - 4;
+    return [bx + Math.sin(th) * L, by + Math.cos(th) * L, bx, by];
+  }
+  function drawPendulum(ts) {
+    var p = pendPos(ts), k, len = Math.sqrt((p[0] - p[2]) * (p[0] - p[2]) + (p[1] - p[3]) * (p[1] - p[3]));
+    for (k = 0; k < len - 2; k += 2.2) plot(p[2] + (p[0] - p[2]) * k / len, p[3] + (p[1] - p[3]) * k / len, THREAD);
+    for (k = 5; k >= 1; k--) { var q = pendPos(ts - k * 34); plot(q[0], q[1], PING0 + k); }
+    for (var a = -1; a <= 1; a++) for (var b = -1; b <= 1; b++) if (a * b === 0) plot(p[0] + a, p[1] + b, PING0);
+  }
+
+  // ================= Glas zeichnen =================
+  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).replace(/^\s+|\s+$/g, ''); }
+  function rr(c, x, y, w, h, r) {
+    c.beginPath(); c.moveTo(x + r, y); c.lineTo(x + w - r, y); c.quadraticCurveTo(x + w, y, x + w, y + r);
+    c.lineTo(x + w, y + h - r); c.quadraticCurveTo(x + w, y + h, x + w - r, y + h); c.lineTo(x + r, y + h);
+    c.quadraticCurveTo(x, y + h, x, y + h - r); c.lineTo(x, y + r); c.quadraticCurveTo(x, y, x + r, y); c.closePath();
+  }
+  function drawGlass() {
+    var c = glassCtx, W = GW * CELL, H = GH * CELL;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, H);
+    var edge = dark ? 'rgba(255,228,186,.55)' : 'rgba(96,62,28,.42)';
+    var tint = dark ? '255,236,206' : '255,255,255';
+    var wood = dark ? ['#3b2412', '#9a6834', '#5a3a1c'] : ['#7a4c22', '#c99458', '#8a5a2b'];
+    for (var k = 0; k < 2; k++) {
+      var gl = glasses[k], cx = (gl.cx + 0.5) * CELL, top = gl.y0 * CELL, bot = (gl.y1 + 1) * CELL;
+      var Rp = (gl.R + 0.5) * CELL + 2, y, half;
+      // Pfosten des Gestells
+      var pg = c.createLinearGradient(0, top, 0, bot);
+      pg.addColorStop(0, wood[0]); pg.addColorStop(0.5, wood[1]); pg.addColorStop(1, wood[0]);
+      c.fillStyle = pg;
+      rr(c, cx - Rp - 13, top - 8, 5, bot - top + 16, 2.5); c.fill();
+      rr(c, cx + Rp + 8, top - 8, 5, bot - top + 16, 2.5); c.fill();
+      // Glaskoerper
+      c.beginPath();
+      for (y = gl.y0; y <= gl.y1; y++) {
+        half = (gl.hc[y] + 0.5) * CELL + 1.5;
+        var yy = y === gl.y0 ? top - 1 : (y === gl.y1 ? bot + 1 : (y + 0.5) * CELL);
+        if (y === gl.y0) c.moveTo(cx - half, yy); else c.lineTo(cx - half, yy);
+      }
+      for (y = gl.y1; y >= gl.y0; y--) {
+        half = (gl.hc[y] + 0.5) * CELL + 1.5;
+        c.lineTo(cx + half, y === gl.y0 ? top - 1 : (y === gl.y1 ? bot + 1 : (y + 0.5) * CELL));
+      }
+      c.closePath();
+      var gg = c.createLinearGradient(cx - Rp, 0, cx + Rp, 0);
+      gg.addColorStop(0, 'rgba(' + tint + ',' + (dark ? .10 : .42) + ')');
+      gg.addColorStop(0.22, 'rgba(' + tint + ',' + (dark ? .025 : .14) + ')');
+      gg.addColorStop(0.78, 'rgba(' + tint + ',' + (dark ? .02 : .10) + ')');
+      gg.addColorStop(1, 'rgba(' + tint + ',' + (dark ? .08 : .34) + ')');
+      c.fillStyle = gg; c.fill();
+      c.lineWidth = 1.5; c.strokeStyle = edge; c.stroke();
+      // Reflexe auf beiden Kolben
+      c.lineCap = 'round';
+      for (var b = -1; b <= 1; b += 2) {
+        var spots = [[0.86, 0.32, -0.6, 3.2, dark ? .30 : .75], [0.78, 0.5, 0.74, 1.6, dark ? .14 : .5]];
+        for (var s = 0; s < 2; s++) {
+          var sp = spots[s];
+          c.beginPath();
+          for (var d = sp[0]; d >= sp[1]; d -= 0.02) {
+            var yr = gl.ym + b * d * gl.half, hh = gl.hc[Math.round(yr)] * CELL;
+            var xx = cx + sp[2] * hh, yp = (yr + 0.5) * CELL;
+            if (d === sp[0]) c.moveTo(xx, yp); else c.lineTo(xx, yp);
+          }
+          c.lineWidth = sp[3]; c.strokeStyle = 'rgba(255,255,255,' + sp[4] + ')'; c.stroke();
+        }
+      }
+      // Kappen oben und unten
+      var cg = c.createLinearGradient(cx - Rp - 20, 0, cx + Rp + 20, 0);
+      cg.addColorStop(0, wood[2]); cg.addColorStop(0.35, wood[1]); cg.addColorStop(1, wood[0]);
+      c.fillStyle = cg;
+      rr(c, cx - Rp - 20, top - 15, 2 * Rp + 40, 11, 5); c.fill();
+      rr(c, cx - Rp - 20, bot + 4, 2 * Rp + 40, 11, 5); c.fill();
+      c.fillStyle = 'rgba(255,240,210,' + (dark ? .18 : .35) + ')';
+      c.fillRect(cx - Rp - 14, top - 13, 2 * Rp + 28, 1.5);
+      c.fillRect(cx - Rp - 14, bot + 6, 2 * Rp + 28, 1.5);
+    }
+  }
+  function placeLabels() {
+    var H = GH * CELL;
+    for (var k = 0; k < 2; k++) {
+      var gl = glasses[k], s = k ? 'ul' : 'dl', cx = (gl.cx + 0.5) * CELL;
+      var lt = $('lt-' + s), lb = $('lb-' + s), gw = $('glow-' + s);
+      lt.style.left = cx + 'px'; lt.style.bottom = (H - gl.y0 * CELL + 20) + 'px';
+      lb.style.left = cx + 'px'; lb.style.top = ((gl.y1 + 1) * CELL + 20) + 'px';
+      var gs = (gl.R * 2 + 30) * CELL;
+      gw.style.width = gs + 'px'; gw.style.height = gs * 1.2 + 'px';
+      gw.style.left = (cx - gs / 2) + 'px'; gw.style.top = ((gl.ym + 0.5) * CELL - gs * 0.6) + 'px';
+    }
+    var pl = $('pl'), g0 = glasses[0];
+    pl.style.left = (GW / 2 * CELL) + 'px'; pl.style.top = ((g0.y1 + 1) * CELL + 20) + 'px';
+  }
+
+  // ================= Sand ordnet sich zum Diagramm =================
+  function perSecond(series) {
+    var out = [], i, k, s, c;
+    for (i = 0; i < series.length; i += 5) {
+      s = 0; c = 0;
+      for (k = i; k < Math.min(i + 5, series.length); k++) { s += series[k]; c++; }
+      out.push(s / c / 8);        // MB in dieser Sekunde
+    }
+    return out;
+  }
+  function chartGrid(dlMB, ulMB) {
+    var tg = new Uint8Array(N), n = Math.max(dlMB.length, ulMB.length, 1), i, c, r;
+    var pad = Math.ceil(10 / CELL), padR = Math.ceil(64 / CELL);
+    var colW = Math.max(2, Math.min(Math.ceil(84 / CELL), Math.floor((GW - pad - padR) / n)));
+    var gap = Math.max(1, Math.round(colW * 0.3)), barW = Math.max(1, colW - gap);
+    var x0 = Math.floor((GW - padR + pad - colW * n + gap) / 2);
+    var gapRows = Math.ceil(26 / CELL), yb = Math.round(GH / 2);
+    var dlBase = yb - Math.ceil(gapRows / 2), ulBase = yb + Math.ceil(gapRows / 2);
+    var rows = Math.min(dlBase - Math.ceil(30 / CELL), GH - 1 - Math.ceil(30 / CELL) - ulBase);
+    var max = 0;
+    for (i = 0; i < dlMB.length; i++) max = Math.max(max, dlMB[i]);
+    for (i = 0; i < ulMB.length; i++) max = Math.max(max, ulMB[i]);
+    var mb = fine(Math.max(0.001, max / (barW * rows * 0.96)));
+    function fill(list, kind, base, dir) {
+      for (var col = 0; col < list.length; col++) {
+        var cnt = Math.round(list[col] / mb), xs = x0 + col * colW;
+        for (r = 0; cnt > 0 && r < rows + 4; r++) {
+          var y = base + dir * r, take = Math.min(barW, cnt);
+          if (take === barW) { for (c = 0; c < barW; c++) tg[y * GW + xs + c] = grain(kind); }
+          else {      // angebrochene Reihe: Koerner verstreut, wie ein kleiner Haufen
+            var off0 = Math.floor((barW - take) / 2 + (rnd() - 0.5) * (barW - take) * 0.6);
+            for (c = 0; c < take; c++) tg[y * GW + xs + Math.max(0, Math.min(barW - 1, off0 + c))] = grain(kind);
+          }
+          cnt -= take;
+        }
+      }
+    }
+    fill(dlMB, 'download', dlBase, -1);
+    fill(ulMB, 'upload', ulBase, 1);
+    return { maxRate: max * 8, grid: tg, mb: mb, n: n, x0: x0, colW: colW, barW: barW, yb: yb, dlBase: dlBase, ulBase: ulBase, rows: rows };
+  }
+  function collect(grid, kind) {
+    var out = [];
+    for (var i = 0; i < N; i++) if (grid[i] && kindOf(grid[i]) === kind) out.push((i % GW) * 100000 + Math.floor(i / GW));
+    out.sort(function (a, b) { return a - b; });
+    return out;
+  }
+  function startMorph(target, total, lift) {
+    var parts = [], k, kinds = ['download', 'upload'];
+    for (k = 0; k < 2; k++) {
+      var S = collect(g, kinds[k]), T = collect(target, kinds[k]);
+      if (!T.length) continue;
+      if (!S.length) for (var q = 0; q < 50; q++) S.push(Math.floor(rnd() * GW) * 100000);
+      var P = Math.max(S.length, T.length);
+      for (var j = 0; j < P; j++) parts.push([S[Math.floor(j * S.length / P)], T[Math.floor(j * T.length / P)], j < T.length || S.length <= T.length]);
+    }
+    var n = parts.length, m = { n: n, sx: new Float32Array(n), sy: new Float32Array(n), tx: new Float32Array(n), ty: new Float32Array(n),
+      dl: new Float32Array(n), lf: new Float32Array(n), c: new Uint8Array(n), keep: new Uint8Array(n),
+      t0: performance.now(), dur: total * 0.58, total: total, lift: lift, target: target };
+    for (var i = 0; i < n; i++) {
+      var s = parts[i][0], t = parts[i][1];
+      m.sx[i] = Math.floor(s / 100000); m.sy[i] = s % 100000;
+      m.tx[i] = Math.floor(t / 100000); m.ty[i] = t % 100000;
+      m.c[i] = target[m.ty[i] * GW + m.tx[i]] || g[m.sy[i] * GW + m.sx[i]];
+      m.keep[i] = parts[i][2] ? 1 : 0;
+      m.dl[i] = (m.tx[i] / GW) * total * 0.3 + rnd() * total * 0.1;
+      m.lf[i] = 0.5 + rnd() * 0.7;
+    }
+    morph = m; dirty = true; wake();
+  }
+  function endMorph() {
+    if (!morph) return;
+    g = morph.target; var cb = morph.cb; morph = null; dirty = true;
+    if (cb) cb();
+  }
+  function toChart(instant) {
+    var s = M.series, cg = chartGrid(perSecond(s.dl), perSecond(s.ul));
+    M.mode = 'chart'; M.chart = cg; wall = wallNone;
+    $('glass').style.opacity = '0';
+    ['lt-dl', 'lb-dl', 'lt-ul', 'lb-ul', 'glow-dl', 'glow-ul'].forEach(function (id) { $(id).classList.add('fade'); });
+    $('legend').innerHTML = '1 Korn = ' + mbText(cg.mb) + ' · jede Säule eine Sekunde · <i class="dl"></i>oben Download <i class="ul"></i>unten Upload';
+    chartLabels(cg);
+    if (instant || reduce) { g = cg.grid; dirty = true; wake(); $('chartlab').className = 'chartlab'; return; }
+    startMorph(cg.grid, 2.6, GH * 0.14);
+    morph.cb = function () { $('chartlab').className = 'chartlab'; };
+  }
+  function toGlass(cb) {
+    var tg = new Uint8Array(N);
+    var tops = [fillTop(tg, glasses[0], 0.74), fillTop(tg, glasses[1], 0.74)];
+    $('chartlab').className = 'chartlab fade';
+    $('glass').style.opacity = '1';
+    ['lt-dl', 'lb-dl', 'lt-ul', 'lb-ul', 'glow-dl', 'glow-ul'].forEach(function (id) { $(id).classList.remove('fade'); });
+    function done() {
+      M.mode = 'glass'; wall = wallGlass;
+      for (var k = 0; k < 2; k++) { glasses[k].top = tops[k]; glasses[k].low = 0; }
+      if (cb) cb();
+    }
+    if (reduce) { g = tg; dirty = true; wake(); done(); return; }
+    M.mode = 'morph';
+    startMorph(tg, 1.15, GH * 0.08);
+    morph.cb = done;
+  }
+  function chartLabels(cg) {
+    var h = '', stride = cg.colW * CELL >= 26 ? 1 : (cg.colW * CELL >= 13 ? 2 : 5);
+    h += '<div class="cl-side dl">Download je Sekunde</div><div class="cl-side ul">Upload je Sekunde</div>';
+    for (var i = 0; i < cg.n; i++) {
+      if ((i + 1) % stride && i) continue;
+      h += '<div class="cl-sec" style="left:' + ((cg.x0 + i * cg.colW + cg.barW / 2) * CELL) + 'px;top:' + ((cg.yb + 0.5) * CELL) + 'px">' + (i + 1) + (i ? '' : ' s') + '</div>';
+    }
+    // Lesehilfe: gestrichelte Linien fuer runde Datenraten
+    var ticks = [100, 250, 500, 1000, 2500, 5000, 10000], fit = [];
+    for (var t = 0; t < ticks.length; t++) {
+      var rows = ticks[t] / 8 / cg.mb / cg.barW;
+      if (rows <= cg.rows && rows >= 6 && ticks[t] <= cg.maxRate) fit.push([ticks[t], rows]);
+    }
+    fit = fit.slice(-1);
+    for (t = 0; t < fit.length; t++) {
+      var lbl = fit[t][0] >= 1000 ? E.fmt(fit[t][0] / 1000, fit[t][0] % 1000 ? 1 : 0) + ' Gbit/s' : fit[t][0] + ' Mbit/s';
+      h += '<div class="cl-tick" style="top:' + ((cg.dlBase + 1 - fit[t][1]) * CELL) + 'px"><span>' + lbl + '</span></div>';
+      h += '<div class="cl-tick down" style="top:' + ((cg.ulBase + fit[t][1]) * CELL) + 'px"><span>' + lbl + '</span></div>';
+    }
+    $('chartlab').innerHTML = h;
+  }
+
+  // ================= Anzeige =================
+  function sp(m) { var s = E.fmtSpeed(m); return s.v + '<small>' + s.u + '</small>'; }
+  function spT(m) { var s = E.fmtSpeed(m); return s.v + ' ' + s.u; }
+  function status(t) { $('status').textContent = t; }
+  function verdict(dl) {
+    if (dl >= 4700) return ['Über 5 Gbit/s', 'Das schafft nur eine 10-GbE-Strecke.'];
+    if (dl >= 2000) return ['2,5 Gbit/s ausgeschöpft', 'Die 2,5-GbE-Verbindung läuft nahe am Maximum.'];
+    if (dl >= 940) return ['Mehr als Gigabit', 'Schneller als 1 GbE, also 2,5 GbE oder schnelles WLAN.'];
+    if (dl >= 600) return ['Gigabit-Klasse', 'Typisch für 1-GbE-Kabel oder gutes WLAN 6/7.'];
+    if (dl >= 90) return ['Ordentlich', 'Typisch für WLAN mit Abstand oder 100-Mbit-Kabel.'];
+    return ['Langsam', 'Kabel, Port oder WLAN-Empfang prüfen.'];
+  }
+  function cpuText(r) { return r.core === null || r.core === undefined ? 'Router-CPU unbekannt' : 'stärkster Kern ' + Math.round(r.core) + ' %'; }
+  var lvTimer = 0;
+  function updateLive() {   // DOM-Zahlen 5x je Sekunde, nicht in jedem Bild
+    for (var k = 0; k < 2; k++) {
+      var gl = glasses[k], s = k ? 'ul' : 'dl';
+      if (gl.flow) $('lv-' + s).innerHTML = gl.target > 0 ? sp(Math.min(gl.disp, gl.peakShown)) : '…';
+    }
+  }
+
+  function setGo(state) {
+    var b = $('go');
+    b.className = 'go' + (state === 'stop' ? ' stop' : '');
+    b.textContent = state === 'stop' ? 'Stopp' : (state === 'again' ? 'Neu messen' : 'Messung starten');
+  }
+  function resetReadouts() {
+    $('r-ping').innerHTML = '–<small>ms</small>'; $('r-jit').innerHTML = '–<small>ms</small>'; $('r-ping-s').textContent = '';
+    $('r-dl').innerHTML = '–<small>Mbit/s</small>'; $('r-ul').innerHTML = '–<small>Mbit/s</small>';
+    $('r-dl-s').textContent = ''; $('r-ul-s').textContent = '';
+    ['lv-dl', 'lv-ul', 'ls-dl', 'ls-ul'].forEach(function (id) { $(id).innerHTML = ''; });
+  }
+  function initialMB(gl, duration) {    // so gewaehlt, dass 2,5 GbE den unteren Kolben gut zur Haelfte fuellt
+    return nice(300 * duration / (gl.capLow * 0.55));
+  }
+
+  function start() {
+    var streams = +$('streams').value, duration = +$('duration').value, label = $('label').value.replace(/^\s+|\s+$/g, '');
+    try { localStorage.setItem('st-label', label); localStorage.setItem('st-streams', streams); localStorage.setItem('st-duration', duration); } catch (e) { }
+    $('befund').hidden = true; $('note').hidden = true;
+    resetReadouts();
+    M.running = true; setGo('stop');
+    var res = {}, ready = false, pendingPhase = null;
+    var gd = glasses[0], gu = glasses[1];
+    gd.mb = initialMB(gd, duration); gu.mb = initialMB(gu, duration);
+    gd.target = gu.target = gd.disp = gu.disp = gd.peakShown = gu.peakShown = 0;
+    $('legend').innerHTML = '<i class="dl"></i>Download: 1 Korn = <span id="mb-dl"></span><i class="ul"></i>Upload: 1 Korn = <span id="mb-ul"></span>';
+    showMB();
+    function flowOn(kind) {
+      gd.flow = kind === 'download'; gu.flow = kind === 'upload';
+      $('glow-dl').className = 'glow dl' + (gd.flow ? ' on' : '');
+      $('glow-ul').className = 'glow ul' + (gu.flow ? ' on' : '');
+      wake();
+    }
+    var needReset = M.mode !== 'glass' || gd.low > 0 || gu.low > 0 || gd.top < gd.capTop * 0.6 || gu.top < gu.capTop * 0.6;
+    if (needReset) toGlass(function () { ready = true; if (pendingPhase) flowOn(pendingPhase); });
+    else ready = true;
+    clearInterval(lvTimer); lvTimer = setInterval(updateLive, 200);
+    status('Ping: ein einzelnes Korn pendelt zwischen Router und Gerät.');
+    E.run({ streams: streams, duration: duration, label: label }, {
+      phase: function (p) {
+        M.phase = p;
+        if (p === 'ping') {
+          pend.on = true; pend.t0 = performance.now(); pend.until = 0;
+          $('pl').className = 'lab pl'; $('pv').textContent = '…'; wake();
+          return;
+        }
+        if (pend.on && !pend.until) pend.until = performance.now() + 900;
+        if (p === 'download') status('Download: Sand rieselt vom Router zu dir. Je dichter, desto schneller.');
+        if (p === 'upload') status('Upload: jetzt rieselt es von dir zum Router.');
+        $(p === 'download' ? 'lv-dl' : 'lv-ul').textContent = '…';
+        if (ready) flowOn(p); else pendingPhase = p;
+      },
+      pingSample: function (ms) { $('pv').innerHTML = E.fmt(ms, 1) + '<small>ms</small>'; },
+      ping: function (p, j) {
+        $('r-ping').innerHTML = E.fmt(p, p < 10 ? 1 : 0) + '<small>ms</small>';
+        $('r-jit').innerHTML = E.fmt(j, 1) + '<small>ms</small>';
+        $('pv').innerHTML = E.fmt(p, 1) + '<small>ms</small>';
+      },
+      live: function (kind, m) {
+        if (m === null) return;
+        var gl = kind === 'download' ? gd : gu;
+        gl.target = m; if (m > gl.peakShown) gl.peakShown = m;
+        var s = E.fmtSpeed(gl.peakShown);
+        $(kind === 'download' ? 'r-dl' : 'r-ul').innerHTML = s.v + '<small>' + s.u + '</small>';
+        wake();
+      },
+      result: function (kind, r) {
+        res[kind] = r;
+        var gl = kind === 'download' ? gd : gu, s = kind === 'download' ? 'dl' : 'ul';
+        gl.flow = false; gl.target = 0;
+        $('glow-' + s).className = 'glow ' + s;
+        $('lv-' + s).innerHTML = sp(r.peak);
+        $('ls-' + s).textContent = 'Spitze · Ø ' + spT(r.avg);
+        $('r-' + s).innerHTML = sp(r.peak);
+        $('r-' + s + '-s').textContent = 'Ø ' + spT(r.avg) + (r.core === null ? '' : ' · Kern ' + Math.round(r.core) + ' %');
+      },
+      done: function (rec) {
+        M.running = false; clearInterval(lvTimer); setGo('again');
+        status('Fertig. Der Sand ordnet sich: jede Säule ist eine Sekunde.');
+        showResult(res, rec);
+        loadHistory();
+        setTimeout(function () { if (!M.running) toChart(false); }, reduce ? 0 : 700);
+      },
+      error: function (msg) {
+        M.running = false; clearInterval(lvTimer); setGo('start'); gd.flow = gu.flow = false; pend.on = false;
+        $('pl').className = 'lab pl fade'; status(msg);
+      }
+    });
+  }
+  function stop() {
+    E.stop();
+    M.running = false; clearInterval(lvTimer);
+    glasses[0].flow = glasses[1].flow = false; pend.on = false;
+    $('pl').className = 'lab pl fade';
+    $('glow-dl').className = 'glow dl'; $('glow-ul').className = 'glow ul';
+    setGo('start'); status('Abgebrochen. Nichts gespeichert.');
+    dirty = true; wake();
+  }
+
+  function showResult(res, rec) {
+    var d = res.download, u = res.upload;
+    var v = verdict(d.peak);
+    $('verdict').textContent = v[0]; $('verdict-s').textContent = v[1];
+    $('f-dl').innerHTML = sp(d.peak); $('f-ul').innerHTML = sp(u.peak);
+    $('f-dl-s').innerHTML = 'Ø <b>' + spT(d.avg) + '</b> · ' + cpuText(d);
+    $('f-ul-s').innerHTML = 'Ø <b>' + spT(u.avg) + '</b> · ' + cpuText(u);
+    $('x-ping').innerHTML = (rec.ping === null || rec.ping === undefined ? '–' : E.fmt(rec.ping, 1)) + '<small>ms</small>';
+    $('x-ping-s').textContent = 'Jitter ' + (rec.jitter === null || rec.jitter === undefined ? '–' : E.fmt(rec.jitter, 1)) + ' ms';
+    var core = Math.max(d.core || 0, u.core || 0);
+    $('x-cpu').innerHTML = (d.core === null && u.core === null ? '–' : Math.round(core)) + '<small>%</small>';
+    $('x-cpu-s').textContent = 'stärkster Kern · Down ' + (d.core === null ? '–' : Math.round(d.core)) + ' %, Up ' + (u.core === null ? '–' : Math.round(u.core)) + ' %';
+    // Datenmenge: 1-s-Werte alle 0,2 s, die erste Sekunde vom ersten Wert geschaetzt
+    function mb(sr) { var s = 0; for (var i = 0; i < sr.length; i++) s += sr[i]; return (s * 0.2 + (sr[0] || 0) * 0.5) / 8; }
+    var md = mb(d.series), mu = mb(u.series), tot = (md + mu) / 1000;
+    $('x-tot').innerHTML = (tot >= 10 ? E.fmt(tot, 0) : E.fmt(tot, 1)) + '<small>GB</small>';
+    $('x-tot-s').textContent = '≈ ' + E.fmt(md / 1000, 1) + ' GB herunter, ' + E.fmt(mu / 1000, 1) + ' GB hinauf';
+    if (core >= 90) {
+      $('note').textContent = 'Ein Prozessorkern des Routers war voll ausgelastet. Das Ergebnis zeigt eher die Grenze des Routers als die des Netzes.';
+      $('note').hidden = false;
+    }
+    M.series = { dl: d.series, ul: u.series };
+    $('befund').hidden = false;
+    try { $('befund').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' }); } catch (e) { $('befund').scrollIntoView(); }
+  }
+
+  // ================= Verlauf =================
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function vv(peak, avg) {
+    if ((peak === null || peak === undefined) && (avg === null || avg === undefined)) return '–';
+    var p = E.fmtSpeed(peak === null || peak === undefined ? avg : peak), a = avg === null || avg === undefined ? null : E.fmtSpeed(avg);
+    return p.v + ' <small>' + p.u + (a ? ' · Ø ' + a.v + (a.u !== p.u ? ' ' + a.u : '') : '') + '</small>';
+  }
+  // Mini-Sandhaeufchen: links Download, rechts Upload, Hoehe nach Spitze
+  function miniHeap(cv, e, max) {
+    var w = cv.clientWidth || 112, h = cv.clientHeight || 46, c = cv.getContext('2d');
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var seed = (e.ts || 1) % 2147483647;
+    function pr() { seed = seed * 16807 % 2147483647; return (seed - 1) / 2147483646; }
+    var cols = [css('--dl'), css('--ul')], vals = [e.dl_peak || e.dl || 0, e.ul_peak || e.ul || 0];
+    c.fillStyle = css('--line'); c.fillRect(0, h - 1, w, 1);
+    for (var k = 0; k < 2; k++) {
+      var hh = Math.max(3, (h - 6) * Math.sqrt(vals[k] / max)), cx = w * (k ? 0.7 : 0.3), sz = 2;
+      c.fillStyle = cols[k];
+      for (var y = 0; y < hh; y += sz) {
+        var half = (hh - y) * 0.95 + 1;
+        for (var x = -half; x <= half; x += sz) {
+          if (pr() < 0.82 - (y / hh) * 0.25) { c.globalAlpha = 0.55 + pr() * 0.45; c.fillRect(Math.round(cx + x), h - 1 - sz - y, sz, sz); }
+        }
+      }
+      c.globalAlpha = 1;
+    }
+  }
+  function loadHistory() {
+    E.history(function (h) {
+      var list = $('history');
+      if (!h.length) { list.innerHTML = '<li class="empty">Noch keine Messungen.</li>'; return; }
+      var max = 1, i, html = '';
+      for (i = 0; i < h.length; i++) max = Math.max(max, h[i].dl_peak || h[i].dl || 0, h[i].ul_peak || h[i].ul || 0);
+      for (i = h.length - 1; i >= 0; i--) {
+        var e = h[i], d = new Date(e.ts * 1000);
+        var when = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '. ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        var name = e.label || e.host || e.ip || 'Gerät', sub = (e.label && e.host ? e.host + ' · ' : '') + when;
+        html += '<li><canvas data-i="' + i + '" aria-hidden="true"></canvas>' +
+          '<div class="who"><b>' + esc(name) + '</b><small>' + esc(sub) + '</small></div>' +
+          '<div class="m p"><span class="k">Ping</span><span class="v">' + (e.ping === null || e.ping === undefined ? '–' : E.fmt(e.ping, 1)) + ' <small>ms</small></span></div>' +
+          '<div class="m dl"><span class="k">Down Spitze</span><span class="v">' + vv(e.dl_peak, e.dl) + '</span></div>' +
+          '<div class="m ul"><span class="k">Up Spitze</span><span class="v">' + vv(e.ul_peak, e.ul) + '</span></div></li>';
+      }
+      list.innerHTML = html;
+      var cvs = list.getElementsByTagName('canvas');
+      for (i = 0; i < cvs.length; i++) miniHeap(cvs[i], h[+cvs[i].getAttribute('data-i')], max);
+    });
+  }
+  function clearAsk() {
+    $('clear-wrap').innerHTML = '<span class="confirm">Alle Messungen löschen? <button class="btn danger" id="yes">Ja, löschen</button><button class="btn" id="no">Nein</button></span>';
+    $('yes').onclick = function () { E.clearHistory(function () { loadHistory(); clearReset(); }); };
+    $('no').onclick = clearReset;
+    $('no').focus();
+  }
+  function clearReset() { $('clear-wrap').innerHTML = '<button class="btn" id="clear">Löschen</button>'; $('clear').onclick = clearAsk; }
+  $('clear').onclick = clearAsk;
+
+  // ================= Start =================
+  $('go').onclick = function () { if (M.running) stop(); else start(); };
+  try {
+    var l = localStorage.getItem('st-label'), s = localStorage.getItem('st-streams'), d = localStorage.getItem('st-duration');
+    if (l) $('label').value = l; if (s) $('streams').value = s; if (d) $('duration').value = d;
+  } catch (e) { }
+
+  buildPalette();
+  build(); fresh(); showMB(); M.lastW = $('stage').clientWidth;
+  wake();
+
+  var rt = 0;
+  window.addEventListener('resize', function () {
+    clearTimeout(rt);
+    rt = setTimeout(function () {
+      var w = $('stage').clientWidth;
+      if (w === M.lastW) return;
+      M.lastW = w;
+      if (morph) endMorph();
+      var counts = [glasses[0].low, glasses[1].low], mbs = [glasses[0].mb, glasses[1].mb], fl = [glasses[0].flow, glasses[1].flow];
+      build(); fresh();
+      for (var k = 0; k < 2; k++) {
+        var gl = glasses[k]; gl.mb = mbs[k]; gl.flow = fl[k];
+        for (var n = 0; n < Math.min(counts[k], gl.capLow * 0.8); n++) settle(gl, gl.cx + Math.round((rnd() - 0.5) * 2));
+      }
+      if (M.mode === 'chart' && M.series) toChart(true);
+      dirty = true; wake();
+    }, 180);
+  });
+  var cq = mm('(prefers-color-scheme: dark)');
+  if (cq.addListener) cq.addListener(function () { buildPalette(); drawGlass(); dirty = true; wake(); loadHistory(); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { if (raf) cancelAnimationFrame(raf); raf = 0; last = 0; }
+    else { dirty = true; wake(); }
+  });
+
+  E.init(function (info) {
+    $('host').textContent = info.hostname;
+    $('meta').innerHTML = esc((info.model ? info.model + ' · ' : '') + info.cores + ' Kerne · Du: ' +
+      (info.client_host ? info.client_host + ' (' + info.client_ip + ')' : info.client_ip)) + (info.demo ? '<span class="demo">Demo</span>' : '');
+    $('go').disabled = false;
+    loadHistory();
+  });
+})();
+</script>
+</body>
+</html>
