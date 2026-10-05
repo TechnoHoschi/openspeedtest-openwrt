@@ -106,7 +106,7 @@ th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
   var XHR_DL_CHUNK = 32 * 1048576; // XHR-Fallback: nach so vielen Bytes neu anfragen, haelt den Browser-RAM klein
   var WARMUP = 1.5;               // Sekunden, die am Anfang nicht in das Ergebnis eingehen
 
-  var info = null, running = false;
+  var info = null, running = false, cancelled = false;
 
   function $(id) { return document.getElementById(id); }
   function now() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
@@ -192,6 +192,7 @@ th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
       var x = new XMLHttpRequest(), t0 = now(), url = bust(PING_URL);
       x.open('GET', url);
       x.onload = function () {
+        if (cancelled) return;
         var v = now() - t0;
         if (rt) {
           var e = performance.getEntriesByName(location.protocol + '//' + location.host + url).pop();
@@ -223,7 +224,14 @@ th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
     var state = { stop: false, aborts: [] }, bytes = 0, t0 = now(), warmBytes = null, warmT = 0, samples = [], rates = [], peak = 0;
     function count(b) { bytes += b; }
     for (var i = 0; i < streams; i++) worker(state, count);
+    function halt() {
+      clearInterval(timer);
+      state.stop = true;
+      if (window.performance && performance.clearResourceTimings) performance.clearResourceTimings();
+      for (var k = 0; k < state.aborts.length; k++) { try { state.aborts[k](); } catch (e) { } }
+    }
     var timer = setInterval(function () {
+      if (cancelled) return halt();
       var t = (now() - t0) / 1000;
       samples.push([t, bytes]);
       while (samples.length > 2 && t - samples[1][0] >= 1.0) samples.shift();   // Fenster bleibt >= 1 s
@@ -239,10 +247,7 @@ th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
       }
       if (warmBytes === null && t >= WARMUP) { warmBytes = bytes; warmT = t; if (onWarm) onWarm(); }
       if (t >= duration) {
-        clearInterval(timer);
-        state.stop = true;
-        if (window.performance && performance.clearResourceTimings) performance.clearResourceTimings();
-        for (var k = 0; k < state.aborts.length; k++) { try { state.aborts[k](); } catch (e) { } }
+        halt();
         var mbit = (warmBytes !== null && t > warmT) ? (bytes - warmBytes) * 8 / 1e6 / (t - warmT) : 0;
         if (peak < mbit) peak = mbit;
         if (rates.length >= 5) {
@@ -315,9 +320,10 @@ th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
   function bar(p) { $('bar').style.width = Math.round(p * 100) + '%'; }
 
   function start() {
-    if (running || !info) return;
-    running = true;
-    $('start').disabled = true;
+    if (running) return stop();
+    if (!info) return;
+    running = true; cancelled = false;
+    $('start').textContent = 'Stopp';
     note('');
     var streams = +$('streams').value, duration = +$('duration').value;
     var label = $('label').value.replace(/^\s+|\s+$/g, '');
@@ -336,6 +342,7 @@ th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
       var cpu = new CpuWatch();
       runTransfer(streams, duration, dlWorker, function (m, p) { if (m !== null) setBig(m); bar(p); }, function (dl, dlPeak) {
        cpu.finish(function () {
+        if (cancelled) return;
         r.dl = Math.round(dl * 10) / 10; r.dl_peak = Math.round(dlPeak * 10) / 10; r.cpu_dl = round(cpu.avg); r.core_dl = round(cpu.core);
         var s = fmtSpeed(dlPeak); setRes('res-dl', s.v, s.u, avgText(dl) + cpu.text());
 
@@ -343,6 +350,7 @@ th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
         var cpu2 = new CpuWatch();
         runTransfer(streams, duration, ulWorker, function (m, p) { if (m !== null) setBig(m); bar(p); }, function (ul, ulPeak) {
          cpu2.finish(function () {
+          if (cancelled) return;
           r.ul = Math.round(ul * 10) / 10; r.ul_peak = Math.round(ulPeak * 10) / 10; r.cpu_ul = round(cpu2.avg); r.core_ul = round(cpu2.core);
           var s2 = fmtSpeed(ulPeak); setRes('res-ul', s2.v, s2.u, avgText(ul) + cpu2.text());
           finish(r);
@@ -360,12 +368,22 @@ th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
     if (Math.max(r.core_dl || 0, r.core_ul || 0) >= 90)
       note('Ein Prozessorkern des Routers war voll ausgelastet. Das Ergebnis zeigt eher die Grenze des Routers als die des Netzes. Mehr Verbindungen können helfen.');
     req('POST', API + '/history', JSON.stringify(r), function () { loadHistory(); });
-    running = false; $('start').disabled = false;
+    idle();
   }
   function fail(msg) {
     phase('Fehler'); note(msg);
-    running = false; $('start').disabled = false;
+    idle();
   }
+  // Laufende Messung abbrechen: Verbindungen schliessen, nichts in den Verlauf schreiben
+  function stop() {
+    cancelled = true;
+    phase('Abgebrochen'); setBig(null); bar(0);
+    idle();
+    // kurz sperren, bis alle Timer und offenen Anfragen der alten Messung beendet sind
+    $('start').disabled = true;
+    setTimeout(function () { $('start').disabled = false; }, 500);
+  }
+  function idle() { running = false; $('start').textContent = 'Start'; }
 
   // ---------- Verlauf ----------
   function cell(v, d) { return (v === null || v === undefined) ? '–' : fmt(v, d); }
