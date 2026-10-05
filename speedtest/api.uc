@@ -106,6 +106,7 @@ function save(env, body) {
 		label: label,
 		ping: num(r.ping), jitter: num(r.jitter),
 		dl: num(r.dl), ul: num(r.ul),
+		dl_peak: num(r.dl_peak), ul_peak: num(r.ul_peak),
 		streams: num(r.streams),
 		cpu_dl: num(r.cpu_dl), cpu_ul: num(r.cpu_ul),
 		core_dl: num(r.core_dl), core_ul: num(r.core_ul)
