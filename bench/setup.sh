@@ -31,7 +31,9 @@ printf 'Content-Type: text/plain\r\nCache-Control: no-store\r\n\r\nOK'
 CGI
 chmod +x /www/cgi-bin/bench-dl.cgi /www/cgi-bin/bench-up.cgi
 
+# uhttpd laedt Handler im Template-Modus: ohne fuehrendes {% beendet sich uhttpd sofort
 cat > "$DIR/bench.uc" <<UC
+{%
 'use strict';
 const MB = $SIZE_MB;
 let block = null;
@@ -59,6 +61,18 @@ uci -q del_list uhttpd.main.ucode_prefix="/bench-uc=$DIR/bench.uc" || true
 [ "$UCODE" = 1 ] && uci add_list uhttpd.main.ucode_prefix="/bench-uc=$DIR/bench.uc"
 uci commit uhttpd
 service uhttpd restart
+
+# Ein kaputter ucode-Handler legt uhttpd komplett lahm (auch LuCI) -> pruefen und notfalls zuruecknehmen
+sleep 2
+if ! pidof uhttpd >/dev/null; then
+	echo "WARNUNG: uhttpd laeuft mit dem ucode-Handler nicht, Variante C wird entfernt (Details: logread | grep uhttpd)"
+	uci -q del_list uhttpd.main.ucode_prefix="/bench-uc=$DIR/bench.uc"
+	uci commit uhttpd
+	service uhttpd restart
+	sleep 2
+	UCODE=0
+	pidof uhttpd >/dev/null || { echo "FEHLER: uhttpd startet nicht, bitte sh /tmp/cleanup.sh ausfuehren"; exit 1; }
+fi
 
 echo "Fertig. HTTPS-Umleitung voruebergehend aus (vorher: $(cat /tmp/bench-redirect_https)), ucode: $UCODE"
 echo "CPU: $(grep -c ^processor /proc/cpuinfo) Kerne, RAM frei: $(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo) MB"
