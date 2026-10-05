@@ -67,7 +67,7 @@ Für Backups: `/www/speedtest` und `/etc/config/uhttpd` sichern.
 - **Ping:** uhttpd in OpenWrt 25.12 setzt kein `TCP_NODELAY` und hält dadurch den Rest kleiner Antworten auf einer bestehenden Verbindung ~40 ms zurück
   (behoben in uhttpd [82b4c79](https://github.com/openwrt/uhttpd/commit/82b4c79), in 25.12 noch nicht enthalten). Die Seite misst deshalb die Zeit bis zum ersten Antwort-Byte.
   Aus demselben Grund schickt der Upload große 32-MB-Stücke.
-- **Ergebnis:** Groß angezeigt wird die Spitze (bester gleitender 1-s-Wert nach dem Anlauf). Darunter steht der Durchschnitt:
+- **Ergebnis:** Groß angezeigt wird die Spitze (bester gleitender 1-s-Wert, derselbe Wert, den die Live-Anzeige zeigt). Darunter steht der Durchschnitt:
   die 1-s-Werte ohne die langsamsten 30 % und schnellsten 10 %, gemittelt.
 - **Diagnose:** `diag.html` vergleicht Ping-, Download- und Upload-Varianten im Browser, falls Werte unplausibel wirken.
 
