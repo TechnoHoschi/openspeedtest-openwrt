@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Speedtest Mitschnitt</title>
+<style>
+/* Layout: Fenster eines Paketanalysators. Werkzeugleiste, Anzeigefilter, Paketliste, Paketdetails, Hex-Ansicht
+   und Statuszeile. Nach der Messung öffnet sich das Statistikfenster (E/A-Graph, Ping-Verteilung, Experteninfo).
+   Die Pakete werden aus den Messwerten nachgebildet, es ist kein echter Mitschnitt. Nur Systemschriften. */
+:root {
+  --desk: #d9dde2;          /* Fensterhintergrund */
+  --win: #ffffff;
+  --chrome: #eef0f3;        /* Leisten */
+  --line: #c3c8ce;
+  --ink: #1e2328;
+  --mute: #5f6870;
+  --sel: #2f6fd6;           /* Auswahl */
+  --on-sel: #ffffff;
+  --row-http: #e4ffc7;      /* Farbregel HTTP */
+  --row-tcp: #e7e6ff;       /* Farbregel TCP */
+  --row-ack: #f6f6f6;
+  --filter-ok: #aff5b4;     /* gültiger Filter */
+  --down: #2f6fd6;
+  --up: #c2410c;
+  --ping: #7e57c2;
+  --warn: #c48a00;
+  --err: #c62828;
+  --f-ui: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --f-mono: ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --desk: #15181b; --win: #1d2125; --chrome: #262b30; --line: #3a4148; --ink: #e2e6ea; --mute: #9aa4ad; --sel: #3d7be0; --on-sel: #ffffff;
+  --row-http: #2b3a1f; --row-tcp: #2d2b45; --row-ack: #22262a; --filter-ok: #2d5a31; --down: #6aa2ff; --up: #ff8f5a; --ping: #b39ddb;
+  --warn: #e0b23a; --err: #ff6b6b; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --desk: #15181b; --win: #1d2125; --chrome: #262b30; --line: #3a4148; --ink: #e2e6ea; --mute: #9aa4ad; --sel: #3d7be0; --on-sel: #ffffff;
+  --row-http: #2b3a1f; --row-tcp: #2d2b45; --row-ack: #22262a; --filter-ok: #2d5a31; --down: #6aa2ff; --up: #ff8f5a; --ping: #b39ddb;
+  --warn: #e0b23a; --err: #ff6b6b; color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { background: var(--desk); color: var(--ink); }
+body { margin: 0; font: 14px/1.4 var(--f-ui); }
+main { max-width: 1100px; margin: 0 auto; padding: 16px 16px 40px; display: grid; gap: 16px; }
+main > * { min-width: 0; }
+
+.win { background: var(--win); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,.12); display: grid; min-width: 0; }
+.title { background: var(--chrome); border-bottom: 1px solid var(--line); padding: 7px 12px; display: flex; align-items: center; gap: 10px; font-size: .84rem; min-width: 0; }
+.title .dots { display: flex; gap: 6px; flex: none; }
+.title .dots i { width: 11px; height: 11px; border-radius: 50%; background: var(--line); }
+.title b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.title .demo { margin-left: auto; color: var(--on-sel); background: var(--ping); border-radius: 3px; padding: 0 6px; font-size: .72rem; font-weight: 600; }
+
+.tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--chrome); }
+.tb { display: inline-flex; align-items: center; gap: 6px; font: 600 .84rem var(--f-ui); color: var(--ink); background: var(--win); border: 1px solid var(--line); border-radius: 4px; padding: 5px 12px; cursor: pointer; }
+.tb:hover { border-color: var(--mute); }
+.tb:disabled { opacity: .5; cursor: default; }
+.tb i { width: 10px; height: 10px; border-radius: 50%; background: var(--err); }
+.tb.stop i { border-radius: 1px; background: var(--ink); }
+.tb:focus-visible, select:focus-visible, input:focus-visible, .pl tr:focus-visible { outline: 2px solid var(--sel); outline-offset: 1px; }
+.opts { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--mute); font-size: .82rem; }
+.opts label { display: flex; align-items: center; gap: 5px; }
+select, input { font: inherit; color: var(--ink); background: var(--win); border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px; }
+#label { width: 10em; }
+.filter { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--line); }
+.filter span { font-size: .78rem; color: var(--mute); white-space: nowrap; }
+.filter output { flex: 1; min-width: 0; font: .84rem var(--f-mono); background: var(--filter-ok); border: 1px solid var(--line); border-radius: 3px; padding: 3px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Paketliste */
+.pl-wrap { height: 300px; overflow: auto; border-bottom: 1px solid var(--line); }
+.pl { width: 100%; border-collapse: collapse; font: .78rem/1.35 var(--f-mono); font-variant-numeric: tabular-nums; }
+.pl th { position: sticky; top: 0; background: var(--chrome); color: var(--mute); font: 600 .74rem var(--f-ui); text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.pl td { padding: 1px 8px; white-space: nowrap; color: #1e2328; }
+.pl td:nth-child(1), .pl td:nth-child(6), .pl th:nth-child(1), .pl th:nth-child(6) { text-align: right; }
+.pl tr.http td { background: var(--row-http); }
+.pl tr.tcp td { background: var(--row-tcp); }
+.pl tr.ack td { background: var(--row-ack); }
+.pl tr td { color: var(--ink); }
+.pl tr.cur td { background: var(--sel); color: var(--on-sel); }
+.pl tr { cursor: default; }
+.pl .gap td { color: var(--mute); font-style: italic; background: transparent; text-align: left !important; padding: 2px 8px; }
+
+.panes { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); min-height: 180px; }
+.tree { padding: 6px 10px; border-right: 1px solid var(--line); font: .78rem/1.55 var(--f-mono); overflow-x: auto; min-width: 0; }
+.tree div { white-space: nowrap; }
+.tree .l1 { padding-left: 16px; color: var(--mute); }
+.tree .t::before { content: "▸ "; color: var(--mute); }
+.tree .open::before { content: "▾ "; }
+.hex { padding: 6px 10px; font: .76rem/1.55 var(--f-mono); color: var(--ink); overflow-x: auto; white-space: pre; min-width: 0; }
+.hex .o { color: var(--mute); }
+.hex .h { background: var(--row-tcp); }
+.status { display: flex; flex-wrap: wrap; gap: 4px 18px; padding: 5px 12px; background: var(--chrome); border-top: 1px solid var(--line); font-size: .76rem; color: var(--mute); }
+.status b { color: var(--ink); font-weight: 600; }
+.status .live { margin-left: auto; font: 600 .82rem var(--f-mono); color: var(--ink); }
+.status .note { flex-basis: 100%; }
+
+/* Statistik */
+.stats .body { padding: 12px 14px 14px; display: grid; gap: 14px; }
+.stats h3 { margin: 0 0 6px; font: 600 .82rem var(--f-ui); color: var(--mute); text-transform: uppercase; letter-spacing: .06em; }
+.sgrid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 14px; }
+.sgrid > * { min-width: 0; }
+canvas { width: 100%; display: block; border: 1px solid var(--line); border-radius: 4px; background: var(--win); }
+#io { height: 220px; } #rtt { height: 220px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font: .76rem var(--f-mono); color: var(--mute); margin-top: 4px; }
+.legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; }
+.sum { width: 100%; border-collapse: collapse; font: .82rem var(--f-mono); font-variant-numeric: tabular-nums; }
+.sum th { text-align: left; color: var(--mute); font: 600 .74rem var(--f-ui); padding: 4px 8px; border-bottom: 1px solid var(--line); }
+.sum td { padding: 4px 8px; border-bottom: 1px solid var(--line); }
+.sum td:not(:first-child), .sum th:not(:first-child) { text-align: right; }
+.sum td.dl { color: var(--down); } .sum td.ul { color: var(--up); }
+.expert { display: grid; gap: 4px; font-size: .84rem; }
+.expert div { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); gap: 8px; align-items: baseline; }
+.sev { font: 600 .7rem var(--f-ui); text-transform: uppercase; letter-spacing: .06em; border-radius: 3px; padding: 1px 6px; text-align: center; color: var(--on-sel); }
+.sev.note { background: var(--sel); } .sev.warn { background: var(--warn); } .sev.chat { background: var(--mute); } .sev.err { background: var(--err); }
+
+.hist .body { padding: 0; }
+.tbl { overflow-x: auto; }
+table.h { width: 100%; border-collapse: collapse; font: .8rem var(--f-mono); font-variant-numeric: tabular-nums; }
+table.h th, table.h td { padding: 5px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+table.h th { color: var(--mute); font: 600 .72rem var(--f-ui); background: var(--chrome); }
+table.h th:nth-child(-n+2), table.h td:nth-child(-n+2) { text-align: left; }
+table.h td.dl { color: var(--down); } table.h td.ul { color: var(--up); }
+table.h td small { color: var(--mute); }
+.empty { color: var(--mute); padding: 10px 12px; }
+.confirm { display: inline-flex; gap: 8px; align-items: center; font-size: .8rem; }
+.title .right { margin-left: auto; }
+
+@media (max-width: 760px) {
+  .panes, .sgrid { grid-template-columns: minmax(0, 1fr); }
+  .tree { border-right: 0; border-bottom: 1px solid var(--line); }
+  .pl-wrap { height: 260px; }
+}
+</style>
+</head>
+<body>
+<main>
+  <section class="win" aria-label="Paketmitschnitt">
+    <div class="title"><span class="dots"><i></i><i></i><i></i></span><b id="wtitle">Mitschnitt · speedtest.pcapng</b><span class="demo" id="demo" hidden>Demo</span></div>
+    <div class="tools">
+      <button class="tb" id="go" disabled><i></i>Mitschnitt starten</button>
+      <button class="tb stop" id="stop" hidden><i></i>Stopp</button>
+      <div class="opts">
+        <label for="streams">Verbindungen
+          <select id="streams"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select></label>
+        <label for="duration">Dauer
+          <select id="duration"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></label>
+        <label for="label">Gerät <input id="label" maxlength="40" placeholder="z. B. Laptop WLAN"></label>
+      </div>
+    </div>
+    <div class="filter"><span>Anzeigefilter</span><output id="filter">tcp.port == 80</output></div>
+    <div class="pl-wrap" id="plw">
+      <table class="pl"><thead><tr><th>Nr.</th><th>Zeit</th><th>Quelle</th><th>Ziel</th><th>Protokoll</th><th>Länge</th><th>Info</th></tr></thead><tbody id="pl"></tbody></table>
+    </div>
+    <div class="panes">
+      <div class="tree" id="tree"><div class="t">Noch kein Paket ausgewählt.</div></div>
+      <div class="hex" id="hex"></div>
+    </div>
+    <div class="status">
+      <span id="st-iface">Schnittstelle: –</span>
+      <span>Pakete: <b id="st-n">0</b></span>
+      <span>Angezeigt: <b id="st-shown">0</b></span>
+      <span class="live" id="st-live">–</span>
+      <span class="note">Nachgebildet aus den Messwerten des Speedtests, kein echter Paketmitschnitt. Paketzahlen bei 1448 Byte Nutzlast je Segment geschätzt.</span>
+    </div>
+  </section>
+
+  <section class="win stats" id="stats" hidden>
+    <div class="title"><span class="dots"><i></i><i></i><i></i></span><b>Statistik · E/A-Graph und Zusammenfassung</b><span class="right"><button class="tb" id="again">Neu messen</button></span></div>
+    <div class="body">
+      <div class="sgrid">
+        <div><h3>E/A-Graph · Mbit/s je Sekunde</h3><canvas id="io"></canvas>
+          <div class="legend"><span><i style="background:var(--down)"></i>Download Router → Gerät</span><span><i style="background:var(--up)"></i>Upload Gerät → Router</span></div></div>
+        <div><h3>Ping · Antwortzeiten</h3><canvas id="rtt"></canvas>
+          <div class="legend"><span><i style="background:var(--ping)"></i>Anzahl je 0,25-ms-Fach</span></div></div>
+      </div>
+      <div class="sgrid">
+        <div><h3>Zusammenfassung</h3><table class="sum" id="sum"></table></div>
+        <div><h3>Experteninfo</h3><div class="expert" id="expert"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="win hist">
+    <div class="title"><span class="dots"><i></i><i></i><i></i></span><b>Frühere Mitschnitte</b><span class="right" id="clear-wrap"><button class="tb" id="clear">Löschen</button></span></div>
+    <div class="body tbl" id="history"><div class="empty">Noch keine Messungen.</div></div>
+  </section>
+</main>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.SpeedEngine, $ = function (id) { return document.getElementById(id); };
+  var MSS = 1448, info = null, link = null, phase = null, t0 = 0, total = 0, shown = 0, bytes = 0, lastLive = 0, rateNow = 0;
+  var routerIP = location.hostname || '192.168.1.1', clientIP = '192.168.1.3', ports = [], rows = [], pings = [], selected = null, timer = null;
+  var MAX_ROWS = 400;
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function now() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
+  function ts() { return ((now() - t0) / 1000).toFixed(6); }
+  function de(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
+
+  // ---------- Paketliste ----------
+  function addRow(p) {
+    total = p.no; shown++;
+    var tr = document.createElement('tr');
+    tr.className = p.cls; tr.tabIndex = 0;
+    tr.innerHTML = '<td>' + de(p.no) + '</td><td>' + p.time + '</td><td>' + esc(p.src) + '</td><td>' + esc(p.dst) + '</td><td>' + p.proto + '</td><td>' + p.len + '</td><td>' + esc(p.info) + '</td>';
+    tr.onclick = tr.onfocus = function () { pick(tr, p); };
+    var body = $('pl'), wrap = $('plw'), atEnd = wrap.scrollTop + wrap.clientHeight >= wrap.scrollHeight - 30;
+    body.appendChild(tr); rows.push(tr);
+    if (rows.length > MAX_ROWS) { var old = rows.shift(); if (old === selected) selected = null; body.removeChild(old); }
+    if (atEnd) wrap.scrollTop = wrap.scrollHeight;
+    if (!selected || selected.auto) pick(tr, p, true);
+    $('st-n').textContent = de(total); $('st-shown').textContent = de(shown);
+  }
+  function gapRow(text) {
+    var tr = document.createElement('tr'); tr.className = 'gap'; tr.innerHTML = '<td colspan="7">' + esc(text) + '</td>';
+    $('pl').appendChild(tr); rows.push(tr);
+  }
+  function pick(tr, p, auto) {
+    if (selected && selected.tr) selected.tr.classList.remove('cur');
+    tr.classList.add('cur'); selected = { tr: tr, auto: !!auto };
+    details(p);
+  }
+  function details(p) {
+    var tcp = p.proto === 'TCP' || p.proto === 'HTTP', dataLen = p.payload || 0;
+    var h = '<div class="t open">Frame ' + de(p.no) + ': ' + p.len + ' Bytes auf der Leitung (' + p.len * 8 + ' Bit)</div>' +
+      '<div class="l1">Ankunftszeit: +' + p.time + ' s seit Beginn</div>' +
+      '<div class="t">Ethernet II, Quelle: ' + (p.src === routerIP ? 'Router' : 'Gerät') + ', Ziel: ' + (p.dst === routerIP ? 'Router' : 'Gerät') + '</div>' +
+      '<div class="t open">Internet Protocol Version 4, Quelle: ' + esc(p.src) + ', Ziel: ' + esc(p.dst) + '</div>' +
+      '<div class="l1">Gesamtlänge: ' + (p.len - 14) + ' · TTL: 64 · Protokoll: TCP (6)</div>';
+    if (tcp) h += '<div class="t open">Transmission Control Protocol, Quellport: ' + p.sp + ', Zielport: ' + p.dp + ', Länge: ' + dataLen + '</div>' +
+      '<div class="l1">Flags: ' + p.flags + ' · Fenster: 64256 · [Stream-Index: ' + p.stream + ']</div>';
+    if (p.http) h += '<div class="t open">Hypertext Transfer Protocol</div><div class="l1">' + esc(p.http) + '</div>';
+    else if (dataLen) h += '<div class="t">Daten (' + dataLen + ' Bytes)</div><div class="l1">Nutzlast nur Nullen, wie die Testdatei</div>';
+    $('tree').innerHTML = h;
+    $('hex').innerHTML = hex(p);
+  }
+  function hex(p) {
+    // Kopf aus festen Feldern, danach die Nutzlast (bei Download und Upload nur Nullen)
+    var b = [], i;
+    var head = [0x00, 0x1a, 0x2b, 0x3c, 0x4d, 0x5e, 0x02, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0x08, 0x00, 0x45, 0x00, (p.len - 14) >> 8, (p.len - 14) & 255, 0x3c, 0x1f, 0x40, 0x00, 0x40, 0x06];
+    for (i = 0; i < head.length; i++) b.push(head[i]);
+    while (b.length < 54) b.push((b.length * 37 + p.no) & 255);
+    var txt = p.http ? p.http : '';
+    for (i = 0; i < txt.length && b.length < 112; i++) b.push(txt.charCodeAt(i) & 255);
+    while (b.length < 112) b.push(0);
+    var out = '';
+    for (var r = 0; r < b.length; r += 16) {
+      var line = b.slice(r, r + 16), hx = '', as = '';
+      for (var k = 0; k < line.length; k++) {
+        var v = line[k], s = (v < 16 ? '0' : '') + v.toString(16);
+        hx += (r + k >= 54 && v === 0 && !p.http ? '<span class="h">' + s + '</span>' : s) + (k === 7 ? '  ' : ' ');
+        as += v >= 32 && v < 127 ? esc(String.fromCharCode(v)) : '·';
+      }
+      out += '<span class="o">' + ('000' + r.toString(16)).slice(-4) + '</span>  ' + hx + ' ' + as + '\n';
+    }
+    return out + '<span class="o">… ' + (p.len > 112 ? p.len - 112 + ' weitere Bytes' : '') + '</span>';
+  }
+
+  // Pakete aus dem Datenstrom: je Takt ein paar Zeilen, die Nummer springt um die geschätzte Zahl dazwischen
+  function pump(dt) {
+    if (phase !== 'download' && phase !== 'upload') return;
+    bytes += rateNow * 1e6 / 8 * dt;
+    var due = Math.floor(bytes / MSS);
+    var n = Math.max(1, Math.min(6, Math.round(rateNow / 300)));   // sichtbare Zeilen je Takt
+    if (due <= total) return;
+    var step = Math.max(1, Math.floor((due - total) / n));
+    for (var i = 0; i < n && total + step <= due + 1; i++) {
+      var s = ports[Math.floor(Math.random() * ports.length)], dl = phase === 'download', ack = Math.random() < 0.28;
+      var no = total + step;
+      if (ack) addRow({ no: no, time: ts(), src: dl ? clientIP : routerIP, dst: dl ? routerIP : clientIP, proto: 'TCP', len: 66, cls: 'ack', sp: dl ? s.p : 80, dp: dl ? 80 : s.p, stream: s.i, flags: '0x010 (ACK)', payload: 0,
+        info: (dl ? s.p + ' → 80' : '80 → ' + s.p) + ' [ACK] Seq=' + s.seq + ' Ack=' + (s.ack += 2 * MSS) + ' Win=64256 Len=0' });
+      else { s.seq += MSS; addRow({ no: no, time: ts(), src: dl ? routerIP : clientIP, dst: dl ? clientIP : routerIP, proto: 'TCP', len: 1514, cls: 'tcp', sp: dl ? 80 : s.p, dp: dl ? s.p : 80, stream: s.i, flags: '0x010 (ACK)', payload: MSS,
+        info: (dl ? '80 → ' + s.p : s.p + ' → 80') + ' [ACK] Seq=' + s.seq + ' Len=1448 [TCP-Segment einer zusammengesetzten PDU]' }); }
+    }
+  }
+  function startStreams(kind, k) {
+    ports = [];
+    for (var i = 0; i < k; i++) {
+      var p = { i: i, p: 49152 + Math.floor(Math.random() * 16000), seq: 1, ack: 1 };
+      ports.push(p);
+      var dl = kind === 'download', no = total + 1;
+      addRow({ no: no, time: ts(), src: clientIP, dst: routerIP, proto: 'TCP', len: 74, cls: 'tcp', sp: p.p, dp: 80, stream: p.i, flags: '0x002 (SYN)', payload: 0, info: p.p + ' → 80 [SYN] Seq=0 Win=64240 Len=0 MSS=1460' });
+      addRow({ no: no + 2, time: ts(), src: clientIP, dst: routerIP, proto: 'HTTP', len: dl ? 412 : 520, cls: 'http', sp: p.p, dp: 80, stream: p.i, flags: '0x018 (PSH, ACK)', payload: dl ? 346 : 454,
+        http: dl ? 'GET /speedtest/data/dl.bin HTTP/1.1' : 'POST /speedtest-api/up HTTP/1.1 (33554432 Bytes)', info: dl ? 'GET /speedtest/data/dl.bin HTTP/1.1' : 'POST /speedtest-api/up HTTP/1.1  (application/octet-stream)' });
+      if (dl) addRow({ no: no + 3, time: ts(), src: routerIP, dst: clientIP, proto: 'HTTP', len: 290, cls: 'http', sp: 80, dp: p.p, stream: p.i, flags: '0x018 (PSH, ACK)', payload: 224, http: 'HTTP/1.1 200 OK (application/octet-stream)', info: 'HTTP/1.1 200 OK  (application/octet-stream)' });
+    }
+  }
+  function setFilter(kind) {
+    $('filter').textContent = kind === 'ping' ? 'http.request.uri contains "ping.txt" && ip.addr == ' + clientIP
+      : kind === 'download' ? 'tcp.srcport == 80 && ip.dst == ' + clientIP + ' || http.request.method == "GET"'
+      : kind === 'upload' ? 'tcp.dstport == 80 && ip.src == ' + clientIP + ' || http.request.method == "POST"'
+      : 'tcp.port == 80 && ip.addr == ' + clientIP;
+  }
+
+  // ---------- Statistik ----------
+  function css(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function prep(cv) { var d = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight; cv.width = w * d; cv.height = h * d; var x = cv.getContext('2d'); x.setTransform(d, 0, 0, d, 0, 0); return { x: x, w: w, h: h }; }
+  function nice(v) { var p = Math.pow(10, Math.floor(Math.log(v) / Math.LN10)), m = v / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; }
+  function ioGraph(d, u) {
+    var c = prep($('io')), x = c.x, L = 50, R = 10, T = 10, B = 26, W = c.w - L - R, H = c.h - T - B;
+    var n = Math.max(d.series.length, u.series.length, 2), max = 1;
+    d.series.concat(u.series).forEach(function (v) { if (v > max) max = v; });
+    var top = nice(max * 1.1), step = top / 4;
+    x.font = '11px ' + css('--f-mono'); x.fillStyle = css('--mute'); x.strokeStyle = css('--line'); x.lineWidth = 1;
+    for (var g = 0; g <= 4; g++) {
+      var y = T + H - H * g / 4; x.beginPath(); x.moveTo(L, y + .5); x.lineTo(L + W, y + .5); x.stroke();
+      x.textAlign = 'right'; x.fillText(E.fmt(step * g, 0), L - 6, y + 4);
+    }
+    x.textAlign = 'center';
+    // engine.js liefert alle 200 ms einen gleitenden 1-s-Wert
+    var secs = (n - 1) * 0.2, st = secs > 12 ? 2 : 1;
+    for (var s = 0; s <= secs + 0.01; s += st) x.fillText(s + ' s', L + W * s / secs, T + H + 16);
+    [[d.series, css('--down')], [u.series, css('--up')]].forEach(function (k) {
+      var ser = k[0]; if (!ser.length) return;
+      x.strokeStyle = k[1]; x.lineWidth = 2; x.beginPath();
+      ser.forEach(function (v, i) { var px = L + W * i / (n - 1), py = T + H - H * v / top; if (i) x.lineTo(px, py); else x.moveTo(px, py); });
+      x.stroke();
+    });
+  }
+  function rttHist() {
+    var c = prep($('rtt')), x = c.x, L = 30, R = 10, T = 10, B = 26, W = c.w - L - R, H = c.h - T - B;
+    if (!pings.length) return;
+    var lo = Math.floor(Math.min.apply(null, pings) * 4) / 4, hi = Math.ceil(Math.max.apply(null, pings) * 4) / 4 + 0.25, nb = Math.max(4, Math.round((hi - lo) / 0.25));
+    var bins = []; for (var i = 0; i < nb; i++) bins.push(0);
+    pings.forEach(function (v) { bins[Math.min(nb - 1, Math.floor((v - lo) / 0.25))]++; });
+    var max = Math.max.apply(null, bins);
+    x.font = '11px ' + css('--f-mono'); x.fillStyle = css('--mute'); x.strokeStyle = css('--line');
+    x.beginPath(); x.moveTo(L, T + H + .5); x.lineTo(L + W, T + H + .5); x.stroke();
+    x.textAlign = 'right'; x.fillText(max, L - 6, T + 8); x.fillText('0', L - 6, T + H);
+    var bw = W / nb;
+    bins.forEach(function (b, i) { x.fillStyle = css('--ping'); x.fillRect(L + i * bw + 1, T + H - H * b / max, bw - 2, H * b / max); });
+    x.fillStyle = css('--mute'); x.textAlign = 'left'; x.fillText(E.fmt(lo, 2) + ' ms', L, T + H + 16);
+    x.textAlign = 'right'; x.fillText(E.fmt(lo + nb * 0.25, 2) + ' ms', L + W, T + H + 16);
+  }
+  function summary(res, dur) {
+    var d = res.download, u = res.upload;
+    function row(k, a, b, cls) { return '<tr><td>' + k + '</td><td class="' + (cls ? 'dl' : '') + '">' + a + '</td><td class="' + (cls ? 'ul' : '') + '">' + b + '</td></tr>'; }
+    function sp(m) { var s = E.fmtSpeed(m); return s.v + ' ' + s.u; }
+    function pk(r) { return de(Math.round(r.avg * 1e6 / 8 * dur / MSS)); }
+    $('sum').innerHTML = '<tr><th>Messgröße</th><th>Download</th><th>Upload</th></tr>' +
+      row('Spitze (bester 1-s-Wert)', sp(d.peak), sp(u.peak), true) +
+      row('Durchschnitt', sp(d.avg), sp(u.avg), true) +
+      row('Datensegmente (geschätzt)', pk(d), pk(u)) +
+      row('Segmente je Sekunde', de(Math.round(d.avg * 1e6 / 8 / MSS)), de(Math.round(u.avg * 1e6 / 8 / MSS))) +
+      row('Router-CPU, stärkster Kern', d.core === null ? '–' : Math.round(d.core) + ' %', u.core === null ? '–' : Math.round(u.core) + ' %') +
+      row('TCP-Verbindungen', $('streams').value, $('streams').value);
+  }
+  function expert(res, ping, jitter) {
+    var d = res.download, u = res.upload, list = [];
+    var mc = Math.max(d.core || 0, u.core || 0);
+    if (mc >= 90) list.push(['warn', 'Warnung', 'Ein CPU-Kern des Routers lag bei ' + Math.round(mc) + ' %. Der Router selbst begrenzt hier.']);
+    if (jitter > 2) list.push(['warn', 'Warnung', 'Jitter ' + E.fmt(jitter, 1) + ' ms. Im LAN sind unter 1 ms üblich, im WLAN bis 2 ms.']);
+    if (ping > 5) list.push(['warn', 'Warnung', 'Ping ' + E.fmt(ping, 1) + ' ms ist für eine LAN-Strecke hoch. Typisch sind 1 bis 3 ms.']);
+    var spread = d.series.length > 4 ? (Math.max.apply(null, d.series.slice(2)) - Math.min.apply(null, d.series.slice(2))) / d.peak : 0;
+    if (spread > 0.35) list.push(['note', 'Hinweis', 'Der Download schwankt um ' + Math.round(spread * 100) + ' %. Bei WLAN normal, bei Kabel ungewöhnlich.']);
+    if (link && link.type === 'wired' && link.speed) list.push(['chat', 'Info', 'Anschluss ' + link.port + ' meldet ' + link.speed + ' Mbit/s ' + (link.duplex === 'full' ? 'Vollduplex' : link.duplex || '') + '.']);
+    if (link && link.type === 'wifi' && link.wifi) list.push(['chat', 'Info', 'WLAN ' + (link.wifi.band || '?').replace('.', ',') + ' GHz, Linkrate ' + (link.wifi.tx_rate ? Math.round(link.wifi.tx_rate) + ' Mbit/s' : 'unbekannt') + (link.wifi.signal ? ', Signal ' + link.wifi.signal + ' dBm' : '') + '.']);
+    list.push(['chat', 'Info', 'Alle ' + pings.length + ' Ping-Anfragen wurden beantwortet.']);
+    $('expert').innerHTML = list.map(function (e) { return '<div><span class="sev ' + e[0] + '">' + e[1] + '</span><span>' + esc(e[2]) + '</span></div>'; }).join('');
+  }
+
+  // ---------- Ablauf ----------
+  function mode(on) { $('go').hidden = on; $('stop').hidden = !on; if (!on) { phase = null; clearInterval(timer); setFilter(null); } }
+  function start() {
+    var streams = +$('streams').value, duration = +$('duration').value, label = $('label').value.replace(/^\s+|\s+$/g, '');
+    try { localStorage.setItem('st-label', label); localStorage.setItem('st-streams', streams); localStorage.setItem('st-duration', duration); } catch (e) { }
+    $('stats').hidden = true; $('pl').innerHTML = ''; rows = []; total = 0; shown = 0; bytes = 0; pings = []; selected = null; rateNow = 0;
+    $('tree').innerHTML = ''; $('hex').innerHTML = '';
+    t0 = now(); mode(true);
+    var last = now();
+    timer = setInterval(function () { var n = now(); pump((n - last) / 1000); last = n; }, 100);
+    var res = {}, ping = 0, jit = 0, pno = 0;
+    E.run({ streams: streams, duration: duration, label: label }, {
+      phase: function (p) {
+        phase = p; setFilter(p); rateNow = 0; bytes = total * MSS;
+        if (p !== 'ping') { gapRow('— ' + (p === 'download' ? 'Download' : 'Upload') + ' mit ' + streams + ' Verbindungen —'); startStreams(p, streams); }
+        else gapRow('— Ping: ' + 20 + ' Anfragen an ping.txt —');
+      },
+      pingSample: function (ms, i) {
+        pings.push(ms); pno = total + 1;
+        var sp = 50000 + i;
+        addRow({ no: pno, time: ts(), src: clientIP, dst: routerIP, proto: 'HTTP', len: 398, cls: 'http', sp: sp, dp: 80, stream: 100 + i, flags: '0x018 (PSH, ACK)', payload: 332, http: 'GET /speedtest/ping.txt HTTP/1.1', info: 'GET /speedtest/ping.txt?r=' + Math.random().toString(36).slice(2, 10) + ' HTTP/1.1' });
+        addRow({ no: pno + 1, time: ts(), src: routerIP, dst: clientIP, proto: 'HTTP', len: 247, cls: 'http', sp: 80, dp: sp, stream: 100 + i, flags: '0x018 (PSH, ACK)', payload: 181, http: 'HTTP/1.1 200 OK (text/plain)', info: 'HTTP/1.1 200 OK  (text/plain)  [Zeit bis zur Antwort: ' + E.fmt(ms, 3) + ' ms]' });
+        $('st-live').textContent = 'Ping ' + E.fmt(ms, 1) + ' ms';
+      },
+      ping: function (p, j) { ping = p; jit = j; },
+      live: function (kind, m) { if (m !== null) { rateNow = m; var s = E.fmtSpeed(m); $('st-live').textContent = (kind === 'download' ? '↓ ' : '↑ ') + s.v + ' ' + s.u; } },
+      result: function (kind, r) { res[kind] = r; rateNow = 0; },
+      done: function () {
+        mode(false);
+        $('st-live').textContent = '↓ ' + E.fmtSpeed(res.download.peak).v + ' ' + E.fmtSpeed(res.download.peak).u + '  ↑ ' + E.fmtSpeed(res.upload.peak).v + ' ' + E.fmtSpeed(res.upload.peak).u;
+        gapRow('— Mitschnitt beendet —');
+        $('stats').hidden = false;
+        ioGraph(res.download, res.upload); rttHist(); summary(res, duration); expert(res, ping, jit);
+        $('stats').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        loadHistory();
+      },
+      error: function (msg) { mode(false); gapRow('Fehler: ' + msg); }
+    });
+  }
+
+  // ---------- Verlauf ----------
+  function n0(v) { return v === null || v === undefined ? '–' : E.fmt(v, 0); }
+  function sp(peak, avg) { return peak === null || peak === undefined ? n0(avg) : n0(peak) + ' <small>/ ' + n0(avg) + '</small>'; }
+  function loadHistory() {
+    E.history(function (h) {
+      if (!h.length) { $('history').innerHTML = '<div class="empty">Noch keine Messungen.</div>'; return; }
+      var r = '';
+      for (var i = h.length - 1; i >= 0; i--) {
+        var e = h[i], d = new Date(e.ts * 1000);
+        var when = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '. ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        var who = e.label || e.host || e.ip; if (e.label && e.host) who = esc(e.label) + ' <small>' + esc(e.host) + '</small>'; else who = esc(who);
+        r += '<tr><td>' + when + '</td><td>' + who + '</td><td>' + esc(e.ip || '') + '</td><td>' + (e.ping === null ? '–' : E.fmt(e.ping, 1)) + '</td><td class="dl">' + sp(e.dl_peak, e.dl) +
+          '</td><td class="ul">' + sp(e.ul_peak, e.ul) + '</td><td>' + (e.streams || '–') + '</td></tr>';
+      }
+      $('history').innerHTML = '<table class="h"><tr><th>Zeit</th><th>Gerät</th><th>IP</th><th>Ping ms</th><th>Down Mbit/s<br>Spitze / Ø</th><th>Up Mbit/s<br>Spitze / Ø</th><th>Verb.</th></tr>' + r + '</table>';
+    });
+  }
+  function clearAsk() {
+    $('clear-wrap').innerHTML = '<span class="confirm">Alles löschen? <button class="tb" id="yes">Ja</button><button class="tb" id="no">Nein</button></span>';
+    $('yes').onclick = function () { E.clearHistory(function () { loadHistory(); clearReset(); }); };
+    $('no').onclick = clearReset;
+  }
+  function clearReset() { $('clear-wrap').innerHTML = '<button class="tb" id="clear">Löschen</button>'; $('clear').onclick = clearAsk; }
+  $('clear').onclick = clearAsk;
+
+  $('go').onclick = start;
+  $('again').onclick = function () { window.scrollTo({ top: 0, behavior: 'smooth' }); start(); };
+  $('stop').onclick = function () { E.stop(); mode(false); gapRow('— Mitschnitt abgebrochen —'); };
+
+  try {
+    var l = localStorage.getItem('st-label'), s = localStorage.getItem('st-streams'), d = localStorage.getItem('st-duration');
+    if (l) $('label').value = l; if (s) $('streams').value = s; if (d) $('duration').value = d;
+  } catch (e) { }
+
+  E.init(function (i) {
+    info = i; clientIP = i.client_ip || clientIP;
+    if (i.demo || !/^\d+\.\d+\.\d+\.\d+$/.test(routerIP)) routerIP = '192.168.1.1';
+    $('wtitle').textContent = 'Mitschnitt auf ' + i.hostname + (i.model ? ' (' + i.model + ')' : '') + ' · Gerät ' + (i.client_host || i.client_ip);
+    $('demo').hidden = !i.demo;
+    setFilter(null);
+    E.link(function (l) {
+      link = l;
+      $('st-iface').textContent = 'Schnittstelle: ' + (l ? (l.type === 'wifi' ? 'WLAN ' + l.port : l.port + (l.speed ? ' · ' + l.speed + ' Mbit/s' : '')) : 'unbekannt');
+      $('go').disabled = false;
+    });
+    loadHistory();
+  });
+})();
+</script>
+</body>
+</html>
