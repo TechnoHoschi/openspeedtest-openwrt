@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#04060c">
+<title>Speedtest Beschleuniger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@300;500;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Konzept "Beschleuniger": Ein Speicherring wie in der Teilchenphysik. Download und Upload sind zwei
+   gegenläufige Strahlen, die Zahl der Teilchenpakete wächst mit dem Durchsatz. Jeder Ping ist eine Kollision
+   im Detektor, die Ereignisanzeige rechts zeigt Spuren und Energiedeposition. Danach das Run-Protokoll.
+   Bühne mit Canvas, Ereignisanzeige als zweites Canvas, alle Werte im DOM. Bewusst nur dunkel. */
+:root {
+  --hall: #04060c;          /* Tunnel */
+  --steel: #2a3550;         /* Magnete, Strahlrohr */
+  --ink: #e8eefc;
+  --mute: #8592b3;
+  --faint: #4a5574;
+  --line: rgba(130, 160, 230, .16);
+  --glass: rgba(6, 9, 20, .7);
+  --down: #4fd2ff;          /* Strahl 1: Download, im Uhrzeigersinn */
+  --up: #ff6b3d;            /* Strahl 2: Upload, gegen den Uhrzeigersinn */
+  --ping: #ffe14d;          /* Kollision */
+  --hot: #ff3d6e;
+  --acc: #4fd2ff;
+  --f-d: "Big Shoulders Display", "Bahnschrift", "Arial Narrow", sans-serif;
+  --f-m: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+body.p-ping { --acc: var(--ping); }
+body.p-upload { --acc: var(--up); }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { background: var(--hall); }
+body { margin: 0; color: var(--ink); font: 14px/1.5 var(--f-m); overflow-x: hidden; background: var(--hall); }
+#ring { position: absolute; left: 0; top: 0; width: 100%; z-index: 0; display: block; pointer-events: none; }
+main { position: relative; z-index: 1; }
+main * { min-width: 0; }
+button, select, input { font: inherit; }
+:focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; }
+
+.stage { min-height: 100vh; min-height: 100svh; max-width: 1280px; margin: 0 auto; padding: 18px 24px 22px; display: grid; grid-template-rows: auto 1fr auto auto; gap: 14px; }
+.top { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 6px 20px; }
+.mark { font: 800 1.6rem/1 var(--f-d); letter-spacing: .14em; text-transform: uppercase; }
+.mark small { display: block; font: 400 .7rem var(--f-m); letter-spacing: .16em; color: var(--mute); margin-top: 6px; text-transform: uppercase; }
+.who { color: var(--mute); font-size: .76rem; text-align: right; display: grid; gap: 2px; }
+.who b { color: var(--ink); font-weight: 500; }
+.demo { color: #151000; background: var(--ping); padding: 0 6px; font-size: .68rem; font-weight: 500; letter-spacing: .1em; }
+
+.hall { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 20px; align-items: center; }
+.center { display: grid; justify-items: center; text-align: center; gap: 2px; }
+.phase { font: 500 .78rem var(--f-d); letter-spacing: .4em; text-transform: uppercase; color: var(--acc); padding-left: .4em; min-height: 1.2em; }
+.big { font: 300 clamp(4rem, 15vw, 10rem)/.88 var(--f-d); font-variant-numeric: tabular-nums; white-space: nowrap; letter-spacing: .01em;
+  text-shadow: 0 0 36px color-mix(in srgb, var(--acc) 55%, transparent); }
+.unit { font: 500 1rem var(--f-d); letter-spacing: .3em; color: var(--mute); text-transform: uppercase; padding-left: .3em; }
+.sub { font-size: .72rem; color: var(--mute); min-height: 1.3em; }
+.inject { justify-self: center; width: auto; margin-top: 6px; position: relative; font: 800 1.15rem var(--f-d); letter-spacing: .3em; text-transform: uppercase; color: var(--hall); background: var(--down);
+  border: 0; padding: 14px 30px 14px 34px; cursor: pointer; clip-path: polygon(14px 0, 100% 0, calc(100% - 14px) 100%, 0 100%); }
+.inject:hover { background: #8fe4ff; }
+.inject:disabled { opacity: .45; cursor: default; }
+.inject.firing { background: var(--hot); color: #fff; }
+.hint { font-size: .7rem; color: var(--faint); letter-spacing: .1em; }
+
+.evd { background: var(--glass); border: 1px solid var(--line); padding: 10px; display: grid; gap: 6px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.evd .h { display: flex; justify-content: space-between; font-size: .66rem; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+.evd .h b { color: var(--ping); font-weight: 500; }
+.evd canvas { width: 100%; aspect-ratio: 1; display: block; max-width: 100%; }
+.evd .f { font-size: .66rem; color: var(--faint); display: flex; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+
+.consoles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.cs { background: var(--glass); border: 1px solid var(--line); border-top: 2px solid var(--faint); padding: 8px 12px 10px; }
+.cs .k { font: 500 .72rem var(--f-d); letter-spacing: .24em; text-transform: uppercase; color: var(--mute); }
+.cs .v { font: 300 1.9rem/1.1 var(--f-d); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cs .v small { font: .7rem var(--f-m); color: var(--mute); margin-left: 4px; }
+.cs .s { font-size: .66rem; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 1.2em; }
+.cs.ping { border-top-color: var(--ping); } .cs.dl { border-top-color: var(--down); } .cs.ul { border-top-color: var(--up); } .cs.cpu { border-top-color: var(--hot); }
+.cs.on { box-shadow: inset 0 0 22px color-mix(in srgb, var(--acc) 16%, transparent); }
+
+.ctrl { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 18px; color: var(--mute); font-size: .76rem; }
+.ctrl label { display: flex; align-items: center; gap: 6px; }
+select, input { color: var(--ink); background: rgba(8,12,26,.9); border: 1px solid var(--line); padding: 5px 8px; font: .78rem var(--f-m); }
+input { width: 11em; }
+.btn { font: 500 .8rem var(--f-d); letter-spacing: .2em; text-transform: uppercase; color: var(--ink); background: transparent; border: 1px solid var(--line); padding: 7px 14px; cursor: pointer; }
+.btn:hover { border-color: var(--acc); color: var(--acc); }
+
+/* Run-Protokoll */
+.sheet { max-width: 1280px; margin: 0 auto; padding: 10px 24px 40px; display: grid; gap: 22px; }
+.sheet h2 { margin: 0 0 10px; font: 800 1.1rem var(--f-d); letter-spacing: .2em; text-transform: uppercase; color: var(--mute); display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.run { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.panel { background: var(--glass); border: 1px solid var(--line); padding: 16px; display: grid; gap: 10px; align-content: start; }
+.panel .k { font: 500 .78rem var(--f-d); letter-spacing: .24em; text-transform: uppercase; }
+.panel.dl .k { color: var(--down); } .panel.ul .k { color: var(--up); } .panel.col .k { color: var(--ping); }
+.panel .v { font: 300 clamp(2.6rem, 6vw, 3.8rem)/1 var(--f-d); font-variant-numeric: tabular-nums; }
+.panel .v small { font: .8rem var(--f-m); color: var(--mute); margin-left: 6px; }
+.panel .s { font-size: .74rem; color: var(--mute); }
+.panel svg { width: 100%; height: 56px; display: block; }
+.verdict { grid-column: 1 / -1; font: 300 clamp(1.4rem, 3.6vw, 2.2rem)/1.2 var(--f-d); letter-spacing: .02em; text-wrap: balance; }
+.verdict b { font-weight: 800; color: var(--acc); }
+.mags { display: grid; gap: 6px; }
+.mag { display: grid; grid-template-columns: 6.5em minmax(0, 1fr) 3.4em; gap: 8px; align-items: center; font-size: .72rem; color: var(--mute); }
+.mag .b { height: 10px; background: rgba(130,160,230,.08); display: flex; }
+.mag .b i { display: block; height: 100%; }
+.mag b { text-align: right; color: var(--ink); font-weight: 500; }
+.warn { color: var(--hot); font-size: .8rem; }
+
+.tbl { overflow-x: auto; background: var(--glass); border: 1px solid var(--line); }
+table { width: 100%; border-collapse: collapse; font-size: .78rem; font-variant-numeric: tabular-nums; }
+th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+th { color: var(--mute); font: 500 .72rem var(--f-d); letter-spacing: .18em; text-transform: uppercase; }
+th:nth-child(-n+3), td:nth-child(-n+3) { text-align: left; }
+td.dl { color: var(--down); } td.ul { color: var(--up); } td.run { color: var(--ping); }
+td small { color: var(--faint); }
+.empty { color: var(--mute); padding: 12px; }
+.confirm { display: inline-flex; gap: 8px; align-items: center; font: .72rem var(--f-m); letter-spacing: 0; text-transform: none; }
+
+@media (max-width: 900px) {
+  .hall { grid-template-columns: minmax(0, 1fr); }
+  .evd { max-width: 340px; width: 100%; justify-self: center; }
+  .consoles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cs.cpu { grid-column: span 2; }
+  .run { grid-template-columns: minmax(0, 1fr); }
+  .stage, .sheet { padding-left: 16px; padding-right: 16px; }
+  .who { text-align: left; }
+}
+</style>
+</head>
+<body>
+<canvas id="ring" aria-hidden="true"></canvas>
+<main>
+  <section class="stage" id="stage">
+    <div class="top">
+      <div class="mark">Beschleuniger<small id="runno">Speicherring · Run –</small></div>
+      <div class="who" id="who">Magnete werden hochgefahren …</div>
+    </div>
+
+    <div class="hall">
+      <div class="center" id="center">
+        <div class="phase" id="phase">Strahl bereit</div>
+        <div class="big" id="big">0</div>
+        <div class="unit" id="unit">Mbit/s</div>
+        <div class="sub" id="sub">Ring leer, Magnete auf Standby</div>
+        <button class="inject" id="go" disabled>Strahl injizieren</button>
+        <div class="hint" id="hint">Ping · Download · Upload nacheinander</div>
+      </div>
+      <div class="evd" aria-label="Ereignisanzeige des Detektors">
+        <div class="h"><span>Detektor 1 · Ereignisanzeige</span><b id="evno">–</b></div>
+        <canvas id="ev"></canvas>
+        <div class="f"><span id="ev-a">Spuren –</span><span id="ev-b">Auslöser –</span></div>
+      </div>
+    </div>
+
+    <div class="consoles">
+      <div class="cs ping" id="c-ping"><div class="k">Ping</div><div class="v" id="v-ping">–<small>ms</small></div><div class="s">Kollisionen im Detektor</div></div>
+      <div class="cs ping"><div class="k">Jitter</div><div class="v" id="v-jit">–<small>ms</small></div><div class="s" id="s-jit">Strahlstabilität</div></div>
+      <div class="cs dl" id="c-dl"><div class="k">Download</div><div class="v" id="v-dl">–<small>Mbit/s</small></div><div class="s" id="s-dl">Strahl 1 · im Uhrzeigersinn</div></div>
+      <div class="cs ul" id="c-ul"><div class="k">Upload</div><div class="v" id="v-ul">–<small>Mbit/s</small></div><div class="s" id="s-ul">Strahl 2 · gegenläufig</div></div>
+      <div class="cs cpu"><div class="k">Router-CPU</div><div class="v" id="v-cpu">–<small>%</small></div><div class="s" id="s-cpu">Magnetlast, stärkster Kern</div></div>
+    </div>
+
+    <div class="ctrl">
+      <label for="streams">Verbindungen <select id="streams"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select></label>
+      <label for="duration">Dauer <select id="duration"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></label>
+      <label for="label">Gerät <input id="label" maxlength="40" placeholder="z. B. Laptop WLAN"></label>
+    </div>
+  </section>
+
+  <section class="sheet">
+    <div id="result" hidden>
+      <h2><span id="r-title">Run-Protokoll</span> <button class="btn" id="again">Neuer Run</button></h2>
+      <div class="run">
+        <div class="verdict" id="verdict">–</div>
+        <div class="panel dl"><div class="k">Strahl 1 · Download</div><div class="v" id="r-dl">–</div><div class="s" id="r-dl-s"></div><svg id="g-dl" viewBox="0 0 300 56" preserveAspectRatio="none"></svg></div>
+        <div class="panel ul"><div class="k">Strahl 2 · Upload</div><div class="v" id="r-ul">–</div><div class="s" id="r-ul-s"></div><svg id="g-ul" viewBox="0 0 300 56" preserveAspectRatio="none"></svg></div>
+        <div class="panel col"><div class="k">Kollisionen · Ping</div><div class="v" id="r-ping">–</div><div class="s" id="r-ping-s"></div><svg id="g-ping" viewBox="0 0 300 56" preserveAspectRatio="none"></svg></div>
+        <div class="panel" style="grid-column:1/-1"><div class="k" style="color:var(--hot)">Magnetlast · Router-CPU je Kern (↓ Download, ↑ Upload)</div><div class="mags" id="mags"></div><div class="warn" id="warn" hidden></div></div>
+      </div>
+    </div>
+    <div>
+      <h2>Run-Log <span id="clear-wrap"><button class="btn" id="clear">Löschen</button></span></h2>
+      <div class="tbl" id="history"><div class="empty">Noch keine Runs.</div></div>
+    </div>
+  </section>
+</main>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.SpeedEngine, $ = function (id) { return document.getElementById(id); };
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var info = null, phase = null, live = 0, shown = 0, running = false, runNo = 1, evCount = 0;
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function rnd(a, b) { return a + Math.random() * (b - a); }
+  var TAU = Math.PI * 2;
+
+  // =====================================================================
+  // Speicherring (perspektivische Ellipse) mit Magneten, Strahlrohr, Detektoren
+  // =====================================================================
+  var cv = $('ring'), ctx = cv.getContext('2d'), W = 0, H = 0, DPR = 1, CX = 0, CY = 0, R = 0, K = 0.36;
+  var beams = { download: [], upload: [] }, flashes = [], energy = 0, magGlow = [];
+  var NMAG = 48;
+  function size() {
+    DPR = Math.min(window.devicePixelRatio || 1, 1.75);
+    W = document.documentElement.clientWidth; H = Math.max(window.innerHeight, $('stage').offsetHeight);
+    cv.style.height = H + 'px'; cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    var c = $('center').getBoundingClientRect(), y0 = window.scrollY || 0;
+    CX = c.left + c.width / 2; CY = c.top + y0 + c.height * 0.46;
+    R = Math.min(c.width * 0.47, W * 0.46, 470); K = W < 700 ? 0.42 : 0.36;
+    if (W < 700) R = W * 0.47;
+  }
+  function P(a, lift) { return [CX + R * Math.cos(a), CY + R * K * Math.sin(a) - (lift || 0)]; }
+  function depth(a) { return 0.55 + 0.45 * Math.sin(a); }   // vorne (unten) heller
+
+  function setBeam(kind, n) {
+    var b = beams[kind];
+    while (b.length < n) b.push({ a: rnd(0, TAU), v: rnd(0.96, 1.04) });
+    while (b.length > n) b.pop();
+  }
+  var lastT = 0, rafId = 0, evTimer = 0;
+  function loop(t) {
+    rafId = 0;
+    var dt = Math.min(0.05, (t - (lastT || t)) / 1000); lastT = t;
+    shown += (live - shown) * Math.min(1, dt * 3);
+    var flowing = phase === 'download' || phase === 'upload';
+    var target = flowing ? Math.log(1 + shown / 20) / Math.log(1 + 10000 / 20) : 0;
+    energy += (target - energy) * Math.min(1, dt * 2.5);
+
+    ctx.clearRect(0, 0, W, H);
+    // Tunnelboden: Fluchtlinien zum Ringzentrum
+    ctx.strokeStyle = 'rgba(130,160,230,.05)'; ctx.lineWidth = 1;
+    for (var i = 0; i < 24; i++) { var a = i / 24 * TAU, p = P(a); ctx.beginPath(); ctx.moveTo(CX + (p[0] - CX) * 0.2, CY + (p[1] - CY) * 0.2); ctx.lineTo(CX + (p[0] - CX) * 2.2, CY + (p[1] - CY) * 2.2); ctx.stroke(); }
+    for (var rr = 0.4; rr < 2.4; rr += 0.35) { ctx.beginPath(); ctx.ellipse(CX, CY, R * rr, R * K * rr, 0, 0, TAU); ctx.stroke(); }
+
+    // Strahlrohr: hinten dünn, vorne kräftiger
+    for (var s = 0; s < 120; s++) {
+      var a0 = s / 120 * TAU, a1 = (s + 1) / 120 * TAU, d = depth(a0), p0 = P(a0), p1 = P(a1);
+      ctx.strokeStyle = 'rgba(70,95,150,' + (0.35 + 0.4 * d).toFixed(3) + ')'; ctx.lineWidth = 2 + 4 * d;
+      ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
+    }
+    // Strahlen
+    var spd = (reduce ? 0.3 : 1) * (1.2 + energy * 5.5);
+    ctx.globalCompositeOperation = 'lighter';
+    ['download', 'upload'].forEach(function (kind) {
+      var dir = kind === 'download' ? 1 : -1, col = kind === 'download' ? '79,210,255' : '255,107,61', act = phase === kind;
+      setBeam(kind, act ? Math.round(3 + energy * 46) : (running ? 1 : 2));
+      beams[kind].forEach(function (b) {
+        b.a = (b.a + dir * spd * b.v * dt + TAU) % TAU;
+        var trail = act ? 0.3 + energy * 0.9 : 0.18, steps = 12;
+        for (var k = 0; k < steps; k++) {
+          var aa = b.a - dir * trail * k / steps, ab = b.a - dir * trail * (k + 1) / steps, pa = P(aa), pb = P(ab), al = (1 - k / steps) * (act ? 0.9 : 0.25) * depth(aa);
+          ctx.strokeStyle = 'rgba(' + col + ',' + al.toFixed(3) + ')'; ctx.lineWidth = 1.5 + 3 * depth(aa) * (act ? 1 : .5);
+          ctx.beginPath(); ctx.moveTo(pa[0], pa[1]); ctx.lineTo(pb[0], pb[1]); ctx.stroke();
+        }
+        var h = P(b.a); ctx.fillStyle = 'rgba(255,255,255,' + (act ? .95 : .4) + ')'; ctx.beginPath(); ctx.arc(h[0], h[1], 1.5 + 2 * depth(b.a), 0, TAU); ctx.fill();
+        // Magnet in der Nähe aufleuchten lassen
+        var mi = Math.floor(b.a / TAU * NMAG) % NMAG; magGlow[mi] = Math.min(1, (magGlow[mi] || 0) + (act ? .5 : .15));
+      });
+    });
+    ctx.globalCompositeOperation = 'source-over';
+    // Dipolmagnete als Blöcke entlang des Rings
+    for (var m = 0; m < NMAG; m++) {
+      var am = (m + .5) / NMAG * TAU, dm = depth(am), pm = P(am), tang = Math.atan2(R * K * Math.cos(am), -R * Math.sin(am));
+      magGlow[m] = (magGlow[m] || 0) * Math.pow(0.05, dt);
+      var gl = magGlow[m];
+      ctx.save(); ctx.translate(pm[0], pm[1]); ctx.rotate(tang);
+      ctx.fillStyle = 'rgba(' + Math.round(30 + 60 * gl) + ',' + Math.round(42 + 90 * gl) + ',' + Math.round(70 + 120 * gl) + ',' + (0.5 + 0.5 * dm).toFixed(3) + ')';
+      var mw = (8 + 10 * dm) * (W < 700 ? .7 : 1), mh = (5 + 8 * dm) * (W < 700 ? .7 : 1);
+      ctx.fillRect(-mw / 2, -mh / 2 - 2, mw, mh); ctx.strokeStyle = 'rgba(160,190,255,' + (0.15 + 0.3 * dm) + ')'; ctx.lineWidth = 1; ctx.strokeRect(-mw / 2, -mh / 2 - 2, mw, mh);
+      ctx.restore();
+    }
+    // Detektoren vorne (Detektor 1) und hinten (Detektor 2)
+    [[Math.PI / 2, 1], [-Math.PI / 2, 2]].forEach(function (dd) {
+      var pd = P(dd[0]), sc = dd[1] === 1 ? 1 : 0.55;
+      for (var l = 3; l >= 0; l--) { ctx.strokeStyle = 'rgba(160,190,255,' + (0.25 + l * 0.08) + ')'; ctx.fillStyle = 'rgba(10,14,30,.85)'; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.ellipse(pd[0], pd[1], (14 + l * 9) * sc, (24 + l * 13) * sc, 0, 0, TAU); ctx.fill(); ctx.stroke(); }
+      ctx.font = '500 ' + (dd[1] === 1 ? 11 : 9) + 'px "IBM Plex Mono", monospace'; ctx.fillStyle = 'rgba(133,146,179,.9)'; ctx.textAlign = 'center';
+      ctx.fillText('DETEKTOR ' + dd[1], pd[0], pd[1] + (dd[1] === 1 ? 74 : -36));
+    });
+    // Kollisionsblitze
+    ctx.globalCompositeOperation = 'lighter';
+    for (var f = flashes.length - 1; f >= 0; f--) {
+      var fl = flashes[f]; fl.l -= dt * 1.8; if (fl.l <= 0) { flashes.splice(f, 1); continue; }
+      var pf = P(Math.PI / 2), g = ctx.createRadialGradient(pf[0], pf[1], 0, pf[0], pf[1], 70 * fl.s);
+      g.addColorStop(0, 'rgba(255,240,170,' + fl.l + ')'); g.addColorStop(.3, 'rgba(255,225,77,' + (fl.l * .5) + ')'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(pf[0], pf[1], 70 * fl.s, 0, TAU); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    // Während Download/Upload laufend Ereignisse, Rate nach Durchsatz
+    if (flowing) { evTimer -= dt; if (evTimer <= 0) { evTimer = 0.9 - energy * 0.6; collide(Math.round(4 + energy * 26), phase); } }
+    drawEvent(dt);
+    schedule();
+  }
+  function schedule() { if (!rafId && !document.hidden) rafId = requestAnimationFrame(loop); }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { lastT = 0; schedule(); } });
+
+  // =====================================================================
+  // Ereignisanzeige: Querschnitt durch den Detektor
+  // =====================================================================
+  var ev = $('ev'), ectx = ev.getContext('2d'), EW = 0, tracks = [], towers = new Array(48), evFade = 0;
+  function evSize() { var d = Math.min(window.devicePixelRatio || 1, 2); EW = ev.clientWidth; ev.width = ev.height = Math.round(EW * d); ectx.setTransform(d, 0, 0, d, 0, 0); }
+  function collide(n, kind) {
+    evCount++; $('evno').textContent = 'Ereignis ' + evCount;
+    tracks = [];
+    var sumE = 0;
+    for (var i = 0; i < n; i++) {
+      var en = rnd(0.2, 1) * (kind === 'ping' ? 1.4 : 1), q = Math.random() < .5 ? 1 : -1;
+      tracks.push({ a: rnd(0, TAU), c: q * rnd(0.004, 0.02) / en, e: en, g: 0, col: kind === 'upload' ? (q > 0 ? '255,107,61' : '255,170,120') : (kind === 'ping' ? (q > 0 ? '255,225,77' : '255,245,190') : (q > 0 ? '79,210,255' : '170,235,255')) });
+      sumE += en;
+    }
+    for (var w = 0; w < 48; w++) towers[w] = (towers[w] || 0) * 0.3;
+    tracks.forEach(function (t) { var wi = Math.floor(((t.a + t.c * 60 + TAU * 4) % TAU) / TAU * 48); towers[wi] = Math.min(1, (towers[wi] || 0) + t.e * 0.7); });
+    evFade = 1;
+    $('ev-a').textContent = 'Spuren ' + n; $('ev-b').textContent = 'Auslöser: ' + { ping: 'Ping', download: 'Strahl 1', upload: 'Strahl 2' }[kind];
+    if (kind === 'ping') flashes.push({ l: 1, s: 1 }); else if (!reduce) flashes.push({ l: .5, s: .6 });
+  }
+  function drawEvent(dt) {
+    var c = ectx, s = EW / 2, x0 = s, y0 = s;
+    c.clearRect(0, 0, EW, EW);
+    // Schichten: Strahlrohr, Spurdetektor, Kalorimeter, Myonkammern
+    c.strokeStyle = 'rgba(130,160,230,.18)'; c.lineWidth = 1;
+    [0.05, 0.16, 0.26, 0.36, 0.46].forEach(function (r) { c.beginPath(); c.arc(x0, y0, s * r, 0, TAU); c.stroke(); });
+    c.fillStyle = 'rgba(40,55,95,.35)'; c.beginPath(); c.arc(x0, y0, s * 0.74, 0, TAU); c.arc(x0, y0, s * 0.52, 0, TAU, true); c.fill();
+    for (var w = 0; w < 48; w++) { var a = w / 48 * TAU; c.strokeStyle = 'rgba(130,160,230,.12)'; c.beginPath(); c.moveTo(x0 + Math.cos(a) * s * .52, y0 + Math.sin(a) * s * .52); c.lineTo(x0 + Math.cos(a) * s * .74, y0 + Math.sin(a) * s * .74); c.stroke(); }
+    for (var m = 0; m < 8; m++) { var am = m / 8 * TAU + .2; c.save(); c.translate(x0, y0); c.rotate(am); c.strokeStyle = 'rgba(130,160,230,.22)'; c.strokeRect(s * .8, -s * .14, s * .16, s * .28); c.restore(); }
+    evFade = Math.max(0, evFade - dt * 0.55);
+    // Energiedeposition im Kalorimeter als Balken
+    for (var t = 0; t < 48; t++) {
+      var e = towers[t] || 0; if (e < .02) continue;
+      var aa = (t + .5) / 48 * TAU, r0 = s * .52, r1 = r0 + s * .22 * e + s * .18 * e * evFade;
+      c.strokeStyle = 'rgba(255,' + Math.round(225 - 120 * e) + ',77,' + (0.35 + 0.6 * evFade).toFixed(3) + ')'; c.lineWidth = Math.max(2, s * TAU * .52 / 48 - 2);
+      c.beginPath(); c.moveTo(x0 + Math.cos(aa) * r0, y0 + Math.sin(aa) * r0); c.lineTo(x0 + Math.cos(aa) * r1, y0 + Math.sin(aa) * r1); c.stroke();
+    }
+    // Spuren: gekrümmt im Magnetfeld, wachsen schnell nach außen
+    c.globalCompositeOperation = 'lighter';
+    tracks.forEach(function (tr) {
+      tr.g = Math.min(1, tr.g + dt * 4);
+      var L = s * 0.5 * tr.g, steps = 24, ang = tr.a, x = x0, y = y0;
+      c.strokeStyle = 'rgba(' + tr.col + ',' + (0.3 + 0.7 * evFade).toFixed(3) + ')'; c.lineWidth = 1.4;
+      c.beginPath(); c.moveTo(x, y);
+      for (var k = 0; k < steps; k++) { ang += tr.c * L / steps * 6; x += Math.cos(ang) * L / steps; y += Math.sin(ang) * L / steps; c.lineTo(x, y); }
+      c.stroke();
+      c.fillStyle = 'rgba(' + tr.col + ',' + (0.6 * evFade + .2).toFixed(3) + ')'; c.beginPath(); c.arc(x, y, 1.6, 0, TAU); c.fill();
+    });
+    c.globalCompositeOperation = 'source-over';
+    c.fillStyle = 'rgba(255,255,255,' + (0.4 + 0.6 * evFade) + ')'; c.beginPath(); c.arc(x0, y0, 2.5, 0, TAU); c.fill();
+  }
+
+  // =====================================================================
+  // Oberfläche
+  // =====================================================================
+  function setV(id, v, u) { $(id).innerHTML = v + '<small>' + u + '</small>'; }
+  function cs(p) { ['c-ping', 'c-dl', 'c-ul'].forEach(function (id) { $(id).classList.remove('on'); }); var id = { ping: 'c-ping', download: 'c-dl', upload: 'c-ul' }[p]; if (id) $(id).classList.add('on'); }
+  function line(svg, series, color, bars) {
+    if (!series.length) { svg.innerHTML = ''; return; }
+    var max = Math.max.apply(null, series) * 1.1, n = series.length;
+    if (bars) { var bw = 300 / n; svg.innerHTML = series.map(function (v, i) { var h = v / max * 52; return '<rect x="' + (i * bw + 1).toFixed(1) + '" y="' + (56 - h).toFixed(1) + '" width="' + Math.max(1, bw - 2).toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + color + '"/>'; }).join(''); return; }
+    var d = series.map(function (v, i) { return (i ? 'L' : 'M') + (n === 1 ? 0 : i / (n - 1) * 300).toFixed(1) + ' ' + (54 - v / max * 50).toFixed(1); }).join(' ');
+    svg.innerHTML = '<path d="' + d + ' L300 56 L0 56 Z" fill="' + color + '" fill-opacity=".14"/><path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>';
+  }
+  function verdict(dl) {
+    if (dl >= 4700) return 'Rekordlauf: <b>über 5 Gbit/s</b>, das ist 10-GbE-Gebiet.';
+    if (dl >= 2000) return 'Strahl am Limit: <b>2,5 GbE</b> voll ausgefahren.';
+    if (dl >= 940) return 'Hochenergie-Run: <b>schneller als Gigabit</b>.';
+    if (dl >= 600) return 'Sauberer Run in der <b>Gigabit-Klasse</b>.';
+    if (dl >= 90) return 'Niedrige Energie: typisch für <b>WLAN mit Abstand</b>.';
+    return 'Strahlverlust: <b>Kabel, Port oder WLAN prüfen</b>.';
+  }
+  function mode(on) {
+    running = on; $('go').classList.toggle('firing', on); $('go').textContent = on ? 'Strahl abschalten' : 'Strahl injizieren';
+    if (!on) { phase = null; live = 0; document.body.className = ''; cs(null); }
+  }
+  function start() {
+    if (running) { E.stop(); mode(false); $('phase').textContent = 'Strahl abgeschaltet'; $('sub').textContent = 'Run abgebrochen, nicht gespeichert'; return; }
+    var streams = +$('streams').value, duration = +$('duration').value, label = $('label').value.replace(/^\s+|\s+$/g, '');
+    try { localStorage.setItem('st-label', label); localStorage.setItem('st-streams', streams); localStorage.setItem('st-duration', duration); } catch (e) { }
+    $('result').hidden = true; evCount = 0;
+    setV('v-ping', '–', 'ms'); setV('v-jit', '–', 'ms'); setV('v-dl', '–', 'Mbit/s'); setV('v-ul', '–', 'Mbit/s'); setV('v-cpu', '–', '%');
+    mode(true);
+    var res = {}, ping = null, jit = null, pings = [];
+    E.run({ streams: streams, duration: duration, label: label }, {
+      phase: function (p) {
+        phase = p; live = 0; shown = 0; document.body.className = 'p-' + p; cs(p);
+        $('phase').textContent = { ping: 'Kollisionen · Ping', download: 'Strahl 1 · Download', upload: 'Strahl 2 · Upload' }[p];
+        $('big').textContent = '…'; $('unit').textContent = p === 'ping' ? 'ms' : 'Mbit/s';
+        $('sub').textContent = { ping: '20 Kollisionen im Detektor 1', download: 'Router → Gerät, im Uhrzeigersinn', upload: 'Gerät → Router, gegenläufig' }[p];
+      },
+      pingSample: function (ms, i, n) { pings.push(ms); $('big').textContent = E.fmt(ms, 1); $('hint').textContent = 'Kollision ' + (i + 1) + ' von ' + n; collide(Math.round(6 + Math.random() * 10), 'ping'); },
+      ping: function (p, j) { ping = p; jit = j; setV('v-ping', E.fmt(p, p < 10 ? 1 : 0), 'ms'); setV('v-jit', E.fmt(j, 1), 'ms'); $('s-jit').textContent = 'Strahlstabilität ' + Math.max(0, Math.round(100 - j / Math.max(p, .1) * 100)) + ' %'; },
+      live: function (kind, m, prog) {
+        $('hint').textContent = 'Fortschritt ' + Math.round(prog * 100) + ' %';
+        if (m === null) return; live = m; var s = E.fmtSpeed(m); $('big').textContent = s.v; $('unit').textContent = s.u;
+      },
+      result: function (kind, r) {
+        res[kind] = r; var s = E.fmtSpeed(r.peak), a = E.fmtSpeed(r.avg);
+        setV(kind === 'download' ? 'v-dl' : 'v-ul', s.v, s.u); $(kind === 'download' ? 's-dl' : 's-ul').textContent = 'Spitze · Ø ' + a.v + ' ' + a.u;
+        var mc = Math.max(res.download ? res.download.core || 0 : 0, res.upload ? res.upload.core || 0 : 0); if (r.core !== null) setV('v-cpu', Math.round(mc), '%');
+      },
+      done: function () {
+        mode(false);
+        var s = E.fmtSpeed(res.download.peak); $('phase').textContent = 'Run beendet · Spitze Strahl 1'; $('big').textContent = s.v; $('unit').textContent = s.u;
+        $('sub').textContent = 'Strahl 2: ' + E.fmtSpeed(res.upload.peak).v + ' ' + E.fmtSpeed(res.upload.peak).u; $('hint').textContent = 'Run-Protokoll unten';
+        showResult(res, ping, jit, pings); loadHistory();
+      },
+      error: function (msg) { mode(false); $('phase').textContent = msg; }
+    });
+  }
+  function showResult(res, ping, jit, pings) {
+    var d = res.download, u = res.upload, sd = E.fmtSpeed(d.peak), su = E.fmtSpeed(u.peak), ad = E.fmtSpeed(d.avg), au = E.fmtSpeed(u.avg);
+    $('r-title').textContent = 'Run-Protokoll · Run ' + ('000' + runNo).slice(-4);
+    $('verdict').innerHTML = verdict(d.peak);
+    $('r-dl').innerHTML = sd.v + '<small>' + sd.u + '</small>'; $('r-dl-s').textContent = 'Spitze · Ø ' + ad.v + ' ' + ad.u;
+    $('r-ul').innerHTML = su.v + '<small>' + su.u + '</small>'; $('r-ul-s').textContent = 'Spitze · Ø ' + au.v + ' ' + au.u;
+    $('r-ping').innerHTML = (ping === null ? '–' : E.fmt(ping, 1)) + '<small>ms</small>';
+    $('r-ping-s').textContent = 'Median aus ' + pings.length + ' Kollisionen · Jitter ' + (jit === null ? '–' : E.fmt(jit, 1) + ' ms');
+    line($('g-dl'), d.series, '#4fd2ff'); line($('g-ul'), u.series, '#ff6b3d'); line($('g-ping'), pings, '#ffe14d', true);
+    var n = Math.max(d.cores ? d.cores.length : 0, u.cores ? u.cores.length : 0), html = '';
+    for (var i = 0; i < n; i++) {
+      var a = d.cores ? d.cores[i] || 0 : 0, b = u.cores ? u.cores[i] || 0 : 0;
+      html += '<div class="mag"><span>Magnet ' + (i + 1) + '</span><div class="b"><i style="width:' + (a / 2).toFixed(1) + '%;background:var(--down)"></i><i style="width:' + (b / 2).toFixed(1) + '%;background:var(--up)"></i></div><b>' + Math.round(Math.max(a, b)) + ' %</b></div>';
+    }
+    $('mags').innerHTML = html || '<div class="mag"><span>keine Daten</span></div>';
+    var mc = Math.max(d.core || 0, u.core || 0);
+    $('warn').hidden = mc < 90; $('warn').textContent = 'Magnet überlastet: Ein Kern lag bei ' + Math.round(mc) + ' %. Das Ergebnis zeigt eher die Grenze des Routers als die des Netzes.';
+    $('result').hidden = false;
+    $('result').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+  }
+
+  // ---------- Verlauf ----------
+  function n0(v) { return v === null || v === undefined ? '–' : E.fmt(v, 0); }
+  function sp(peak, avg) { return peak === null || peak === undefined ? n0(avg) : n0(peak) + ' <small>/ ' + n0(avg) + '</small>'; }
+  function loadHistory() {
+    E.history(function (h) {
+      runNo = h.length + 1; $('runno').textContent = 'Speicherring · Run ' + ('000' + runNo).slice(-4);
+      if (!h.length) { $('history').innerHTML = '<div class="empty">Noch keine Runs.</div>'; return; }
+      var rows = '';
+      for (var i = h.length - 1; i >= 0; i--) {
+        var e = h[i], d = new Date(e.ts * 1000);
+        var when = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '. ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        var who = e.label || e.host || e.ip; if (e.label && e.host) who = esc(e.label) + ' <small>' + esc(e.host) + '</small>'; else who = esc(who);
+        rows += '<tr><td class="run">' + ('000' + (i + 1)).slice(-4) + '</td><td>' + when + '</td><td>' + who + '</td><td>' + (e.ping === null ? '–' : E.fmt(e.ping, 1)) + '</td><td>' + (e.jitter === null || e.jitter === undefined ? '–' : E.fmt(e.jitter, 1)) +
+          '</td><td class="dl">' + sp(e.dl_peak, e.dl) + '</td><td class="ul">' + sp(e.ul_peak, e.ul) + '</td><td>' + (e.core_dl === null || e.core_dl === undefined ? '–' : e.core_dl + ' / ' + e.core_ul) + '</td></tr>';
+      }
+      $('history').innerHTML = '<table><tr><th>Run</th><th>Zeit</th><th>Gerät</th><th>Ping ms</th><th>Jitter ms</th><th>Down Mbit/s<br>Spitze / Ø</th><th>Up Mbit/s<br>Spitze / Ø</th><th>Kern %<br>↓ / ↑</th></tr>' + rows + '</table>';
+    });
+  }
+  function clearAsk() {
+    $('clear-wrap').innerHTML = '<span class="confirm">Alles löschen? <button class="btn" id="yes">Ja</button><button class="btn" id="no">Nein</button></span>';
+    $('yes').onclick = function () { E.clearHistory(function () { loadHistory(); clearReset(); }); };
+    $('no').onclick = clearReset;
+  }
+  function clearReset() { $('clear-wrap').innerHTML = '<button class="btn" id="clear">Löschen</button>'; $('clear').onclick = clearAsk; }
+  $('clear').onclick = clearAsk;
+
+  $('go').onclick = start;
+  $('again').onclick = function () { window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' }); start(); };
+
+  try {
+    var l = localStorage.getItem('st-label'), s = localStorage.getItem('st-streams'), d = localStorage.getItem('st-duration');
+    if (l) $('label').value = l; if (s) $('streams').value = s; if (d) $('duration').value = d;
+  } catch (e) { }
+
+  function resize() { size(); evSize(); }
+  resize();
+  window.addEventListener('resize', resize);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(resize);
+  collide(9, 'download');
+  schedule();
+
+  E.init(function (i) {
+    info = i;
+    $('who').innerHTML = '<span><b>' + esc(i.hostname) + '</b> · ' + esc(i.model || '') + '</span><span>' + i.cores + ' Kerne · Du: ' + esc(i.client_host ? i.client_host + ' (' + i.client_ip + ')' : i.client_ip) + '</span>' + (i.demo ? '<span><span class="demo">DEMO</span></span>' : '');
+    $('go').disabled = false; setTimeout(resize, 50);
+    loadHistory();
+  });
+})();
+</script>
+</body>
+</html>
