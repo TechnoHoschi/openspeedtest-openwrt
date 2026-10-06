@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Speedtest Engpass</title>
+<style>
+/* Layout: zwei Rohrleitungen (Download, Upload) aus je drei Stücken: Gerät, Verbindung, Router-CPU.
+   Der Durchmesser zeigt die (gemessene oder geschätzte) Kapazität, das engste Stück ist der Engpass.
+   Darunter der Befund mit Empfehlungen und der Verlauf. Nur Systemschriften. */
+:root {
+  --bg: #eceff1;           /* Betongrau, leicht kühl */
+  --card: #f7f8f9;
+  --steel: #8d99a4;        /* Rohrwand */
+  --steel-in: #d3d9de;     /* Rohrinneres */
+  --ink: #1d252c;
+  --mute: #5d6a75;
+  --line: #c9d0d6;
+  --down: #1f6fd1;         /* Download: Wasserblau */
+  --up: #7a4fd3;           /* Upload: Violett */
+  --neck: #d9480f;         /* Engpass: Signalorange */
+  --ok: #2b8a3e;
+  --f-head: "Bahnschrift", "DIN Alternate", "Roboto Condensed", "Arial Narrow", sans-serif;
+  --f-body: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --f-mono: ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #15191d; --card: #1c2126; --steel: #59656f; --steel-in: #262d33; --ink: #e3e8ec; --mute: #93a1ad; --line: #2c343b;
+  --down: #5aa2ff; --up: #b192ff; --neck: #ff8a4c; --ok: #5cc879; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #15191d; --card: #1c2126; --steel: #59656f; --steel-in: #262d33; --ink: #e3e8ec; --mute: #93a1ad; --line: #2c343b;
+  --down: #5aa2ff; --up: #b192ff; --neck: #ff8a4c; --ok: #5cc879; color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { background: var(--bg); color: var(--ink); }
+body { margin: 0; font: 15px/1.5 var(--f-body); }
+main { max-width: 1000px; margin: 0 auto; padding: 20px 16px 40px; display: grid; gap: 20px; }
+main > * { min-width: 0; }
+header { display: grid; gap: 4px; }
+h1 { margin: 0; font: 700 clamp(1.6rem, 5vw, 2.4rem)/1.05 var(--f-head); letter-spacing: -.01em; text-wrap: balance; }
+h1 em { font-style: normal; color: var(--neck); }
+.meta { color: var(--mute); font: .84rem var(--f-mono); }
+.demo { color: var(--card); background: var(--up); border-radius: 3px; padding: 0 6px; font: 600 .72rem var(--f-body); margin-left: 6px; }
+.lead { margin: 0; color: var(--mute); max-width: 62ch; }
+
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+.go { font: 700 1.05rem var(--f-head); letter-spacing: .04em; color: #fff; background: var(--neck); border: 0; border-radius: 4px; padding: 11px 26px; cursor: pointer; }
+.go:hover { filter: brightness(1.08); }
+.go:disabled { opacity: .5; cursor: default; }
+.btn { font: 600 .85rem var(--f-body); color: var(--ink); background: transparent; border: 1px solid var(--steel); border-radius: 4px; padding: 6px 14px; cursor: pointer; }
+.btn:hover { border-color: var(--ink); }
+.btn.stop { color: var(--neck); border-color: var(--neck); }
+.go:focus-visible, .btn:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--down); outline-offset: 2px; }
+.opts { display: flex; flex-wrap: wrap; gap: 8px 16px; color: var(--mute); font-size: .85rem; }
+.opts label { display: flex; align-items: center; gap: 6px; }
+select, input { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 5px 8px; }
+input { width: 10.5em; }
+.status { font: .82rem var(--f-mono); color: var(--mute); }
+.status b { color: var(--ink); font-weight: 600; }
+
+/* Rohrleitungen */
+.line { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px 16px; display: grid; gap: 10px; }
+.line h2 { margin: 0; display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; font: 600 .95rem var(--f-head); letter-spacing: .06em; text-transform: uppercase; }
+.line h2 .dir { color: var(--mute); font: .78rem var(--f-mono); letter-spacing: 0; text-transform: none; }
+.line h2 .val { font: 700 1.6rem/1 var(--f-head); font-variant-numeric: tabular-nums; letter-spacing: 0; text-transform: none; }
+.line h2 .val small { font: 500 .85rem var(--f-body); color: var(--mute); margin-left: 4px; }
+.line.dl h2 .val { color: var(--down); } .line.ul h2 .val { color: var(--up); }
+.pipe { width: 100%; height: auto; aspect-ratio: 600 / 120; display: block; }
+.segs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.seg { display: grid; gap: 3px; align-content: start; min-width: 0; }
+.seg .n { font: 600 .9rem var(--f-head); letter-spacing: .02em; }
+.seg .c { font: .78rem var(--f-mono); color: var(--mute); overflow-wrap: anywhere; }
+.seg .u { height: 6px; background: var(--steel-in); border-radius: 3px; overflow: hidden; }
+.seg .u i { display: block; height: 100%; width: 0; background: var(--steel); transition: width .4s; }
+.seg .p { font: 600 .8rem var(--f-mono); font-variant-numeric: tabular-nums; }
+.seg.neck .n { color: var(--neck); }
+.seg.neck .u i { background: var(--neck); }
+.seg .tag { display: inline-block; font: 700 .64rem var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: #fff; background: var(--neck); border-radius: 2px; padding: 1px 5px; margin-left: 6px; vertical-align: 2px; }
+
+/* Befund */
+.finding { background: var(--card); border: 1px solid var(--line); border-left: 6px solid var(--neck); border-radius: 6px; padding: 16px 18px; display: grid; gap: 8px; }
+.finding h2 { margin: 0; font: 700 1.35rem/1.15 var(--f-head); text-wrap: balance; }
+.finding p { margin: 0; max-width: 70ch; }
+.finding ul { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; max-width: 70ch; }
+.finding .fine { color: var(--mute); font-size: .82rem; }
+
+.hist h2 { font: 600 .95rem var(--f-head); letter-spacing: .08em; text-transform: uppercase; color: var(--mute); margin: 0 0 6px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.tbl { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 6px; }
+table { width: 100%; border-collapse: collapse; font-size: .85rem; font-variant-numeric: tabular-nums; }
+th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+th { color: var(--mute); font: 500 .7rem var(--f-mono); letter-spacing: .06em; text-transform: uppercase; }
+th:nth-child(-n+2), td:nth-child(-n+2), th:last-child { text-align: left; }
+td.dl { color: var(--down); } td.ul { color: var(--up); } td.neck { color: var(--neck); text-align: left; }
+td small { color: var(--mute); }
+.empty { color: var(--mute); padding: 10px 12px; }
+.confirm { display: inline-flex; gap: 8px; align-items: center; font: 400 .8rem var(--f-body); letter-spacing: 0; text-transform: none; }
+
+@media (max-width: 560px) {
+  .segs { gap: 8px; }
+  .seg .n { font-size: .8rem; }
+  .seg .c, .seg .p { font-size: .7rem; }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Wo ist der <em>Engpass</em>?</h1>
+    <div class="meta" id="meta">Verbinde mit dem Router …</div>
+  </header>
+  <p class="lead">Die Messung läuft durch drei Glieder: dein Gerät mit Browser, die Verbindung (Kabel-Port oder WLAN) und die CPU des Routers. Das schwächste Glied bestimmt das Tempo.</p>
+
+  <div class="bar">
+    <button class="go" id="go" disabled>Messen</button>
+    <button class="btn stop" id="stop" hidden>Stopp</button>
+    <div class="opts">
+      <label for="streams">Verbindungen
+        <select id="streams"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select></label>
+      <label for="duration">Dauer
+        <select id="duration"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></label>
+      <label for="label">Gerät <input id="label" maxlength="40" placeholder="z. B. Laptop WLAN"></label>
+    </div>
+    <div class="status" id="status">Bereit</div>
+  </div>
+
+  <section class="line dl" id="line-download">
+    <h2><span>Download <span class="dir">Router → Gerät</span></span><span class="val" id="v-download">–</span></h2>
+    <svg class="pipe" id="pipe-download" viewBox="0 0 600 120" aria-hidden="true"></svg>
+    <div class="segs" id="segs-download"></div>
+  </section>
+  <section class="line ul" id="line-upload">
+    <h2><span>Upload <span class="dir">Gerät → Router</span></span><span class="val" id="v-upload">–</span></h2>
+    <svg class="pipe" id="pipe-upload" viewBox="0 0 600 120" aria-hidden="true"></svg>
+    <div class="segs" id="segs-upload"></div>
+  </section>
+
+  <section class="finding" id="finding" hidden>
+    <h2 id="f-head">–</h2>
+    <p id="f-text"></p>
+    <ul id="f-tips"></ul>
+    <p class="fine">Router-CPU gemessen über /proc/stat, Verbindung vom Router gemeldet. Was nicht messbar ist, ist als Schätzung gekennzeichnet. Ping <span id="f-ping">–</span>.</p>
+    <div><button class="btn" id="again">Neu messen</button></div>
+  </section>
+
+  <section class="hist">
+    <h2>Verlauf <span id="clear-wrap"><button class="btn" id="clear">Löschen</button></span></h2>
+    <div class="tbl" id="history"><div class="empty">Noch keine Messungen.</div></div>
+  </section>
+</main>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.SpeedEngine, $ = function (id) { return document.getElementById(id); };
+  var NS = 'http://www.w3.org/2000/svg';
+  var info = null, link = null, phase = null, live = { download: 0, upload: 0 };
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Nettodurchsatz relativ zur Brutto-Rate: Ethernet ~94 %, WLAN realistisch ~70 % der Linkrate
+  var ETH = 0.94, WIFI = 0.70;
+
+  function gbe(m) { return m >= 1000 ? (m / 1000 + '').replace('.', ',') + ' GbE' : m + ' Mbit/s'; }
+  function spd(m) { var s = E.fmtSpeed(m); return s.v + ' ' + s.u; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  // Kapazität der Verbindung je Richtung (Mbit/s netto), null = unbekannt
+  function linkCap(kind) {
+    if (!link) return null;
+    if (link.type === 'wired' && link.speed) return link.speed * ETH;
+    var w = link.wifi;
+    if (link.type === 'wifi' && w) { var r = kind === 'upload' ? (w.rx_rate || w.tx_rate) : (w.tx_rate || w.rx_rate); return r ? r * WIFI : null; }
+    return null;
+  }
+  function linkName() {
+    if (!link) return 'Verbindung';
+    if (link.type === 'wired') return 'Kabel ' + (link.port || '');
+    return 'WLAN' + (link.wifi && link.wifi.band ? ' ' + link.wifi.band.replace('.', ',') + ' GHz' : '');
+  }
+  function linkDesc(kind) {
+    if (!link) return 'Art unbekannt';
+    if (link.type === 'wired') return link.speed ? 'Port ' + gbe(link.speed) + ', netto ≈ ' + spd(link.speed * ETH) : 'Geschwindigkeit unbekannt';
+    var w = link.wifi || {}, r = kind === 'upload' ? (w.rx_rate || w.tx_rate) : (w.tx_rate || w.rx_rate);
+    return r ? 'Linkrate ' + Math.round(r) + ' Mbit/s, netto ≈ ' + spd(r * WIFI) + (w.signal ? ', ' + w.signal + ' dBm' : '') : 'Linkrate unbekannt';
+  }
+
+  // ---------- Rohrleitung zeichnen ----------
+  var X = [[14, 186], [214, 386], [414, 586]];   // Gerät | Verbindung | Router
+  function el(tag, a, parent) { var e = document.createElementNS(NS, tag); for (var k in a) e.setAttribute(k, a[k]); parent.appendChild(e); return e; }
+  function dia(cap, max) {   // Durchmesser relativ zum weitesten Stück, Fläche ~ Kapazität
+    if (!cap || !max) return 46;
+    return 16 + 72 * Math.sqrt(cap / max);
+  }
+  var pipes = {};
+  function buildPipe(kind) {
+    var svg = $('pipe-' + kind); while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var p = { svg: svg, segs: [], off: 0 };
+    for (var i = 0; i < 3; i++) {
+      var g = el('g', {}, svg);
+      var wall = el('rect', { x: X[i][0], y: 0, width: X[i][1] - X[i][0], height: 0, rx: 4, fill: 'var(--steel-in)', stroke: 'var(--steel)', 'stroke-width': 3 }, g);
+      var flow = el('line', { x1: X[i][0] + 6, x2: X[i][1] - 6, y1: 60, y2: 60, stroke: kind === 'upload' ? 'var(--up)' : 'var(--down)', 'stroke-width': 0, 'stroke-dasharray': '14 10', 'stroke-linecap': 'butt', opacity: 0 }, g);
+      var q = el('text', { x: (X[i][0] + X[i][1]) / 2, y: 66, 'text-anchor': 'middle', fill: 'var(--mute)', 'font-size': 18, 'font-family': 'system-ui, sans-serif' }, g);
+      p.segs.push({ wall: wall, flow: flow, q: q, cap: null, d: 46 });
+    }
+    // Flansche zwischen den Stücken und Pfeil für die Richtung
+    [200, 400].forEach(function (x) { el('rect', { x: x - 14, y: 22, width: 28, height: 76, rx: 3, fill: 'var(--steel)', opacity: .55 }, svg); });
+    var arrow = el('text', { x: kind === 'upload' ? 596 : 4, y: 116, 'text-anchor': kind === 'upload' ? 'end' : 'start', fill: 'var(--mute)', 'font-size': 10, 'font-family': 'ui-monospace, monospace' }, svg);
+    arrow.textContent = kind === 'upload' ? 'Fließrichtung →' : '← Fließrichtung';
+    pipes[kind] = p;
+    setPipe(kind, [null, linkCap(kind), null], -1);
+  }
+  function setPipe(kind, caps, neck) {
+    var p = pipes[kind], max = Math.max(caps[0] || 0, caps[1] || 0, caps[2] || 0);
+    if (neck < 0) max = 0;   // vor dem Ergebnis alle Stücke gleich
+    for (var i = 0; i < 3; i++) {
+      var s = p.segs[i], d = dia(caps[i], max); s.cap = caps[i]; s.d = d;
+      s.wall.setAttribute('y', 60 - d / 2); s.wall.setAttribute('height', d);
+      s.wall.setAttribute('stroke', i === neck ? 'var(--neck)' : 'var(--steel)');
+      s.wall.setAttribute('stroke-dasharray', caps[i] ? '' : '6 5');
+      s.q.textContent = caps[i] ? '' : '?';
+    }
+  }
+  // Fluss: gleiche Menge durch jedes Stück, im engen Stück schneller (Kontinuität)
+  var lastT = 0;
+  function tick(ts) {
+    var dt = Math.min(64, ts - (lastT || ts)); lastT = ts;
+    ['download', 'upload'].forEach(function (kind) {
+      var p = pipes[kind], m = live[kind], on = phase === kind && m > 0;
+      for (var i = 0; i < 3; i++) {
+        var s = p.segs[i];
+        s.flow.setAttribute('opacity', on || (m > 0 && phase === null) ? 1 : 0);
+        s.flow.setAttribute('stroke-width', Math.max(3, s.d * 0.5));
+        if (on && !reduce) {
+          var v = 0.02 * Math.min(6, Math.sqrt(m / 100) * 46 / s.d);
+          s.off = (s.off || 0) + v * dt * (kind === 'upload' ? -1 : 1);
+          s.flow.setAttribute('stroke-dashoffset', s.off.toFixed(1));
+        }
+      }
+    });
+    requestAnimationFrame(tick);
+  }
+
+  // ---------- Texte unter den Rohrstücken ----------
+  function segHTML(kind, items) {
+    $('segs-' + kind).innerHTML = items.map(function (it) {
+      return '<div class="seg' + (it.neck ? ' neck' : '') + '"><div class="n">' + esc(it.n) + (it.neck ? '<span class="tag">Engpass</span>' : '') + '</div>' +
+        '<div class="c">' + esc(it.c) + '</div><div class="u"><i style="width:' + Math.round(Math.min(1, it.u || 0) * 100) + '%"></i></div>' +
+        '<div class="p">' + esc(it.p) + '</div></div>';
+    }).join('');
+  }
+  function devName() { return ($('label').value || (info && info.client_host) || 'Dein Gerät'); }
+  function idleSegs(kind) {
+    segHTML(kind, [
+      { n: devName(), c: 'Netzwerkkarte und Browser', u: 0, p: 'nicht direkt messbar' },
+      { n: linkName(), c: linkDesc(kind), u: 0, p: '–' },
+      { n: 'Router-CPU', c: (info ? info.cores : '?') + ' Kerne, uhttpd', u: 0, p: 'wird am Ende gelesen' }
+    ]);
+  }
+
+  // ---------- Auswertung je Richtung ----------
+  function analyse(kind, r) {
+    var lc = linkCap(kind), uLink = lc ? r.peak / lc : null, uCpu = r.core !== null && r.core !== undefined ? r.core / 100 : null;
+    var cpuCap = uCpu && uCpu > 0.05 ? Math.min(20000, r.peak / uCpu) : null;
+    var limits = [];
+    if (uLink !== null && uLink >= 0.85) limits.push(1);
+    if (uCpu !== null && uCpu >= 0.9) limits.push(2);
+    var devLimit = !limits.length, devCap = devLimit ? r.peak : null;
+    var neck = devLimit ? 0 : (limits.length === 2 ? (uLink >= uCpu ? 1 : 2) : limits[0]);
+    return { kind: kind, r: r, lc: lc, uLink: uLink, uCpu: uCpu, cpuCap: cpuCap, devCap: devCap, neck: neck, devLimit: devLimit };
+  }
+  function showAnalysis(a) {
+    // Zeichnen: unbekannte Kapazität des Geräts als "mindestens Messwert"
+    var caps = [a.devCap || (a.neck === 0 ? a.r.peak : Math.max(a.r.peak * 1.6, a.lc || 0, a.cpuCap || 0)), a.lc, a.cpuCap];
+    setPipe(a.kind, caps, a.neck);
+    if (!a.devCap) pipes[a.kind].segs[0].wall.setAttribute('stroke-dasharray', '6 5');
+    segHTML(a.kind, [
+      { n: devName(), c: a.devLimit ? 'vermutlich die Grenze' : 'schafft mindestens ' + spd(a.r.peak), u: a.devLimit ? 1 : 0, neck: a.neck === 0, p: a.devLimit ? 'Schätzung' : 'keine Grenze erkennbar' },
+      { n: linkName(), c: linkDesc(a.kind), u: a.uLink || 0, neck: a.neck === 1, p: a.uLink === null ? 'Auslastung unbekannt' : Math.round(a.uLink * 100) + ' % ausgelastet' },
+      { n: 'Router-CPU', c: a.r.cores ? 'Kerne ' + a.r.cores.map(function (c) { return Math.round(c); }).join(' / ') + ' %' : 'keine Daten', u: a.uCpu || 0, neck: a.neck === 2,
+        p: a.uCpu === null ? '–' : 'stärkster Kern ' + Math.round(a.uCpu * 100) + ' %' + (a.cpuCap && a.neck !== 2 ? ', reicht für ≈ ' + spd(a.cpuCap) : '') }
+    ]);
+  }
+  var NECK = ['Gerät/Browser', 'Verbindung', 'Router-CPU'];
+  function finding(ad, au, ping) {
+    var main = ad.neck === au.neck ? ad.neck : (au.neck === 2 || ad.neck === 2 ? 2 : ad.neck);
+    var head, text, tips = [];
+    if (main === 1 && link && link.type === 'wired') {
+      head = 'Der Port ist voll ausgelastet';
+      text = 'Die Messung erreicht, was ' + gbe(link.speed) + ' netto hergibt. Gerät und Router hätten noch Reserven.';
+      if (link.speed < 2500) tips.push('Unterstützt dein Gerät 2,5 oder 10 GbE? Dann einen schnelleren Router-Port nutzen. Cat 5e reicht für 2,5 GbE.');
+      if (link.speed <= 100) tips.push('Nur 100 Mbit/s: Meist ist ein Kabel defekt oder hat nur 4 Adern. Kabel tauschen.');
+      tips.push('Für mehr Tempo muss die Leitung schneller werden, nicht der Router.');
+    } else if (main === 1) {
+      var w = (link && link.wifi) || {};
+      head = 'Die Funkstrecke ist das Limit';
+      text = 'Das WLAN liefert netto etwa so viel, wie die aktuelle Linkrate zulässt.';
+      if (w.signal && w.signal < -67) tips.push('Signal ' + w.signal + ' dBm ist schwach. Näher an den Router oder einen Access Point dazwischen.');
+      if (w.band === '2.4') tips.push('Das Gerät funkt im 2,4-GHz-Band. Im 5- oder 6-GHz-Band ist deutlich mehr drin.');
+      if (w.width && w.width < 80) tips.push('Kanalbreite nur ' + w.width + ' MHz. 80 oder 160 MHz verdoppeln bzw. vervierfachen die Rate.');
+      tips.push('Ein Kabel ist immer schneller und stabiler, wenn das Gerät dafür in Frage kommt.');
+    } else if (main === 2) {
+      head = 'Die Router-CPU bremst';
+      text = 'Ein Prozessorkern war voll ausgelastet. Bei dieser Messung ist der Router selbst der Gegenpart, er muss jedes Paket selbst verarbeiten.';
+      tips.push('Das gilt nur für Verkehr zum Router. Daten, die durch den Router zwischen Geräten oder ins Internet laufen, nutzen die Hardware-Beschleunigung und sind meist schneller.');
+      tips.push('Weniger Verbindungen testen (2 statt 8). Manchmal steigt der Durchsatz, weil weniger umgeschaltet wird.');
+      tips.push('Gegenprobe mit iperf3 zeigt, ob die Grenze im Webserver oder im Netzwerkstack liegt.');
+    } else {
+      head = 'Vermutlich bremst das Gerät';
+      text = 'Verbindung und Router-CPU hatten Reserven. Das Limit liegt wahrscheinlich bei Netzwerkkarte, Treiber, Browser oder Energiesparmodus des Geräts.';
+      tips.push('Anderen Browser probieren. Chrome und Edge messen meist am schnellsten.');
+      tips.push('Mehr Verbindungen wählen (6 oder 8).');
+      tips.push('Energiesparmodus aus, Netzteil an. Bei USB-Netzwerkadaptern einen USB-3-Port nutzen.');
+    }
+    if (ad.neck !== au.neck) text += ' Download und Upload haben unterschiedliche Engpässe: ↓ ' + NECK[ad.neck] + ', ↑ ' + NECK[au.neck] + '.';
+    $('f-head').textContent = head; $('f-text').textContent = text;
+    $('f-tips').innerHTML = tips.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('');
+    $('f-ping').textContent = ping;
+    $('finding').hidden = false;
+  }
+
+  // ---------- Ablauf ----------
+  function mode(running) { $('go').hidden = running; $('stop').hidden = !running; if (!running) phase = null; }
+  function start() {
+    var streams = +$('streams').value, duration = +$('duration').value, label = $('label').value.replace(/^\s+|\s+$/g, '');
+    try { localStorage.setItem('st-label', label); localStorage.setItem('st-streams', streams); localStorage.setItem('st-duration', duration); } catch (e) { }
+    $('finding').hidden = true; live.download = live.upload = 0;
+    ['download', 'upload'].forEach(function (k) { $('v-' + k).textContent = '–'; setPipe(k, [null, linkCap(k), null], -1); idleSegs(k); });
+    mode(true);
+    var res = {}, ping = '–';
+    E.run({ streams: streams, duration: duration, label: label }, {
+      phase: function (p) { phase = p; $('status').innerHTML = '<b>' + { ping: 'Ping', download: 'Download', upload: 'Upload' }[p] + '</b> läuft …'; },
+      pingSample: function (ms, i, n) { $('status').innerHTML = '<b>Ping</b> ' + E.fmt(ms, 1) + ' ms (' + (i + 1) + '/' + n + ')'; },
+      ping: function (p, j) { ping = E.fmt(p, 1) + ' ms, Jitter ' + E.fmt(j, 1) + ' ms'; },
+      live: function (kind, m) {
+        if (m === null) return;
+        live[kind] = m; var s = E.fmtSpeed(m);
+        $('v-' + kind).innerHTML = s.v + '<small>' + s.u + '</small>';
+        var lc = linkCap(kind);
+        if (lc) { var u = $('segs-' + kind).querySelectorAll('.seg')[1]; u.querySelector('.u i').style.width = Math.min(100, m / lc * 100) + '%'; u.querySelector('.p').textContent = Math.round(m / lc * 100) + ' % ausgelastet'; }
+      },
+      result: function (kind, r) {
+        res[kind] = analyse(kind, r);
+        var s = E.fmtSpeed(r.peak), a = E.fmtSpeed(r.avg);
+        $('v-' + kind).innerHTML = s.v + '<small>' + s.u + ' · Ø ' + a.v + '</small>';
+        showAnalysis(res[kind]);
+      },
+      done: function (rec) {
+        mode(false); $('status').innerHTML = '<b>Fertig</b>';
+        finding(res.download, res.upload, ping);
+        try { localStorage.setItem('st-neck-' + rec.ts, NECK[res.download.neck] + ' / ' + NECK[res.upload.neck]); } catch (e) { }
+        loadHistory();
+      },
+      error: function (msg) { mode(false); $('status').textContent = msg; }
+    });
+  }
+
+  // ---------- Verlauf ----------
+  function n0(v) { return v === null || v === undefined ? '–' : E.fmt(v, 0); }
+  function sp(peak, avg) { return peak === null || peak === undefined ? n0(avg) : n0(peak) + ' <small>/ ' + n0(avg) + '</small>'; }
+  // Engpass je Eintrag: aus der Router-CPU im Verlauf ableitbar, sonst im Browser gemerkt
+  function neckOf(e) {
+    var k = null; try { k = localStorage.getItem('st-neck-' + e.ts); } catch (x) { }
+    if (k) return k;
+    return Math.max(e.core_dl || 0, e.core_ul || 0) >= 90 ? 'Router-CPU' : '–';
+  }
+  function loadHistory() {
+    E.history(function (h) {
+      if (!h.length) { $('history').innerHTML = '<div class="empty">Noch keine Messungen.</div>'; return; }
+      var rows = '';
+      for (var i = h.length - 1; i >= 0; i--) {
+        var e = h[i], d = new Date(e.ts * 1000);
+        var when = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '. ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        var who = e.label || e.host || e.ip; if (e.label && e.host) who = esc(e.label) + ' <small>' + esc(e.host) + '</small>'; else who = esc(who);
+        rows += '<tr><td>' + when + '</td><td>' + who + '</td><td>' + (e.ping === null ? '–' : E.fmt(e.ping, 1)) + '</td><td class="dl">' + sp(e.dl_peak, e.dl) +
+          '</td><td class="ul">' + sp(e.ul_peak, e.ul) + '</td><td>' + (e.core_dl === null || e.core_dl === undefined ? '–' : e.core_dl + ' / ' + e.core_ul) + '</td><td class="neck">' + esc(neckOf(e)) + '</td></tr>';
+      }
+      $('history').innerHTML = '<table><tr><th>Zeit</th><th>Gerät</th><th>Ping ms</th><th>Down Mbit/s<br>Spitze / Ø</th><th>Up Mbit/s<br>Spitze / Ø</th><th>Kern max %<br>↓ / ↑</th><th>Engpass<br>↓ / ↑</th></tr>' + rows + '</table>';
+    });
+  }
+  function clearAsk() {
+    $('clear-wrap').innerHTML = '<span class="confirm">Alles löschen? <button class="btn" id="yes">Ja</button><button class="btn" id="no">Nein</button></span>';
+    $('yes').onclick = function () { E.clearHistory(function () { loadHistory(); clearReset(); }); };
+    $('no').onclick = clearReset;
+  }
+  function clearReset() { $('clear-wrap').innerHTML = '<button class="btn" id="clear">Löschen</button>'; $('clear').onclick = clearAsk; }
+  $('clear').onclick = clearAsk;
+
+  $('go').onclick = start;
+  $('again').onclick = function () { window.scrollTo({ top: 0, behavior: 'smooth' }); start(); };
+  $('stop').onclick = function () { E.stop(); mode(false); $('status').textContent = 'Abgebrochen'; };
+
+  try {
+    var l = localStorage.getItem('st-label'), s = localStorage.getItem('st-streams'), d = localStorage.getItem('st-duration');
+    if (l) $('label').value = l; if (s) $('streams').value = s; if (d) $('duration').value = d;
+  } catch (e) { }
+
+  buildPipe('download'); buildPipe('upload');
+  idleSegs('download'); idleSegs('upload');
+  requestAnimationFrame(tick);
+
+  E.init(function (i) {
+    info = i;
+    $('meta').innerHTML = esc(i.hostname + (i.model ? ' · ' + i.model : '') + ' · ' + i.cores + ' Kerne · Du: ' +
+      (i.client_host ? i.client_host + ' (' + i.client_ip + ')' : i.client_ip)) + (i.demo ? '<span class="demo">Demo</span>' : '');
+    E.link(function (l) {
+      link = l;
+      ['download', 'upload'].forEach(function (k) { setPipe(k, [null, linkCap(k), null], -1); idleSegs(k); });
+      $('go').disabled = false;
+    });
+    loadHistory();
+  });
+})();
+</script>
+</body>
+</html>

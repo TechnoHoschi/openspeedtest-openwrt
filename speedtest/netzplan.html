@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Speedtest Netzplan</title>
+<style>
+/* Layout: ein Netzplan als technische Zeichnung. Oben das Blatt mit Gerät, Leitung, Router und (ausgegrautem) Internet,
+   darunter das Schriftfeld, das sich während der Messung füllt, und die Änderungsliste als Verlauf.
+   Nur Systemschriften, damit die Seite ohne Internet gleich aussieht. */
+:root {
+  --paper: #f4f7f8;        /* Zeichenblatt, kühles Weiß */
+  --grid: #dde5ea;
+  --frame: #9fb0bc;
+  --ink: #1b2a35;
+  --mute: #5f7180;
+  --down: #0a7489;         /* Download: Petrol */
+  --up: #c2410c;           /* Upload: gebranntes Orange */
+  --ping: #6a54c9;
+  --warn: #b42318;
+  --f-head: Bahnschrift, "DIN Alternate", "DIN Next", "Roboto Condensed", "Arial Narrow", sans-serif;
+  --f-body: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --f-mono: ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #0f171d; --grid: #1a2731; --frame: #3a4d5b; --ink: #dbe6ee; --mute: #8aa0b0;
+  --down: #4cc3d9; --up: #f08a4b; --ping: #a493ff; --warn: #ff7a6b; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --paper: #0f171d; --grid: #1a2731; --frame: #3a4d5b; --ink: #dbe6ee; --mute: #8aa0b0;
+  --down: #4cc3d9; --up: #f08a4b; --ping: #a493ff; --warn: #ff7a6b; color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { background: var(--paper); color: var(--ink); }
+body { margin: 0; font: 15px/1.45 var(--f-body);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px; }
+main { max-width: 1040px; margin: 0 auto; padding: 18px 16px 40px; display: grid; gap: 18px; }
+main > * { min-width: 0; }
+header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px 16px; }
+h1 { margin: 0; font: 600 1.5rem/1.1 var(--f-head); letter-spacing: .02em; text-wrap: balance; }
+h1 span { color: var(--down); }
+.meta { color: var(--mute); font: .85rem var(--f-mono); }
+.demo { color: var(--paper); background: var(--ping); border-radius: 3px; padding: 0 6px; font: 600 .72rem var(--f-body); margin-left: 6px; }
+
+/* Blatt */
+.sheet { position: relative; border: 2px solid var(--ink); background: var(--paper); padding: 6px; }
+.sheet::before { content: ""; position: absolute; inset: 6px; border: 1px solid var(--frame); pointer-events: none; }
+canvas { display: block; width: 100%; height: 340px; }
+.live { position: absolute; left: 18px; top: 14px; display: grid; gap: 0; pointer-events: none; }
+.big { font: 600 clamp(2rem, 7vw, 3.4rem)/1 var(--f-head); font-variant-numeric: tabular-nums; }
+.big small { font: 500 .9rem var(--f-body); color: var(--mute); margin-left: 6px; }
+.phase { font: .78rem var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--mute); }
+.legend { position: absolute; right: 16px; top: 14px; display: grid; gap: 2px; font: .72rem var(--f-mono); color: var(--mute); text-align: right; }
+.legend b { font-weight: 400; }
+.legend .d { color: var(--down); } .legend .u { color: var(--up); }
+
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+.go { font: 600 1rem var(--f-head); letter-spacing: .06em; text-transform: uppercase; color: var(--paper); background: var(--ink);
+  border: 2px solid var(--ink); padding: 10px 26px; cursor: pointer; }
+.go:hover { background: var(--down); border-color: var(--down); }
+.go:disabled { opacity: .5; cursor: default; }
+.btn { font: 600 .85rem var(--f-body); color: var(--ink); background: transparent; border: 1px solid var(--frame); padding: 6px 14px; cursor: pointer; }
+.btn:hover { border-color: var(--ink); }
+.btn.stop { color: var(--warn); border-color: var(--warn); }
+.go:focus-visible, .btn:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--down); outline-offset: 2px; }
+.opts { display: flex; flex-wrap: wrap; gap: 8px 16px; color: var(--mute); font-size: .85rem; }
+.opts label { display: flex; align-items: center; gap: 6px; }
+select, input { font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--frame); padding: 5px 8px; }
+input { width: 10.5em; }
+
+/* Schriftfeld nach Art technischer Zeichnungen */
+.title-block { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border: 2px solid var(--ink); background: var(--paper); }
+.tf { border-right: 1px solid var(--frame); border-bottom: 1px solid var(--frame); padding: 5px 8px 7px; min-width: 0; }
+.tf .k { font: .66rem var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
+.tf .v { font: 600 1.05rem/1.25 var(--f-head); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.tf .v small { font: 400 .78rem var(--f-body); color: var(--mute); margin-left: 3px; }
+.tf.w2 { grid-column: span 2; } .tf.w3 { grid-column: span 3; }
+.tf.big-v .v { font-size: 1.7rem; }
+.tf.dl .v { color: var(--down); } .tf.ul .v { color: var(--up); } .tf.pg .v { color: var(--ping); }
+.tf.name .v { font-size: 1.25rem; letter-spacing: .02em; }
+.finding { border: 2px solid var(--ink); border-top: 0; background: var(--paper); padding: 10px 12px; display: grid; gap: 4px; }
+.finding b { font: 600 1.1rem var(--f-head); }
+.finding .s { color: var(--mute); font-size: .88rem; }
+.finding .warn { color: var(--warn); font-size: .88rem; }
+
+/* Verlauf als Änderungsliste */
+.hist { border: 2px solid var(--ink); background: var(--paper); }
+.hist h2 { margin: 0; padding: 8px 12px; font: 600 .9rem var(--f-head); letter-spacing: .1em; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; gap: 8px; border-bottom: 1px solid var(--frame); }
+.tbl { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font: .84rem var(--f-mono); font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 10px; border-bottom: 1px solid var(--grid); text-align: right; white-space: nowrap; }
+th { font: 500 .68rem var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
+th:nth-child(-n+3), td:nth-child(-n+3) { text-align: left; }
+td.dl { color: var(--down); } td.ul { color: var(--up); }
+td small { color: var(--mute); }
+.empty { color: var(--mute); padding: 10px 12px; }
+.confirm { display: inline-flex; gap: 8px; align-items: center; font: 400 .8rem var(--f-body); letter-spacing: 0; text-transform: none; }
+
+@media (max-width: 680px) {
+  canvas { height: 470px; }
+  .title-block { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tf.w2, .tf.w3 { grid-column: span 2; }
+  .legend { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Netzplan <span id="host">…</span></h1>
+    <div class="meta" id="meta">Verbinde mit dem Router …</div>
+  </header>
+
+  <div class="sheet">
+    <canvas id="plan" aria-label="Netzplan mit Gerät, Leitung und Router"></canvas>
+    <div class="live"><div class="big" id="big" hidden>0<small>Mbit/s</small></div><div class="phase" id="phase">Bereit</div></div>
+    <div class="legend"><span><b class="d">●</b> Download Router → Gerät</span><span><b class="u">●</b> Upload Gerät → Router</span><span>Strichstärke ~ Durchsatz (log.)</span></div>
+  </div>
+
+  <div class="controls">
+    <button class="go" id="go" disabled>Messung starten</button>
+    <button class="btn stop" id="stop" hidden>Stopp</button>
+    <div class="opts">
+      <label for="streams">Verbindungen
+        <select id="streams"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select></label>
+      <label for="duration">Dauer
+        <select id="duration"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></label>
+      <label for="label">Gerät <input id="label" maxlength="40" placeholder="z. B. Laptop WLAN"></label>
+    </div>
+  </div>
+
+  <section>
+    <div class="title-block">
+      <div class="tf w2 name"><div class="k">Benennung</div><div class="v">LAN-Messung Gerät ↔ Router</div></div>
+      <div class="tf w2"><div class="k">Gerät</div><div class="v" id="t-dev">–</div></div>
+      <div class="tf w2"><div class="k">Router</div><div class="v" id="t-router">–</div></div>
+      <div class="tf w2"><div class="k">Leitung</div><div class="v" id="t-link">–</div></div>
+      <div class="tf"><div class="k">Datum</div><div class="v" id="t-date">–</div></div>
+      <div class="tf"><div class="k">Verbindungen</div><div class="v" id="t-streams">–</div></div>
+      <div class="tf pg"><div class="k">Ping</div><div class="v" id="t-ping">–</div></div>
+      <div class="tf pg"><div class="k">Jitter</div><div class="v" id="t-jit">–</div></div>
+      <div class="tf dl w2 big-v"><div class="k">Download · Spitze / Ø</div><div class="v" id="t-dl">–</div></div>
+      <div class="tf ul w2 big-v"><div class="k">Upload · Spitze / Ø</div><div class="v" id="t-ul">–</div></div>
+      <div class="tf w2"><div class="k">Router-CPU je Kern (↓ / ↑)</div><div class="v" id="t-cpu">–</div></div>
+    </div>
+    <div class="finding" id="finding" hidden><b id="f-head">–</b><div class="s" id="f-text"></div><div class="warn" id="f-warn" hidden></div>
+      <div><button class="btn" id="again">Neu messen</button></div></div>
+  </section>
+
+  <section class="hist">
+    <h2>Änderungsliste <span id="clear-wrap"><button class="btn" id="clear">Löschen</button></span></h2>
+    <div class="tbl" id="history"><div class="empty">Noch keine Messungen.</div></div>
+  </section>
+</main>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.SpeedEngine, $ = function (id) { return document.getElementById(id); };
+  var info = null, link = null, phase = null, final = null, liveMbit = 0, shownMbit = 0, cores = [], coreKind = null;
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- Geräteart grob aus dem Browser ----------
+  var ua = navigator.userAgent || '';
+  var devKind = /SMART-TV|SmartTV|Tizen|Web0S|webOS|BRAVIA|HbbTV|AFT|CrKey/i.test(ua) ? 'tv' : (/Mobi|Android|iPhone|iPad/i.test(ua) ? 'phone' : 'pc');
+
+  // ---------- Zeichnung ----------
+  var cv = $('plan'), ctx = cv.getContext('2d'), W = 0, H = 0, dpr = 1, L = null;
+  function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  var C = {};
+  function readColors() { ['--ink', '--mute', '--frame', '--grid', '--paper', '--down', '--up', '--ping', '--warn'].forEach(function (k) { C[k.slice(2)] = css(k); }); }
+  function layout() {
+    dpr = window.devicePixelRatio || 1;
+    W = cv.clientWidth; H = cv.clientHeight;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var vertical = W < 560;
+    if (vertical) L = { v: true, dev: [W / 2, H - 80], rt: [W / 2, H * 0.42], net: [W / 2, 52] };
+    else L = { v: false, dev: [W * 0.17, H * 0.6], rt: [W * 0.64, H * 0.6], net: [W * 0.91, H * 0.6] };
+    readColors();
+  }
+
+  function text(s, x, y, o) {
+    o = o || {};
+    ctx.font = (o.weight || 400) + ' ' + (o.size || 12) + 'px ' + (o.mono ? css('--f-mono') : css('--f-head'));
+    ctx.fillStyle = o.color || C.ink; ctx.textAlign = o.align || 'center'; ctx.textBaseline = o.base || 'alphabetic';
+    ctx.fillText(s, x, y);
+  }
+  function rect(x, y, w, h, stroke, fill, lw) {
+    ctx.lineWidth = lw || 1.5;
+    if (fill) { ctx.fillStyle = fill; ctx.fillRect(x, y, w, h); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.strokeRect(x, y, w, h); }
+  }
+  function drawDevice(x, y) {
+    ctx.strokeStyle = C.ink; ctx.fillStyle = C.paper; ctx.lineWidth = 2;
+    if (devKind === 'phone') { rect(x - 17, y - 32, 34, 60, C.ink, C.paper, 2); ctx.beginPath(); ctx.arc(x, y + 21, 2.5, 0, 7); ctx.stroke(); }
+    else if (devKind === 'tv') { rect(x - 46, y - 30, 92, 52, C.ink, C.paper, 2); ctx.beginPath(); ctx.moveTo(x - 18, y + 30); ctx.lineTo(x + 18, y + 30); ctx.stroke(); }
+    else {
+      rect(x - 40, y - 34, 80, 50, C.ink, C.paper, 2);
+      ctx.beginPath(); ctx.moveTo(x, y + 16); ctx.lineTo(x, y + 26); ctx.moveTo(x - 20, y + 27); ctx.lineTo(x + 20, y + 27); ctx.stroke();
+    }
+    var name = ($('label').value || (info && info.client_host) || 'Dieses Gerät');
+    text(name, x, y + 50, { weight: 600, size: 14 });
+    text(info ? info.client_ip : '', x, y + 66, { mono: true, size: 11, color: C.mute });
+  }
+  function drawRouter(x, y) {
+    var w = 132, h = 66;
+    // Antennen nur, wenn das Gerät per WLAN hängt (oder unbekannt)
+    if (!link || link.type !== 'wired') {
+      ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.beginPath();
+      ctx.moveTo(x - 40, y - h / 2); ctx.lineTo(x - 48, y - h / 2 - 26); ctx.moveTo(x + 40, y - h / 2); ctx.lineTo(x + 48, y - h / 2 - 26); ctx.stroke();
+    }
+    rect(x - w / 2, y - h / 2, w, h, C.ink, C.paper, 2);
+    // Kerne als Kästchen, gefüllt nach Last der letzten Phase
+    var n = (info && info.cores) || 2, bw = Math.min(26, (w - 20 - (n - 1) * 6) / n), sx = x - (n * bw + (n - 1) * 6) / 2;
+    for (var i = 0; i < n; i++) {
+      var bx = sx + i * (bw + 6), by = y - 20, bh = 24, load = cores[i];
+      rect(bx, by, bw, bh, C.frame, null, 1);
+      if (load !== undefined && load !== null) {
+        ctx.fillStyle = load >= 90 ? C.warn : (coreKind === 'upload' ? C.up : C.down);
+        ctx.globalAlpha = .85; ctx.fillRect(bx + 1, by + bh - 1 - (bh - 2) * load / 100, bw - 2, (bh - 2) * load / 100); ctx.globalAlpha = 1;
+      } else if (phase === 'download' || phase === 'upload') {
+        ctx.fillStyle = C.grid; ctx.fillRect(bx + 1, by + 1 + (bh - 2) * (0.5 + 0.5 * Math.sin(t / 300 + i)), bw - 2, 2);
+      }
+    }
+    text('CPU ' + (cores.length ? cores.map(function (c) { return Math.round(c); }).join(' · ') + ' %' : 'je Kern'), x, y + 22, { mono: true, size: 10, color: C.mute });
+    text(info ? info.hostname : 'Router', x, y + h / 2 + 18, { weight: 600, size: 14 });
+    text(info && info.model ? info.model : '', x, y + h / 2 + 34, { mono: true, size: 11, color: C.mute });
+  }
+  function drawNet(x, y) {
+    ctx.save(); ctx.globalAlpha = .55;
+    ctx.strokeStyle = C.mute; ctx.lineWidth = 1.5; ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    ctx.arc(x - 10, y, 14, Math.PI * .6, Math.PI * 1.6); ctx.arc(x + 6, y - 8, 15, Math.PI, Math.PI * 1.95); ctx.arc(x + 16, y + 4, 12, Math.PI * 1.5, Math.PI * .5); ctx.closePath(); ctx.stroke();
+    ctx.restore();
+    text('Internet', x, y + 34, { size: 12, color: C.mute });
+    text('nicht gemessen', x, y + 48, { mono: true, size: 10, color: C.mute });
+  }
+  function seg() {   // Leitungsstück zwischen Gerät und Router
+    var a = L.dev, b = L.rt;
+    if (L.v) return [[a[0], a[1] - 40], [b[0], b[1] + 70]];
+    return [[a[0] + 52, a[1]], [b[0] - 70, b[1]]];
+  }
+  function linkLabel() {
+    if (!link) return ['Verbindung', 'Art unbekannt'];
+    if (link.type === 'wired') return [(link.port || 'LAN') + ' · ' + (link.speed ? gbe(link.speed) : 'Kabel'), link.duplex === 'full' ? 'Vollduplex' : (link.duplex || '')];
+    var w = link.wifi || {};
+    var a = 'WLAN' + (w.band ? ' ' + w.band.replace('.', ',') + ' GHz' : '') + (w.standard ? ' · Wi-Fi ' + w.standard : '');
+    var b = [w.channel ? 'Kanal ' + w.channel : '', w.width ? w.width + ' MHz' : '', w.signal ? w.signal + ' dBm' : '', w.tx_rate ? 'Link ' + Math.round(w.tx_rate) + ' Mbit/s' : ''].filter(Boolean).join(' · ');
+    return [a, b];
+  }
+  function gbe(m) { return m >= 1000 ? (m / 1000 + '').replace('.', ',') + ' GbE' : m + ' Mbit/s'; }
+
+  // Pakete auf der Leitung
+  var dots = [], t = 0, last = 0, spawn = 0;
+  function width(m) { return 2 + Math.max(0, Math.log(1 + m / 50) / Math.log(1 + 10000 / 50)) * 14; }
+  function frame(ts) {
+    t = ts || 0; var dt = Math.min(64, t - (last || t)); last = t;
+    shownMbit += (liveMbit - shownMbit) * Math.min(1, dt / 250);
+    ctx.clearRect(0, 0, W, H);
+    var s = seg(), a = s[0], b = s[1];
+    // WAN-Strecke, gestrichelt und ausgegraut
+    ctx.save(); ctx.strokeStyle = C.frame; ctx.lineWidth = 1.5; ctx.setLineDash([6, 5]); ctx.beginPath();
+    if (L.v) { ctx.moveTo(L.rt[0], L.rt[1] - 60); ctx.lineTo(L.net[0], L.net[1] + 56); }
+    else { ctx.moveTo(L.rt[0] + 70, L.rt[1]); ctx.lineTo(L.net[0] - 34, L.net[1]); }
+    ctx.stroke(); ctx.restore();
+    // Messstrecke
+    var wifi = link && link.type === 'wifi', lw = phase === 'download' || phase === 'upload' ? width(shownMbit) : 2;
+    ctx.save();
+    ctx.strokeStyle = phase === 'upload' ? C.up : (phase === 'download' ? C.down : C.ink);
+    ctx.globalAlpha = phase === 'download' || phase === 'upload' ? .35 : 1;
+    ctx.lineWidth = lw; ctx.lineCap = 'round';
+    if (wifi) ctx.setLineDash([lw * 1.6, lw * 1.6]);
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    ctx.restore();
+    if (wifi) {   // Funkbögen an beiden Enden
+      ctx.strokeStyle = C.mute; ctx.lineWidth = 1.2;
+      [[b, L.v ? Math.PI / 2 : Math.PI], [a, L.v ? -Math.PI / 2 : 0]].forEach(function (p) {
+        for (var r = 10; r <= 22; r += 6) { ctx.beginPath(); ctx.arc(p[0][0], p[0][1], r, p[1] - .6, p[1] + .6); ctx.stroke(); }
+      });
+    }
+    // Bemaßung der Leitung
+    var lab = linkLabel(), mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+    if (L.v) { text(lab[0], mx + 14, my - 4, { size: 13, weight: 600, align: 'left' }); text(lab[1], mx + 14, my + 12, { mono: true, size: 10, color: C.mute, align: 'left' }); }
+    else { text(lab[0], mx, my - 22, { size: 13, weight: 600 }); text(lab[1], mx, my + 30, { mono: true, size: 10, color: C.mute }); }
+    if (final && !phase) {   // Bemaßung mit dem Ergebnis
+      var fd = E.fmtSpeed(final.d), fu = E.fmtSpeed(final.u);
+      var fx = L.v ? mx + 14 : mx, fy = L.v ? my + 34 : my + 52, al = L.v ? 'left' : 'center';
+      text('↓ ' + fd.v + ' ' + fd.u + '   ↑ ' + fu.v + ' ' + fu.u, fx, fy, { size: 15, weight: 600, align: al, color: C.ink });
+    }
+
+    // Pakete erzeugen und bewegen
+    if (!reduce && (phase === 'download' || phase === 'upload')) {
+      spawn += dt / 1000 * (4 + 60 * Math.log(1 + shownMbit / 20) / Math.log(1 + 10000 / 20) * 3);
+      while (spawn >= 1) { spawn--; dots.push({ p: 0, o: (Math.random() - .5) * lw * .8, dir: phase === 'download' ? -1 : 1, kind: phase }); }
+    }
+    for (var i = dots.length - 1; i >= 0; i--) {
+      var d = dots[i];
+      d.p += dt / (d.kind === 'ping' ? 220 : 900);
+      if (d.p >= 1) { if (d.kind === 'ping' && !d.back) { d.back = true; d.p = 0; d.dir = -d.dir; } else { dots.splice(i, 1); continue; } }
+      var f = d.dir > 0 ? d.p : 1 - d.p;   // dir > 0: Gerät -> Router
+      var x = a[0] + (b[0] - a[0]) * f, y = a[1] + (b[1] - a[1]) * f;
+      if (L.v) x += d.o; else y += d.o;
+      ctx.fillStyle = d.kind === 'ping' ? C.ping : (d.kind === 'upload' ? C.up : C.down);
+      ctx.beginPath(); ctx.arc(x, y, d.kind === 'ping' ? 4 : 2.6, 0, 7); ctx.fill();
+    }
+    drawNet(L.net[0], L.net[1]);
+    drawRouter(L.rt[0], L.rt[1]);
+    drawDevice(L.dev[0], L.dev[1]);
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Schriftfeld ----------
+  function sv(id, html) { $(id).innerHTML = html; }
+  function speed(m) { var s = E.fmtSpeed(m); return s.v + '<small>' + s.u + '</small>'; }
+  function pair(r) { var a = E.fmtSpeed(r.avg); return speed(r.peak) + ' <small>/ ' + a.v + ' ' + a.u + '</small>'; }
+  function today() { var d = new Date(); return ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '.' + d.getFullYear(); }
+  function linkText() { var l = linkLabel(); return esc(l[0]) + (l[1] ? '<small>' + esc(l[1]) + '</small>' : ''); }
+  function cpuCell(r) { return r && r.cores ? r.cores.map(function (c) { return Math.round(c); }).join('/') + ' %' : '–'; }
+
+  // Befund aus Messung und Leitungsdaten
+  function finding(d, u) {
+    var maxCore = Math.max(d.core || 0, u.core || 0), net = Math.max(d.peak, u.peak);
+    if (link && link.type === 'wired' && link.speed) {
+      var share = net / (link.speed * 0.94);
+      if (share >= 0.85) return ['Leitung ausgeschöpft', 'Mehr als ' + Math.floor(share * 100) + ' % von dem, was ' + gbe(link.speed) + ' netto hergibt. Schneller geht es nur mit einem schnelleren Port oder Kabel.'];
+      if (maxCore >= 90) return ['Router-CPU begrenzt', 'Der Port könnte mehr (' + gbe(link.speed) + '), aber ein Prozessorkern war voll ausgelastet.'];
+      return ['Luft nach oben', 'Erreicht wurden rund ' + Math.round(share * 100) + ' % der Port-Geschwindigkeit. Mehr Verbindungen oder ein anderer Browser können mehr zeigen.'];
+    }
+    if (link && link.type === 'wifi' && link.wifi && link.wifi.tx_rate) {
+      var eff = net / link.wifi.tx_rate;
+      return ['WLAN-Strecke', 'Netto ' + Math.round(eff * 100) + ' % der Linkrate von ' + Math.round(link.wifi.tx_rate) + ' Mbit/s. Üblich sind 55 bis 75 %.'];
+    }
+    if (maxCore >= 90) return ['Router-CPU begrenzt', 'Ein Prozessorkern des Routers war voll ausgelastet.'];
+    return ['Messung fertig', 'Die Art der Verbindung konnte der Router nicht ermitteln.'];
+  }
+
+  // ---------- Ablauf ----------
+  var phaseName = { ping: 'Ping', download: 'Download · Router → Gerät', upload: 'Upload · Gerät → Router' };
+  function mode(running) {
+    $('go').hidden = running; $('stop').hidden = !running; $('big').hidden = !running;
+    if (!running) { liveMbit = 0; phase = null; }
+  }
+  function start() {
+    var streams = +$('streams').value, duration = +$('duration').value, label = $('label').value.replace(/^\s+|\s+$/g, '');
+    try { localStorage.setItem('st-label', label); localStorage.setItem('st-streams', streams); localStorage.setItem('st-duration', duration); } catch (e) { }
+    $('finding').hidden = true; cores = []; coreKind = null; final = null;
+    ['t-ping', 't-jit', 't-dl', 't-ul', 't-cpu'].forEach(function (id) { sv(id, '–'); });
+    sv('t-dev', esc(label || (info.client_host || info.client_ip)) + (label && info.client_host ? '<small>' + esc(info.client_host) + '</small>' : ''));
+    sv('t-date', today()); sv('t-streams', streams + '');
+    mode(true);
+    var res = {};
+    E.run({ streams: streams, duration: duration, label: label }, {
+      phase: function (p) { phase = p; liveMbit = 0; shownMbit = 0; $('phase').textContent = phaseName[p]; $('big').innerHTML = '…'; },
+      pingSample: function (ms) { $('big').innerHTML = E.fmt(ms, 1) + '<small>ms</small>'; dots.push({ p: 0, o: 0, dir: 1, kind: 'ping' }); },
+      ping: function (p, j) { sv('t-ping', E.fmt(p, p < 10 ? 1 : 0) + '<small>ms</small>'); sv('t-jit', E.fmt(j, 1) + '<small>ms</small>'); },
+      live: function (kind, m) { if (m !== null) { liveMbit = m; var s = E.fmtSpeed(m); $('big').innerHTML = s.v + '<small>' + s.u + '</small>'; } },
+      result: function (kind, r) {
+        res[kind] = r; cores = r.cores || []; coreKind = kind;
+        sv(kind === 'download' ? 't-dl' : 't-ul', pair(r));
+        sv('t-cpu', cpuCell(res.download) + (res.upload ? ' <small>↓</small> ' + cpuCell(res.upload) + ' <small>↑</small>' : ' <small>↓</small>'));
+      },
+      done: function () {
+        mode(false); $('phase').textContent = 'Fertig';
+        final = { d: res.download.peak, u: res.upload.peak };
+        var f = finding(res.download, res.upload);
+        $('f-head').textContent = f[0]; $('f-text').textContent = f[1];
+        var mc = Math.max(res.download.core || 0, res.upload.core || 0);
+        $('f-warn').hidden = !(mc >= 90 && f[0] !== 'Router-CPU begrenzt');
+        $('f-warn').textContent = 'Hinweis: Ein Prozessorkern des Routers lag bei ' + Math.round(mc) + ' %.';
+        $('finding').hidden = false;
+        loadHistory();
+      },
+      error: function (msg) { mode(false); $('phase').textContent = msg; }
+    });
+  }
+
+  // ---------- Verlauf ----------
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function n0(v) { return v === null || v === undefined ? '–' : E.fmt(v, 0); }
+  function sp(peak, avg) { return peak === null || peak === undefined ? n0(avg) : n0(peak) + ' <small>/ ' + n0(avg) + '</small>'; }
+  function loadHistory() {
+    E.history(function (h) {
+      if (!h.length) { $('history').innerHTML = '<div class="empty">Noch keine Messungen.</div>'; return; }
+      var rows = '';
+      for (var i = h.length - 1; i >= 0; i--) {
+        var e = h[i], d = new Date(e.ts * 1000);
+        var when = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '. ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        var who = e.label || e.host || e.ip; if (e.label && e.host) who = esc(e.label) + ' <small>' + esc(e.host) + '</small>'; else who = esc(who);
+        rows += '<tr><td>' + String.fromCharCode(65 + ((h.length - 1 - i) % 26)) + '</td><td>' + when + '</td><td>' + who + '</td><td>' + (e.ping === null ? '–' : E.fmt(e.ping, 1)) +
+          '</td><td class="dl">' + sp(e.dl_peak, e.dl) + '</td><td class="ul">' + sp(e.ul_peak, e.ul) + '</td><td>' + (e.streams || '–') + '</td></tr>';
+      }
+      $('history').innerHTML = '<table><tr><th>Index</th><th>Zeit</th><th>Gerät</th><th>Ping ms</th><th>Down Mbit/s<br>Spitze / Ø</th><th>Up Mbit/s<br>Spitze / Ø</th><th>Verb.</th></tr>' + rows + '</table>';
+    });
+  }
+  function clearAsk() {
+    $('clear-wrap').innerHTML = '<span class="confirm">Alles löschen? <button class="btn" id="yes">Ja</button><button class="btn" id="no">Nein</button></span>';
+    $('yes').onclick = function () { E.clearHistory(function () { loadHistory(); clearReset(); }); };
+    $('no').onclick = clearReset;
+  }
+  function clearReset() { $('clear-wrap').innerHTML = '<button class="btn" id="clear">Löschen</button>'; $('clear').onclick = clearAsk; }
+  $('clear').onclick = clearAsk;
+
+  $('go').onclick = start;
+  $('again').onclick = function () { window.scrollTo({ top: 0, behavior: 'smooth' }); start(); };
+  $('stop').onclick = function () { E.stop(); mode(false); $('phase').textContent = 'Abgebrochen'; };
+
+  try {
+    var l = localStorage.getItem('st-label'), s = localStorage.getItem('st-streams'), d = localStorage.getItem('st-duration');
+    if (l) $('label').value = l; if (s) $('streams').value = s; if (d) $('duration').value = d;
+  } catch (e) { }
+
+  layout();
+  window.addEventListener('resize', layout);
+  if (window.matchMedia) { try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors); } catch (e) { } }
+  new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  requestAnimationFrame(frame);
+
+  E.init(function (i) {
+    info = i;
+    $('host').textContent = i.hostname;
+    $('meta').innerHTML = esc((i.model ? i.model + ' · ' : '') + i.cores + ' Kerne · Du: ' +
+      (i.client_host ? i.client_host + ' (' + i.client_ip + ')' : i.client_ip)) + (i.demo ? '<span class="demo">Demo</span>' : '');
+    sv('t-router', esc(i.hostname) + (i.model ? '<small>' + esc(i.model) + '</small>' : ''));
+    E.link(function (l) { link = l; sv('t-link', linkText()); $('go').disabled = false; });
+    loadHistory();
+  });
+})();
+</script>
+</body>
+</html>
