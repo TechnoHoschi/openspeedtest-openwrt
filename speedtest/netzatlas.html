@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#03040a">
+<title>Speedtest Netzatlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oxanium:wght@200;400;600;800&family=Martian+Mono:wght@300;400&display=swap">
+<style>
+/* Konzept "Netzatlas": Dein Heimnetz als dreidimensionale Sternkarte. Der Router ist der Zentralstern, jedes
+   Gerät aus dem Verlauf ein Stern im Orbit, je schneller, desto heller und näher. Während der Messung schießt
+   ein Datenstrahl zwischen deinem Gerät und dem Router. Die Karte lässt sich mit Maus oder Finger drehen.
+   Danach Knotenbericht und eine Bestenliste aller Geräte. Canvas hinter der Bühne, Werte im DOM. Nur dunkel. */
+:root {
+  --space: #03040a;
+  --ink: #edf0ff;
+  --mute: #8b93b8;
+  --faint: #4b5275;
+  --line: rgba(140, 150, 230, .16);
+  --glass: rgba(8, 10, 26, .66);
+  --down: #5ce1e6;          /* Download: Türkis */
+  --up: #c38bff;            /* Upload: Lavendel */
+  --ping: #ffd166;
+  --hot: #ff5d73;
+  --acc: #5ce1e6;
+  --f-d: "Oxanium", "Bahnschrift", "Segoe UI", sans-serif;
+  --f-m: "Martian Mono", ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+body.p-ping { --acc: var(--ping); }
+body.p-upload { --acc: var(--up); }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { background: var(--space); }
+body { margin: 0; color: var(--ink); font: 14px/1.5 var(--f-d); overflow-x: hidden; background: var(--space); }
+#sky { position: absolute; left: 0; top: 0; width: 100%; z-index: 0; display: block; touch-action: pan-y; cursor: grab; }
+#sky.drag { cursor: grabbing; }
+main { position: relative; z-index: 1; pointer-events: none; }
+main .live-ui { pointer-events: auto; }
+main * { min-width: 0; }
+button, select, input { font: inherit; }
+:focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; }
+
+.stage { min-height: 100vh; min-height: 100svh; max-width: 1300px; margin: 0 auto; padding: 18px 24px 22px; display: grid; grid-template-rows: auto minmax(200px, 1fr) auto auto auto; gap: 14px; }
+.top { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 6px 20px; }
+.mark { font: 800 1.35rem/1 var(--f-d); letter-spacing: .32em; text-transform: uppercase; }
+.mark small { display: block; font: 300 .64rem var(--f-m); letter-spacing: .12em; color: var(--mute); margin-top: 8px; text-transform: none; }
+.who { color: var(--mute); font: 300 .7rem var(--f-m); text-align: right; display: grid; gap: 3px; }
+.who b { color: var(--ink); font-weight: 400; }
+.demo { color: #140f00; background: var(--ping); padding: 0 6px; font-weight: 400; }
+
+.hud { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); align-items: end; }
+.readout { display: grid; gap: 2px; padding: 16px 18px; background: linear-gradient(90deg, rgba(3,4,10,.75), rgba(3,4,10,0)); }
+.phase { font: 600 .72rem var(--f-d); letter-spacing: .36em; text-transform: uppercase; color: var(--acc); min-height: 1.2em; }
+.big { font: 200 clamp(4rem, 12vw, 8.6rem)/.9 var(--f-d); font-variant-numeric: tabular-nums; white-space: nowrap; text-shadow: 0 0 30px color-mix(in srgb, var(--acc) 50%, transparent); }
+.big small { font: 400 1rem var(--f-d); letter-spacing: .24em; color: var(--mute); margin-left: .5em; text-shadow: none; text-transform: uppercase; }
+.sub { font: 300 .7rem var(--f-m); color: var(--mute); min-height: 1.4em; }
+.go { justify-self: start; margin-top: 10px; font: 600 .82rem var(--f-d); letter-spacing: .3em; text-transform: uppercase; color: var(--space); background: var(--down);
+  border: 0; border-radius: 999px; padding: 13px 26px 13px 30px; cursor: pointer; box-shadow: 0 0 0 6px rgba(92,225,230,.12), 0 0 34px rgba(92,225,230,.35); }
+.go:hover { box-shadow: 0 0 0 8px rgba(92,225,230,.18), 0 0 44px rgba(92,225,230,.55); }
+.go:disabled { opacity: .45; cursor: default; }
+.go.firing { background: var(--hot); box-shadow: 0 0 0 6px rgba(255,93,115,.15), 0 0 34px rgba(255,93,115,.35); color: #fff; }
+.tip { font: 300 .64rem var(--f-m); color: var(--faint); margin-top: 6px; }
+
+.cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.cd { background: var(--glass); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px 12px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.cd .k { font: 600 .62rem var(--f-d); letter-spacing: .26em; text-transform: uppercase; color: var(--mute); display: flex; align-items: center; gap: 7px; }
+.cd .k i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+.cd .v { font: 200 1.9rem/1.15 var(--f-d); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cd .v small { font: 300 .66rem var(--f-m); color: var(--mute); margin-left: 4px; }
+.cd .s { font: 300 .62rem var(--f-m); color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 1.2em; }
+.cd.ping .k { color: var(--ping); } .cd.dl .k { color: var(--down); } .cd.ul .k { color: var(--up); } .cd.cpu .k { color: var(--hot); }
+.cd.on { border-color: color-mix(in srgb, var(--acc) 55%, transparent); box-shadow: 0 0 26px color-mix(in srgb, var(--acc) 18%, transparent); }
+
+.ctrl { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 18px; color: var(--mute); font: 300 .7rem var(--f-m); }
+.ctrl label { display: flex; align-items: center; gap: 6px; }
+select, input { color: var(--ink); background: rgba(10,12,30,.9); border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; font: 300 .74rem var(--f-m); }
+input { width: 11em; }
+.btn { font: 600 .66rem var(--f-d); letter-spacing: .24em; text-transform: uppercase; color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 7px 16px; cursor: pointer; }
+.btn:hover { border-color: var(--acc); color: var(--acc); }
+
+#label-tip { position: absolute; z-index: 3; pointer-events: none; background: rgba(8,10,26,.92); border: 1px solid var(--line); border-radius: 10px; padding: 8px 11px; font: 300 .68rem/1.5 var(--f-m); color: var(--mute); transform: translate(14px, -50%); white-space: nowrap; }
+#label-tip b { display: block; font: 600 .86rem var(--f-d); color: var(--ink); letter-spacing: .04em; }
+#label-tip .d { color: var(--down); } #label-tip .u { color: var(--up); }
+
+/* Bericht */
+.sheet { max-width: 1300px; margin: 0 auto; padding: 10px 24px 40px; display: grid; gap: 22px; position: relative; z-index: 1; }
+.sheet h2 { margin: 0 0 10px; font: 800 .9rem var(--f-d); letter-spacing: .32em; text-transform: uppercase; color: var(--mute); display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rep { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; }
+.panel { background: var(--glass); border: 1px solid var(--line); border-radius: 18px; padding: 18px; display: grid; gap: 12px; align-content: start; }
+.verdict { font: 200 clamp(1.4rem, 3.4vw, 2.1rem)/1.2 var(--f-d); text-wrap: balance; }
+.verdict b { font-weight: 600; color: var(--down); }
+.duo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.duo .k { font: 600 .62rem var(--f-d); letter-spacing: .26em; text-transform: uppercase; }
+.duo .dl .k { color: var(--down); } .duo .ul .k { color: var(--up); }
+.duo .v { font: 200 clamp(2.4rem, 6vw, 3.6rem)/1 var(--f-d); font-variant-numeric: tabular-nums; }
+.duo .v small { font: 300 .74rem var(--f-m); color: var(--mute); margin-left: 6px; }
+.duo .s { font: 300 .66rem var(--f-m); color: var(--mute); }
+.duo svg { display: block; width: 100%; height: 50px; margin-top: 6px; }
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; font: 300 .66rem var(--f-m); color: var(--mute); }
+.facts b { display: block; font: 200 1.4rem var(--f-d); color: var(--ink); }
+.cores { display: flex; gap: 6px; align-items: flex-end; height: 64px; }
+.cores div { flex: 1; display: grid; grid-template-rows: 1fr auto; gap: 4px; height: 100%; font: 300 .6rem var(--f-m); color: var(--mute); text-align: center; }
+.cores i { display: block; align-self: end; border-radius: 4px 4px 0 0; background: linear-gradient(180deg, var(--up), var(--down)); }
+.cores div.hot i { background: var(--hot); }
+.rank { width: 100%; border-collapse: collapse; font: 300 .72rem var(--f-m); font-variant-numeric: tabular-nums; }
+.rank td, .rank th { padding: 7px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.rank th { font: 600 .58rem var(--f-d); letter-spacing: .2em; text-transform: uppercase; color: var(--mute); }
+.rank td:nth-child(-n+2), .rank th:nth-child(-n+2) { text-align: left; }
+.rank tr.me td { color: var(--ink); background: rgba(92,225,230,.08); }
+.rank .bar { display: inline-block; height: 6px; border-radius: 3px; background: var(--down); vertical-align: middle; margin-right: 8px; }
+.rank td.n { color: var(--faint); }
+.warn { color: var(--hot); font-size: .85rem; }
+
+.tbl { overflow-x: auto; background: var(--glass); border: 1px solid var(--line); border-radius: 18px; }
+.tbl table { width: 100%; border-collapse: collapse; font: 300 .72rem var(--f-m); font-variant-numeric: tabular-nums; }
+.tbl th, .tbl td { padding: 8px 12px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.tbl th { font: 600 .58rem var(--f-d); letter-spacing: .2em; text-transform: uppercase; color: var(--mute); }
+.tbl th:nth-child(-n+2), .tbl td:nth-child(-n+2) { text-align: left; }
+.tbl td.dl { color: var(--down); } .tbl td.ul { color: var(--up); }
+.tbl td small { color: var(--faint); }
+.empty { color: var(--mute); padding: 12px; font: 300 .74rem var(--f-m); }
+.confirm { display: inline-flex; gap: 8px; align-items: center; font: 300 .68rem var(--f-m); letter-spacing: 0; text-transform: none; }
+
+@media (max-width: 820px) {
+  .hud { grid-template-columns: minmax(0, 1fr); }
+  .readout { background: radial-gradient(closest-side, rgba(3,4,10,.8), rgba(3,4,10,0)); text-align: center; justify-items: center; }
+  .go { justify-self: center; }
+  .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cd.cpu { grid-column: span 2; }
+  .rep { grid-template-columns: minmax(0, 1fr); }
+  .stage, .sheet { padding-left: 16px; padding-right: 16px; }
+  .who { text-align: left; }
+}
+</style>
+</head>
+<body>
+<canvas id="sky" aria-label="Sternkarte des Heimnetzes, mit Maus oder Finger drehbar"></canvas>
+<div id="label-tip" hidden></div>
+<main>
+  <section class="stage" id="stage">
+    <div class="top">
+      <div class="mark">Netzatlas<small id="count">Sternkarte deines Heimnetzes</small></div>
+      <div class="who" id="who">Kartiere das Netz …</div>
+    </div>
+    <div></div>
+    <div class="hud">
+      <div class="readout live-ui">
+        <div class="phase" id="phase">Bereit zur Vermessung</div>
+        <div class="big" id="big">0<small>Mbit/s</small></div>
+        <div class="sub" id="sub">Dein Gerät leuchtet als hellster Stern</div>
+        <button class="go" id="go" disabled>Strahl senden</button>
+        <div class="tip">Karte ziehen zum Drehen · Stern berühren für Details</div>
+      </div>
+    </div>
+    <div class="cards live-ui">
+      <div class="cd ping" id="c-ping"><div class="k"><i></i>Ping</div><div class="v" id="v-ping">–<small>ms</small></div><div class="s">Signallaufzeit zum Zentralstern</div></div>
+      <div class="cd"><div class="k" style="color:var(--ping)"><i></i>Jitter</div><div class="v" id="v-jit">–<small>ms</small></div><div class="s">Funkeln der Laufzeit</div></div>
+      <div class="cd dl" id="c-dl"><div class="k"><i></i>Download</div><div class="v" id="v-dl">–<small>Mbit/s</small></div><div class="s" id="s-dl">Router → Gerät</div></div>
+      <div class="cd ul" id="c-ul"><div class="k"><i></i>Upload</div><div class="v" id="v-ul">–<small>Mbit/s</small></div><div class="s" id="s-ul">Gerät → Router</div></div>
+      <div class="cd cpu"><div class="k"><i></i>Router-CPU</div><div class="v" id="v-cpu">–<small>%</small></div><div class="s">stärkster Kern</div></div>
+    </div>
+    <div class="ctrl live-ui">
+      <label for="streams">Verbindungen <select id="streams"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select></label>
+      <label for="duration">Dauer <select id="duration"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></label>
+      <label for="label">Gerät <input id="label" maxlength="40" placeholder="z. B. Laptop WLAN"></label>
+    </div>
+  </section>
+
+  <section class="sheet live-ui">
+    <div id="result" hidden>
+      <h2><span id="r-title">Knotenbericht</span> <button class="btn" id="again">Neu vermessen</button></h2>
+      <div class="rep">
+        <div class="panel">
+          <div class="verdict" id="verdict">–</div>
+          <div class="duo">
+            <div class="dl"><div class="k">Download · Spitze</div><div class="v" id="r-dl">–</div><div class="s" id="r-dl-s"></div><svg id="g-dl" viewBox="0 0 300 50" preserveAspectRatio="none"></svg></div>
+            <div class="ul"><div class="k">Upload · Spitze</div><div class="v" id="r-ul">–</div><div class="s" id="r-ul-s"></div><svg id="g-ul" viewBox="0 0 300 50" preserveAspectRatio="none"></svg></div>
+          </div>
+          <div class="facts"><div>Ping<b id="r-ping">–</b></div><div>Jitter<b id="r-jit">–</b></div><div>Rang im Netz<b id="r-rank">–</b></div></div>
+          <div class="cores" id="cores"></div>
+          <div class="warn" id="warn" hidden></div>
+        </div>
+        <div class="panel">
+          <div class="k" style="font:600 .62rem var(--f-d);letter-spacing:.26em;text-transform:uppercase;color:var(--mute)">Bestenliste · bester Download je Gerät</div>
+          <table class="rank" id="rank"></table>
+        </div>
+      </div>
+    </div>
+    <div>
+      <h2>Logbuch <span id="clear-wrap"><button class="btn" id="clear">Löschen</button></span></h2>
+      <div class="tbl" id="history"><div class="empty">Noch keine Messungen.</div></div>
+    </div>
+  </section>
+</main>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.SpeedEngine, $ = function (id) { return document.getElementById(id); };
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var info = null, phase = null, live = 0, shown = 0, running = false, hist = [];
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  var TAU = Math.PI * 2;
+
+  // =====================================================================
+  // Geräte aus dem Verlauf zusammenfassen: ein Stern je Gerät (Name, sonst Hostname, sonst IP)
+  // =====================================================================
+  var nodes = [], me = null;
+  function keyOf(e) { return (e.label || e.host || e.ip || '?').toLowerCase(); }
+  function myKey() { var l = $('label').value.replace(/^\s+|\s+$/g, ''); return (l || (info && (info.client_host || info.client_ip)) || 'du').toLowerCase(); }
+  function rebuild() {
+    var map = {}, list = [];
+    hist.forEach(function (e) {
+      var k = keyOf(e), n = map[k];
+      if (!n) { n = map[k] = { key: k, name: e.label || e.host || e.ip, host: e.host, ip: e.ip, dl: 0, ul: 0, ping: null, runs: 0, last: 0 }; list.push(n); }
+      n.dl = Math.max(n.dl, e.dl_peak || e.dl || 0); n.ul = Math.max(n.ul, e.ul_peak || e.ul || 0);
+      if (e.ping !== null && (n.ping === null || e.ping < n.ping)) n.ping = e.ping;
+      n.runs++; n.last = Math.max(n.last, e.ts);
+    });
+    var mk = myKey();
+    if (!map[mk]) { var nn = { key: mk, name: $('label').value || (info ? info.client_host || info.client_ip : 'Du'), dl: 0, ul: 0, ping: null, runs: 0, last: 0, fresh: true }; map[mk] = nn; list.push(nn); }
+    // Platzierung: Fibonacci-Kugel, schnellere Geräte näher am Zentralstern
+    var old = {}; nodes.forEach(function (n) { old[n.key] = n; });
+    list.forEach(function (n, i) {
+      var y = 1 - (i + .5) / list.length * 2, r = Math.sqrt(1 - y * y), th = i * 2.39996;
+      var sp = n.dl ? Math.log(1 + n.dl / 20) / Math.log(1 + 10000 / 20) : 0.2;
+      var dist = 1.55 - sp * 0.75;
+      n.p = [Math.cos(th) * r * dist, y * dist * 0.8, Math.sin(th) * r * dist];
+      n.grow = old[n.key] ? old[n.key].grow : 0;
+      n.sp = sp;
+    });
+    nodes = list; me = map[mk];
+    $('count').textContent = nodes.length + (nodes.length === 1 ? ' Stern' : ' Sterne') + ' · ' + hist.length + ' Messungen im Logbuch';
+  }
+
+  // =====================================================================
+  // 3D-Szene
+  // =====================================================================
+  var cv = $('sky'), ctx = cv.getContext('2d'), W = 0, H = 0, DPR = 1, CX = 0, CY = 0, S = 1;
+  var yaw = 0.6, pitch = 0.32, vyaw = 0.08, drag = null, stars = [], beam = [], pulses = [], energy = 0, coreHeat = null;
+  function size() {
+    DPR = Math.min(window.devicePixelRatio || 1, 1.75);
+    W = document.documentElement.clientWidth; H = Math.max(window.innerHeight, $('stage').offsetHeight);
+    cv.style.height = H + 'px'; cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    var narrow = W < 820;
+    CX = narrow ? W / 2 : W * 0.6; CY = narrow ? H * 0.31 : H * 0.44; S = narrow ? Math.min(W * 0.36, H * 0.2) : Math.min(W * 0.3, H * 0.3);
+    stars = [];
+    for (var i = 0; i < Math.round(W * H / 2600); i++) stars.push([Math.random() * W, Math.random() * H, Math.random()]);
+  }
+  function rot(p) {
+    var cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+    var x = p[0] * cy + p[2] * sy, z = -p[0] * sy + p[2] * cy, y = p[1];
+    return [x, y * cp - z * sp, y * sp + z * cp];
+  }
+  function proj(p) { var r = rot(p), f = 3.4 / (3.4 + r[2]); return [CX + r[0] * S * f, CY + r[1] * S * f, f, r[2]]; }
+  function nodeColor(n) {   // nach Geschwindigkeitsklasse
+    var d = n.dl;
+    if (!d) return [150, 160, 210];
+    if (d >= 2000) return [180, 255, 255];
+    if (d >= 900) return [92, 225, 230];
+    if (d >= 400) return [110, 170, 255];
+    if (d >= 100) return [195, 139, 255];
+    return [255, 120, 140];
+  }
+  var lastT = 0, rafId = 0;
+  function loop(t) {
+    rafId = 0;
+    var dt = Math.min(0.05, (t - (lastT || t)) / 1000); lastT = t;
+    shown += (live - shown) * Math.min(1, dt * 3);
+    var flowing = phase === 'download' || phase === 'upload';
+    energy += ((flowing ? Math.log(1 + shown / 20) / Math.log(1 + 10000 / 20) : 0) - energy) * Math.min(1, dt * 2.5);
+    if (!drag) { yaw += vyaw * dt * (reduce ? 0.2 : 1); vyaw += (0.08 - vyaw) * Math.min(1, dt * 0.8); }
+
+    ctx.clearRect(0, 0, W, H);
+    // Hintergrundsterne, leichtes Funkeln
+    for (var i = 0; i < stars.length; i++) { var st = stars[i]; ctx.fillStyle = 'rgba(200,210,255,' + (0.15 + 0.35 * st[2] * (0.7 + 0.3 * Math.sin(t / 900 + i))) + ')'; ctx.fillRect(st[0], st[1], st[2] > .85 ? 2 : 1, st[2] > .85 ? 2 : 1); }
+    // Holografische Kugel: Breiten- und Längenkreise
+    ctx.lineWidth = 1;
+    for (var la = -2; la <= 2; la++) {
+      var yy = la / 3, rr = Math.sqrt(1 - yy * yy) * 1.6; ctx.beginPath();
+      for (var k = 0; k <= 48; k++) { var a = k / 48 * TAU, q = proj([Math.cos(a) * rr, yy * 1.6 * .8, Math.sin(a) * rr]); if (k) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); }
+      ctx.strokeStyle = 'rgba(140,150,230,.07)'; ctx.stroke();
+    }
+    for (var lo = 0; lo < 8; lo++) {
+      var ao = lo / 8 * Math.PI; ctx.beginPath();
+      for (var m = 0; m <= 32; m++) { var b = m / 32 * TAU, q2 = proj([Math.cos(ao) * Math.cos(b) * 1.6, Math.sin(b) * 1.6 * .8, Math.sin(ao) * Math.cos(b) * 1.6]); if (m) ctx.lineTo(q2[0], q2[1]); else ctx.moveTo(q2[0], q2[1]); }
+      ctx.strokeStyle = 'rgba(140,150,230,.045)'; ctx.stroke();
+    }
+    var hub = proj([0, 0, 0]);
+    // Verbindungen zum Zentralstern
+    var proj2 = nodes.map(function (n) { n.grow = Math.min(1, n.grow + dt * 1.2); var q = proj([n.p[0] * n.grow, n.p[1] * n.grow, n.p[2] * n.grow]); n.q = q; return n; });
+    proj2.forEach(function (n) {
+      var c = nodeColor(n), isMe = n === me, a = isMe && flowing ? 0.2 : 0.08 + 0.25 * n.sp;
+      ctx.strokeStyle = 'rgba(' + c.join(',') + ',' + a.toFixed(3) + ')'; ctx.lineWidth = isMe ? 1.5 : 1;
+      ctx.setLineDash(n.dl ? [] : [3, 5]); ctx.beginPath(); ctx.moveTo(hub[0], hub[1]); ctx.lineTo(n.q[0], n.q[1]); ctx.stroke(); ctx.setLineDash([]);
+    });
+    // Datenstrahl zwischen dir und dem Router
+    ctx.globalCompositeOperation = 'lighter';
+    if (me && me.q && (flowing || pulses.length)) {
+      var from = phase === 'upload' ? me.q : hub, to = phase === 'upload' ? hub : me.q, col = phase === 'upload' ? '195,139,255' : '92,225,230';
+      if (flowing) {
+        var w = 2 + energy * 10;
+        var grd = ctx.createLinearGradient(from[0], from[1], to[0], to[1]); grd.addColorStop(0, 'rgba(' + col + ',.05)'); grd.addColorStop(1, 'rgba(' + col + ',.35)');
+        ctx.strokeStyle = grd; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(from[0], from[1]); ctx.lineTo(to[0], to[1]); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.3 + energy * 0.5) + ')'; ctx.lineWidth = 1 + energy * 1.5; ctx.beginPath(); ctx.moveTo(from[0], from[1]); ctx.lineTo(to[0], to[1]); ctx.stroke();
+        if (!reduce) for (var bnum = 0; bnum < 1 + energy * 6; bnum++) beam.push({ f: 0, v: 0.8 + Math.random() * 1.2, o: (Math.random() - .5) * w * 1.6 });
+      }
+      var dx = to[0] - from[0], dy = to[1] - from[1], len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len;
+      for (var bi = beam.length - 1; bi >= 0; bi--) {
+        var bb = beam[bi]; bb.f += dt * bb.v * (1 + energy * 1.5);
+        if (bb.f >= 1 || !flowing) { beam.splice(bi, 1); continue; }
+        var bx = from[0] + dx * bb.f + nx * bb.o * Math.sin(bb.f * Math.PI), by = from[1] + dy * bb.f + ny * bb.o * Math.sin(bb.f * Math.PI);
+        ctx.fillStyle = 'rgba(' + col + ',.85)'; ctx.fillRect(bx - 1.2, by - 1.2, 2.4, 2.4);
+      }
+      // Ping-Impulse hin und zurück
+      for (var pi = pulses.length - 1; pi >= 0; pi--) {
+        var pp = pulses[pi]; pp.f += dt * 3; if (pp.f >= 2) { pulses.splice(pi, 1); continue; }
+        var ff = pp.f < 1 ? pp.f : 2 - pp.f, px = me.q[0] + (hub[0] - me.q[0]) * ff, py = me.q[1] + (hub[1] - me.q[1]) * ff;
+        var gp = ctx.createRadialGradient(px, py, 0, px, py, 16); gp.addColorStop(0, 'rgba(255,230,160,.95)'); gp.addColorStop(1, 'rgba(255,209,102,0)');
+        ctx.fillStyle = gp; ctx.beginPath(); ctx.arc(px, py, 16, 0, TAU); ctx.fill();
+      }
+    }
+    // Zentralstern (Router) mit Kernen als Korona-Strahlen
+    var hr = S * (0.11 + energy * 0.05);
+    var gh = ctx.createRadialGradient(hub[0], hub[1], 0, hub[0], hub[1], hr * 4);
+    gh.addColorStop(0, 'rgba(255,255,255,.95)'); gh.addColorStop(.2, 'rgba(160,230,255,.6)'); gh.addColorStop(.6, 'rgba(92,140,255,.12)'); gh.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gh; ctx.beginPath(); ctx.arc(hub[0], hub[1], hr * 4, 0, TAU); ctx.fill();
+    var nc = (info && info.cores) || 3;
+    for (var c2 = 0; c2 < nc; c2++) {
+      var ang = c2 / nc * TAU + t / 4000, heat = coreHeat ? coreHeat[c2] / 100 : 0.25 + energy * 0.5 * (0.6 + 0.4 * Math.sin(t / 150 + c2 * 2));
+      var lr = hr * (1.6 + heat * 2.2);
+      ctx.strokeStyle = coreHeat && heat >= .9 ? 'rgba(255,93,115,.7)' : 'rgba(180,240,255,' + (0.2 + heat * 0.5).toFixed(3) + ')'; ctx.lineWidth = 2 + heat * 3;
+      ctx.beginPath(); ctx.moveTo(hub[0] + Math.cos(ang) * hr * 0.9, hub[1] + Math.sin(ang) * hr * 0.9); ctx.lineTo(hub[0] + Math.cos(ang) * lr, hub[1] + Math.sin(ang) * lr); ctx.stroke();
+    }
+    // Gerätesterne, hinten zuerst
+    proj2.slice().sort(function (a, b) { return b.q[3] - a.q[3]; }).forEach(function (n) {
+      var c = nodeColor(n), isMe = n === me, r = (3 + n.sp * 7 + (isMe ? 3 : 0)) * n.q[2] * n.grow;
+      var g = ctx.createRadialGradient(n.q[0], n.q[1], 0, n.q[0], n.q[1], r * 4);
+      g.addColorStop(0, 'rgba(255,255,255,.95)'); g.addColorStop(.25, 'rgba(' + c.join(',') + ',.8)'); g.addColorStop(1, 'rgba(' + c.join(',') + ',0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(n.q[0], n.q[1], r * 4, 0, TAU); ctx.fill();
+      if (isMe) {   // Markierung um dein Gerät
+        ctx.strokeStyle = 'rgba(255,209,102,.8)'; ctx.lineWidth = 1.2; var rr2 = r * 3 + 6 + 3 * Math.sin(t / 300);
+        ctx.beginPath(); ctx.arc(n.q[0], n.q[1], rr2, 0, TAU); ctx.stroke();
+      }
+    });
+    ctx.globalCompositeOperation = 'source-over';
+    // Beschriftungen: dein Gerät und die vorderen Sterne
+    ctx.font = '600 12px Oxanium, sans-serif'; ctx.textAlign = 'left';
+    proj2.forEach(function (n) {
+      if (n !== me && n.q[3] > 0.3) return;
+      ctx.fillStyle = n === me ? 'rgba(255,209,102,.95)' : 'rgba(237,240,255,.7)';
+      ctx.fillText((n === me ? 'DU · ' : '') + n.name, n.q[0] + 12, n.q[1] - 8);
+      if (n.dl) { ctx.font = '300 10px "Martian Mono", monospace'; ctx.fillStyle = 'rgba(139,147,184,.9)'; ctx.fillText('↓ ' + Math.round(n.dl) + ' Mbit/s', n.q[0] + 12, n.q[1] + 6); ctx.font = '600 12px Oxanium, sans-serif'; }
+    });
+    ctx.fillStyle = 'rgba(237,240,255,.85)'; ctx.textAlign = 'center'; ctx.font = '800 12px Oxanium, sans-serif';
+    ctx.fillText((info ? info.hostname : 'ROUTER').toUpperCase(), hub[0], hub[1] + hr * 4 + 4);
+    schedule();
+  }
+  function schedule() { if (!rafId && !document.hidden) rafId = requestAnimationFrame(loop); }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { lastT = 0; schedule(); } });
+
+  // Drehen mit Maus/Finger, Tippen zeigt Details
+  cv.addEventListener('pointerdown', function (e) { drag = { x: e.clientX, y: e.clientY, yaw: yaw, pitch: pitch, t: Date.now(), moved: false }; cv.classList.add('drag'); });
+  window.addEventListener('pointermove', function (e) {
+    if (drag) {
+      var dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
+      yaw = drag.yaw + dx * 0.006; pitch = Math.max(-1.2, Math.min(1.2, drag.pitch + dy * 0.004)); vyaw = dx * 0.0004 / Math.max(.016, (Date.now() - drag.t) / 1000);
+      $('label-tip').hidden = true; return;
+    }
+    hover(e.clientX, e.clientY + (window.scrollY || 0), e.clientX, e.clientY);
+  });
+  window.addEventListener('pointerup', function (e) {
+    if (drag && !drag.moved) hover(e.clientX, e.clientY + (window.scrollY || 0), e.clientX, e.clientY, true);
+    drag = null; cv.classList.remove('drag'); vyaw = Math.max(-1, Math.min(1, vyaw));
+  });
+  function hover(x, y, sx, sy, tap) {
+    var best = null, bd = tap ? 40 : 24;
+    nodes.forEach(function (n) { if (!n.q) return; var d = Math.hypot(n.q[0] - x, n.q[1] - y); if (d < bd) { bd = d; best = n; } });
+    var tip = $('label-tip');
+    if (!best) { if (!tap) tip.hidden = true; return; }
+    tip.innerHTML = '<b>' + esc(best.name) + (best === me ? ' · du' : '') + '</b>' + (best.host && best.host !== best.name ? esc(best.host) + ' · ' : '') + esc(best.ip || '') +
+      '<br><span class="d">↓ ' + (best.dl ? Math.round(best.dl) + ' Mbit/s' : '–') + '</span>  <span class="u">↑ ' + (best.ul ? Math.round(best.ul) + ' Mbit/s' : '–') + '</span>' +
+      '<br>' + (best.runs ? best.runs + (best.runs === 1 ? ' Messung' : ' Messungen') + (best.ping !== null ? ' · Ping ' + E.fmt(best.ping, 1) + ' ms' : '') : 'noch nicht vermessen');
+    tip.style.left = Math.min(sx, W - 220) + 'px'; tip.style.top = (y) + 'px'; tip.hidden = false;
+  }
+
+  // =====================================================================
+  // Oberfläche
+  // =====================================================================
+  function setV(id, v, u) { $(id).innerHTML = v + '<small>' + u + '</small>'; }
+  function cd(p) { ['c-ping', 'c-dl', 'c-ul'].forEach(function (id) { $(id).classList.remove('on'); }); var id = { ping: 'c-ping', download: 'c-dl', upload: 'c-ul' }[p]; if (id) $(id).classList.add('on'); }
+  function spark(svg, series, color) {
+    if (series.length < 2) { svg.innerHTML = ''; return; }
+    var max = Math.max.apply(null, series) * 1.08, n = series.length;
+    var d = series.map(function (v, i) { return (i ? 'L' : 'M') + (i / (n - 1) * 300).toFixed(1) + ' ' + (48 - v / max * 44).toFixed(1); }).join(' ');
+    svg.innerHTML = '<path d="' + d + ' L300 50 L0 50 Z" fill="' + color + '" fill-opacity=".14"/><path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>';
+  }
+  function verdict(dl) {
+    if (dl >= 4700) return 'Hellster Stern am Himmel: <b>über 5 Gbit/s</b>.';
+    if (dl >= 2000) return 'Fast im Zentrum: <b>2,5 GbE</b> voll ausgeschöpft.';
+    if (dl >= 940) return 'Innere Umlaufbahn: <b>schneller als Gigabit</b>.';
+    if (dl >= 600) return 'Stabile Bahn in der <b>Gigabit-Klasse</b>.';
+    if (dl >= 90) return 'Äußere Bahn: typisch für <b>WLAN mit Abstand</b>.';
+    return 'Am Rand der Karte: <b>Kabel, Port oder WLAN prüfen</b>.';
+  }
+  function mode(on) {
+    running = on; $('go').classList.toggle('firing', on); $('go').textContent = on ? 'Strahl stoppen' : 'Strahl senden';
+    if (!on) { phase = null; live = 0; document.body.className = ''; cd(null); }
+  }
+  function start() {
+    if (running) { E.stop(); mode(false); $('phase').textContent = 'Abgebrochen'; $('sub').textContent = 'Nicht im Logbuch gespeichert'; return; }
+    var streams = +$('streams').value, duration = +$('duration').value, label = $('label').value.replace(/^\s+|\s+$/g, '');
+    try { localStorage.setItem('st-label', label); localStorage.setItem('st-streams', streams); localStorage.setItem('st-duration', duration); } catch (e) { }
+    $('result').hidden = true; coreHeat = null; rebuild();
+    setV('v-ping', '–', 'ms'); setV('v-jit', '–', 'ms'); setV('v-dl', '–', 'Mbit/s'); setV('v-ul', '–', 'Mbit/s'); setV('v-cpu', '–', '%');
+    mode(true);
+    var res = {}, ping = null, jit = null;
+    E.run({ streams: streams, duration: duration, label: label }, {
+      phase: function (p) {
+        phase = p; live = 0; shown = 0; document.body.className = 'p-' + p; cd(p);
+        $('phase').textContent = { ping: 'Ping · Signallaufzeit', download: 'Download · Router → ' + (me ? me.name : 'Gerät'), upload: 'Upload · ' + (me ? me.name : 'Gerät') + ' → Router' }[p];
+        $('big').innerHTML = '…<small>' + (p === 'ping' ? 'ms' : 'Mbit/s') + '</small>';
+      },
+      pingSample: function (ms, i, n) { $('big').innerHTML = E.fmt(ms, 1) + '<small>ms</small>'; $('sub').textContent = 'Impuls ' + (i + 1) + ' von ' + n; pulses.push({ f: 0 }); },
+      ping: function (p, j) { ping = p; jit = j; setV('v-ping', E.fmt(p, p < 10 ? 1 : 0), 'ms'); setV('v-jit', E.fmt(j, 1), 'ms'); },
+      live: function (kind, m, prog) { $('sub').textContent = 'Fortschritt ' + Math.round(prog * 100) + ' %'; if (m === null) return; live = m; var s = E.fmtSpeed(m); $('big').innerHTML = s.v + '<small>' + s.u + '</small>'; },
+      result: function (kind, r) {
+        res[kind] = r; var s = E.fmtSpeed(r.peak), a = E.fmtSpeed(r.avg);
+        setV(kind === 'download' ? 'v-dl' : 'v-ul', s.v, s.u); $(kind === 'download' ? 's-dl' : 's-ul').textContent = 'Ø ' + a.v + ' ' + a.u;
+        var mc = Math.max(res.download ? res.download.core || 0 : 0, res.upload ? res.upload.core || 0 : 0); if (r.core !== null) setV('v-cpu', Math.round(mc), '%');
+      },
+      done: function () {
+        mode(false);
+        var d = res.download, u = res.upload, s = E.fmtSpeed(d.peak);
+        $('phase').textContent = 'Vermessen · Download-Spitze'; $('big').innerHTML = s.v + '<small>' + s.u + '</small>'; $('sub').textContent = 'Dein Stern ist neu eingeordnet';
+        coreHeat = []; for (var i = 0; i < ((info && info.cores) || 0); i++) coreHeat.push(Math.max(d.cores ? d.cores[i] || 0 : 0, u.cores ? u.cores[i] || 0 : 0));
+        loadHistory(function () { showResult(res, ping, jit); });
+      },
+      error: function (msg) { mode(false); $('phase').textContent = msg; }
+    });
+  }
+  function showResult(res, ping, jit) {
+    var d = res.download, u = res.upload, sd = E.fmtSpeed(d.peak), su = E.fmtSpeed(u.peak), ad = E.fmtSpeed(d.avg), au = E.fmtSpeed(u.avg);
+    $('r-title').textContent = 'Knotenbericht · ' + (me ? me.name : 'Gerät');
+    $('verdict').innerHTML = verdict(d.peak);
+    $('r-dl').innerHTML = sd.v + '<small>' + sd.u + '</small>'; $('r-dl-s').textContent = 'Ø ' + ad.v + ' ' + ad.u;
+    $('r-ul').innerHTML = su.v + '<small>' + su.u + '</small>'; $('r-ul-s').textContent = 'Ø ' + au.v + ' ' + au.u;
+    spark($('g-dl'), d.series, '#5ce1e6'); spark($('g-ul'), u.series, '#c38bff');
+    $('r-ping').textContent = ping === null ? '–' : E.fmt(ping, 1) + ' ms'; $('r-jit').textContent = jit === null ? '–' : E.fmt(jit, 1) + ' ms';
+    var ranked = nodes.filter(function (n) { return n.dl; }).sort(function (a, b) { return b.dl - a.dl; });
+    var pos = ranked.indexOf(me) + 1;
+    $('r-rank').textContent = pos ? pos + ' von ' + ranked.length : '–';
+    var max = ranked.length ? ranked[0].dl : 1;
+    $('rank').innerHTML = '<tr><th>#</th><th>Gerät</th><th>Download</th><th>Upload</th><th>Ping</th></tr>' + ranked.map(function (n, i) {
+      return '<tr' + (n === me ? ' class="me"' : '') + '><td class="n">' + (i + 1) + '</td><td>' + esc(n.name) + (n === me ? ' · du' : '') + '</td><td><span class="bar" style="width:' + Math.round(n.dl / max * 60) + 'px"></span>' + Math.round(n.dl) + '</td><td>' + (n.ul ? Math.round(n.ul) : '–') + '</td><td>' + (n.ping === null ? '–' : E.fmt(n.ping, 1)) + '</td></tr>';
+    }).join('');
+    $('cores').innerHTML = (coreHeat || []).map(function (c, i) { return '<div class="' + (c >= 90 ? 'hot' : '') + '"><i style="height:' + Math.max(4, Math.round(c)) + '%"></i><span>K' + (i + 1) + ' ' + Math.round(c) + '%</span></div>'; }).join('');
+    var mc = Math.max(d.core || 0, u.core || 0);
+    $('warn').hidden = mc < 90; $('warn').textContent = 'Der Zentralstern glüht: Ein Router-Kern lag bei ' + Math.round(mc) + ' %. Das Ergebnis zeigt eher die Grenze des Routers.';
+    $('result').hidden = false;
+    $('result').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+  }
+
+  // ---------- Verlauf ----------
+  function n0(v) { return v === null || v === undefined ? '–' : E.fmt(v, 0); }
+  function sp(peak, avg) { return peak === null || peak === undefined ? n0(avg) : n0(peak) + ' <small>/ ' + n0(avg) + '</small>'; }
+  function loadHistory(cb) {
+    E.history(function (h) {
+      hist = h; rebuild();
+      if (!h.length) { $('history').innerHTML = '<div class="empty">Noch keine Messungen.</div>'; if (cb) cb(); return; }
+      var rows = '';
+      for (var i = h.length - 1; i >= 0; i--) {
+        var e = h[i], d = new Date(e.ts * 1000);
+        var when = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '. ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        var who = e.label || e.host || e.ip; if (e.label && e.host) who = esc(e.label) + ' <small>' + esc(e.host) + '</small>'; else who = esc(who);
+        rows += '<tr><td>' + when + '</td><td>' + who + '</td><td>' + (e.ping === null ? '–' : E.fmt(e.ping, 1)) + '</td><td>' + (e.jitter === null || e.jitter === undefined ? '–' : E.fmt(e.jitter, 1)) +
+          '</td><td class="dl">' + sp(e.dl_peak, e.dl) + '</td><td class="ul">' + sp(e.ul_peak, e.ul) + '</td><td>' + (e.core_dl === null || e.core_dl === undefined ? '–' : e.core_dl + ' / ' + e.core_ul) + '</td></tr>';
+      }
+      $('history').innerHTML = '<table><tr><th>Zeit</th><th>Gerät</th><th>Ping ms</th><th>Jitter ms</th><th>Down Mbit/s<br>Spitze / Ø</th><th>Up Mbit/s<br>Spitze / Ø</th><th>Kern %<br>↓ / ↑</th></tr>' + rows + '</table>';
+      if (cb) cb();
+    });
+  }
+  function clearAsk() {
+    $('clear-wrap').innerHTML = '<span class="confirm">Alles löschen? <button class="btn" id="yes">Ja</button><button class="btn" id="no">Nein</button></span>';
+    $('yes').onclick = function () { E.clearHistory(function () { loadHistory(); clearReset(); }); };
+    $('no').onclick = clearReset;
+  }
+  function clearReset() { $('clear-wrap').innerHTML = '<button class="btn" id="clear">Löschen</button>'; $('clear').onclick = clearAsk; }
+  $('clear').onclick = clearAsk;
+
+  $('go').onclick = start;
+  $('again').onclick = function () { window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' }); start(); };
+  $('label').addEventListener('change', rebuild);
+
+  try {
+    var l = localStorage.getItem('st-label'), s = localStorage.getItem('st-streams'), d = localStorage.getItem('st-duration');
+    if (l) $('label').value = l; if (s) $('streams').value = s; if (d) $('duration').value = d;
+  } catch (e) { }
+
+  size(); window.addEventListener('resize', size);
+  schedule();
+
+  E.init(function (i) {
+    info = i;
+    $('who').innerHTML = '<span>Zentralstern <b>' + esc(i.hostname) + '</b> · ' + esc(i.model || '') + '</span><span>' + i.cores + ' Kerne · Du: ' + esc(i.client_host ? i.client_host + ' (' + i.client_ip + ')' : i.client_ip) + '</span>' + (i.demo ? '<span><span class="demo">DEMO</span></span>' : '');
+    $('go').disabled = false; size();
+    loadHistory();
+  });
+})();
+</script>
+</body>
+</html>
