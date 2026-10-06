@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#030605">
+<title>Speedtest Silizium</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wght@200;300;500;700&family=Share+Tech+Mono&display=swap">
+<style>
+/* Konzept "Silizium": Makroaufnahme der Router-Platine. Die Daten rasen als Lichtimpulse über die Leiterbahnen:
+   Download von der SoC zur LAN-Buchse, Upload zurück, dazwischen der Speicherbus mit DDR-Mäandern.
+   Die CPU-Kerne im SoC glühen mit. Nach der Messung wird das Ergebnis in den Bestückungsdruck geätzt,
+   darunter Prüfbericht als Stückliste und die Revisionen als Verlauf. Platine als festes Canvas, Werte im DOM. */
+:root {
+  --board: #030605;        /* Lötstopplack, schwarz mit Grünstich */
+  --copper: #14261f;       /* Leiterbahn unbeleuchtet */
+  --silk: #d6e2dc;         /* Bestückungsdruck */
+  --gold: #c9a24a;         /* Pads, ENIG */
+  --ink: #e9f3ef;
+  --mute: #8aa39a;
+  --faint: #4d6159;
+  --line: rgba(160, 220, 200, .16);
+  --glass: rgba(3, 8, 7, .72);
+  --down: #3ef0ff;         /* Download: Elektrisch Cyan */
+  --up: #ffb13b;           /* Upload: Bernstein */
+  --ping: #f4f7ff;
+  --hot: #ff5a3c;
+  --acc: #3ef0ff;
+  --f-d: "Saira", "Bahnschrift", "Segoe UI", sans-serif;
+  --f-m: "Share Tech Mono", ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+body.p-ping { --acc: var(--ping); }
+body.p-upload { --acc: var(--up); }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { background: var(--board); }
+body { margin: 0; color: var(--ink); font: 15px/1.5 var(--f-d); overflow-x: hidden; min-height: 100vh; background: var(--board); }
+#pcb { position: absolute; left: 0; top: 0; width: 100%; z-index: 0; display: block; pointer-events: none; }
+main { position: relative; z-index: 1; }
+main * { min-width: 0; }
+button, select, input { font: inherit; }
+:focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; }
+
+.stage { min-height: 100vh; min-height: 100svh; max-width: 1280px; margin: 0 auto; padding: 18px 24px 22px; display: flex; flex-direction: column; gap: 14px; }
+.top { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 6px 20px; }
+.mark { font: 700 1.05rem/1 var(--f-d); letter-spacing: .5em; text-transform: uppercase; }
+.mark small { display: block; font: .66rem var(--f-m); letter-spacing: .2em; color: var(--mute); margin-top: 6px; }
+.who { color: var(--mute); font: .78rem var(--f-m); text-align: right; display: grid; gap: 2px; }
+.who b { color: var(--silk); font-weight: 400; }
+.demo { color: #120d00; background: var(--up); padding: 0 6px; font: .7rem var(--f-m); letter-spacing: .1em; }
+.spacer { flex: 1; }
+
+.dock { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px 30px; align-items: end; }
+.readout { display: grid; gap: 2px; }
+.phase { font: .78rem var(--f-m); letter-spacing: .3em; text-transform: uppercase; color: var(--acc); min-height: 1.2em; }
+.big { font: 200 clamp(4.2rem, 17vw, 11rem)/.86 var(--f-d); letter-spacing: -.03em; font-variant-numeric: tabular-nums; white-space: nowrap;
+  text-shadow: 0 0 34px color-mix(in srgb, var(--acc) 50%, transparent); }
+.big small { font: 300 clamp(1rem, 2.4vw, 1.5rem) var(--f-d); letter-spacing: .1em; color: var(--mute); margin-left: .4em; text-shadow: none; }
+.trace { display: flex; align-items: center; gap: 10px; font: .74rem var(--f-m); color: var(--mute); min-height: 1.3em; }
+.trace i { flex: none; width: 140px; height: 2px; background: var(--copper); position: relative; overflow: hidden; }
+.trace i b { position: absolute; inset: 0; width: 0; background: var(--acc); box-shadow: 0 0 8px var(--acc); }
+
+/* Taster SW1 */
+.sw { display: grid; justify-items: center; gap: 8px; }
+.sw button { width: 112px; height: 112px; border: 0; cursor: pointer; position: relative; background: #0c1210; color: var(--silk);
+  box-shadow: 0 0 0 2px var(--gold), 0 0 0 8px #070c0a, 0 0 0 9px rgba(214,226,220,.35), 0 10px 30px rgba(0,0,0,.6);
+  font: .72rem var(--f-m); letter-spacing: .2em; }
+.sw button::before { content: ""; position: absolute; inset: 24px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #2a3430, #0b100e 70%); box-shadow: inset 0 2px 3px rgba(255,255,255,.1), 0 3px 6px #000; }
+.sw button span { position: relative; }
+.sw button:hover::before { box-shadow: inset 0 2px 3px rgba(255,255,255,.1), 0 0 18px rgba(62,240,255,.5); }
+.sw button:active::before { inset: 26px; }
+.sw button:disabled { opacity: .45; cursor: default; }
+.sw small { font: .66rem var(--f-m); letter-spacing: .2em; color: var(--silk); }
+.sw button.run span { color: var(--hot); }
+
+.pins { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.pin { background: var(--glass); border: 1px solid var(--line); padding: 9px 12px 10px; position: relative; backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
+.pin::before { content: ""; position: absolute; left: -1px; top: 10px; width: 3px; height: 14px; background: var(--gold); }
+.pin .k { font: .7rem var(--f-m); letter-spacing: .14em; color: var(--mute); display: flex; justify-content: space-between; gap: 6px; }
+.pin .k em { font-style: normal; color: var(--faint); }
+.pin .v { font: 300 1.75rem/1.15 var(--f-d); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pin .v small { font: .72rem var(--f-m); color: var(--mute); margin-left: 4px; }
+.pin .s { font: .7rem var(--f-m); color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 1.2em; }
+.pin.dl .v { color: var(--down); } .pin.ul .v { color: var(--up); } .pin.cpu .v { color: var(--silk); }
+.pin.on { border-color: color-mix(in srgb, var(--acc) 55%, transparent); }
+
+.ctrl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; color: var(--mute); font: .78rem var(--f-m); }
+.ctrl label { display: flex; align-items: center; gap: 6px; }
+select, input { color: var(--ink); background: rgba(6,12,10,.9); border: 1px solid var(--line); padding: 5px 8px; font: .8rem var(--f-m); }
+input { width: 11em; }
+.btn { font: .74rem var(--f-m); letter-spacing: .16em; text-transform: uppercase; color: var(--silk); background: transparent; border: 1px solid var(--line); padding: 7px 14px; cursor: pointer; }
+.btn:hover { border-color: var(--acc); color: var(--acc); }
+
+/* Prüfbericht */
+.sheet { max-width: 1280px; margin: 0 auto; padding: 10px 24px 40px; display: grid; gap: 22px; }
+.sheet h2 { margin: 0 0 10px; font: .8rem var(--f-m); letter-spacing: .3em; text-transform: uppercase; color: var(--mute); display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.report { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.card { background: var(--glass); border: 1px solid var(--line); padding: 18px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: grid; gap: 12px; align-content: start; }
+.verdict { font: 300 clamp(1.3rem, 3.4vw, 2rem)/1.2 var(--f-d); text-wrap: balance; }
+.verdict b { font-weight: 500; color: var(--acc); }
+.duo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.duo .k { font: .7rem var(--f-m); letter-spacing: .16em; color: var(--mute); }
+.duo .v { font: 200 clamp(2.4rem, 6vw, 3.6rem)/1 var(--f-d); font-variant-numeric: tabular-nums; }
+.duo .v small { font: .8rem var(--f-m); color: var(--mute); margin-left: 6px; }
+.duo .dl .v { color: var(--down); } .duo .ul .v { color: var(--up); }
+.duo svg { display: block; width: 100%; height: 50px; margin-top: 6px; }
+.duo .s { font: .72rem var(--f-m); color: var(--mute); }
+.bom { width: 100%; border-collapse: collapse; font: .8rem var(--f-m); font-variant-numeric: tabular-nums; }
+.bom th, .bom td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.bom th { color: var(--mute); font-weight: 400; letter-spacing: .12em; font-size: .7rem; }
+.bom td:last-child, .bom th:last-child { text-align: right; }
+.bom td.ref { color: var(--gold); }
+.die { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+.die div { border: 1px solid var(--line); padding: 8px 10px; font: .72rem var(--f-m); color: var(--mute); position: relative; overflow: hidden; }
+.die div b { display: block; font: 300 1.4rem var(--f-d); color: var(--ink); position: relative; }
+.die div span { position: relative; }
+.die div i { position: absolute; left: 0; bottom: 0; top: 0; background: linear-gradient(90deg, rgba(62,240,255,.18), rgba(255,177,59,.28)); }
+.die div.hot i { background: linear-gradient(90deg, rgba(255,90,60,.25), rgba(255,90,60,.45)); }
+.warn { color: var(--hot); font-size: .85rem; }
+
+.tbl { overflow-x: auto; background: var(--glass); border: 1px solid var(--line); }
+.tbl table { width: 100%; border-collapse: collapse; font: .8rem var(--f-m); font-variant-numeric: tabular-nums; }
+.tbl th, .tbl td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.tbl th { color: var(--mute); font-weight: 400; font-size: .7rem; letter-spacing: .12em; }
+.tbl th:nth-child(-n+3), .tbl td:nth-child(-n+3) { text-align: left; }
+.tbl td.dl { color: var(--down); } .tbl td.ul { color: var(--up); } .tbl td.ref { color: var(--gold); }
+.tbl td small { color: var(--faint); }
+.empty { color: var(--mute); padding: 12px; font: .8rem var(--f-m); }
+.confirm { display: inline-flex; gap: 8px; align-items: center; font: .72rem var(--f-m); letter-spacing: 0; text-transform: none; }
+
+@media (max-width: 760px) {
+  .dock { gap: 12px; }
+  .sw button { width: 84px; height: 84px; }
+  .sw button::before { inset: 18px; }
+  .big { font-size: clamp(3.4rem, 17vw, 5rem); }
+  .pins { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pin.cpu { grid-column: span 2; }
+  .report { grid-template-columns: minmax(0, 1fr); }
+  .stage, .sheet { padding-left: 16px; padding-right: 16px; }
+  .who { text-align: left; }
+}
+</style>
+</head>
+<body>
+<canvas id="pcb" aria-hidden="true"></canvas>
+<main>
+  <section class="stage">
+    <div class="top">
+      <div class="mark">Silizium<small id="rev">REV A · LAN-SPEEDTEST</small></div>
+      <div class="who" id="who">Platine wird bestromt …</div>
+    </div>
+    <div class="spacer"></div>
+
+    <div class="dock">
+      <div class="readout">
+        <div class="phase" id="phase">Bereit · SW1 drücken</div>
+        <div class="big" id="big">0<small>Mbit/s</small></div>
+        <div class="trace"><i><b id="prog"></b></i><span id="sub">LAN → SoC → DDR</span></div>
+      </div>
+      <div class="sw"><button id="go" disabled aria-label="Messung starten"><span id="go-t">START</span></button><small>SW1</small></div>
+    </div>
+
+    <div class="pins">
+      <div class="pin" id="p-ping"><div class="k">PING<em>TP1</em></div><div class="v" id="v-ping">–<small>ms</small></div><div class="s">Laufzeit Gerät ↔ Router</div></div>
+      <div class="pin"><div class="k">JITTER<em>TP2</em></div><div class="v" id="v-jit">–<small>ms</small></div><div class="s">Schwankung der Laufzeit</div></div>
+      <div class="pin dl" id="p-dl"><div class="k">DOWNLOAD<em>TP3</em></div><div class="v" id="v-dl">–<small>Mbit/s</small></div><div class="s" id="s-dl">SoC → LAN</div></div>
+      <div class="pin ul" id="p-ul"><div class="k">UPLOAD<em>TP4</em></div><div class="v" id="v-ul">–<small>Mbit/s</small></div><div class="s" id="s-ul">LAN → SoC</div></div>
+      <div class="pin cpu"><div class="k">ROUTER-CPU<em>U1</em></div><div class="v" id="v-cpu">–<small>%</small></div><div class="s" id="s-cpu">stärkster Kern</div></div>
+    </div>
+
+    <div class="ctrl">
+      <label for="streams">Verbindungen <select id="streams"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select></label>
+      <label for="duration">Dauer <select id="duration"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></label>
+      <label for="label">Gerät <input id="label" maxlength="40" placeholder="z. B. Laptop WLAN"></label>
+    </div>
+  </section>
+
+  <section class="sheet">
+    <div id="result" hidden>
+      <h2>Prüfbericht <button class="btn" id="again">Neu prüfen</button></h2>
+      <div class="report">
+        <div class="card">
+          <div class="verdict" id="verdict">–</div>
+          <div class="duo">
+            <div class="dl"><div class="k">DOWNLOAD · SPITZE</div><div class="v" id="r-dl">–</div><div class="s" id="r-dl-s"></div><svg id="c-dl" viewBox="0 0 300 50" preserveAspectRatio="none"></svg></div>
+            <div class="ul"><div class="k">UPLOAD · SPITZE</div><div class="v" id="r-ul">–</div><div class="s" id="r-ul-s"></div><svg id="c-ul" viewBox="0 0 300 50" preserveAspectRatio="none"></svg></div>
+          </div>
+        </div>
+        <div class="card">
+          <table class="bom" id="bom"></table>
+          <div class="die" id="die"></div>
+          <div class="warn" id="warn" hidden></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <h2>Revisionen <span id="clear-wrap"><button class="btn" id="clear">Löschen</button></span></h2>
+      <div class="tbl" id="history"><div class="empty">Noch keine Messungen.</div></div>
+    </div>
+  </section>
+</main>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.SpeedEngine, $ = function (id) { return document.getElementById(id); };
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var info = null, phase = null, live = 0, shown = 0, running = false, coreLoad = null, etch = null;
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function rnd(a, b) { return a + Math.random() * (b - a); }
+
+  // =====================================================================
+  // Platine: Layout in einem logischen Raum 1000 x 600 (quer). Im Hochformat
+  // wird es um 90° gedreht. Leiterbahnen sind Polylinien mit 0/45/90 Grad.
+  // =====================================================================
+  var cv = $('pcb'), ctx = cv.getContext('2d'), bg = document.createElement('canvas'), bctx = bg.getContext('2d');
+  var W = 0, H = 0, DPR = 1, portrait = false, sc = 1, ox = 0, oy = 0;
+  var traces = [], pulses = [], SOC = { x: 560, y: 300, s: 150 }, cores = 3, seed = 7;
+  function rand() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }   // reproduzierbar
+  function T(x, y) {   // logisch -> Bildschirm
+    if (portrait) { var t = x; x = 600 - y; y = t; }
+    return [ox + x * sc, oy + y * sc];
+  }
+  function size() {
+    DPR = Math.min(window.devicePixelRatio || 1, 1.75);
+    // Platine deckt die Bühne ab (erster Bildschirm) und scrollt mit
+    W = document.documentElement.clientWidth; H = Math.max(window.innerHeight, document.querySelector('.stage').offsetHeight); portrait = H > W * 1.05;
+    cv.style.height = H + 'px';
+    cv.width = bg.width = Math.round(W * DPR); cv.height = bg.height = Math.round(H * DPR);
+    var lw = portrait ? 600 : 1000, lh = portrait ? 1000 : 600;
+    sc = Math.max(W / lw, H / lh) * 1.04;   // füllend, leicht über den Rand
+    ox = (W - lw * sc) / 2; oy = (H - lh * sc) / 2 - (portrait ? H * 0.24 : H * 0.08);
+    build(); drawBoard();
+  }
+  function poly(pts, kind, w) {
+    var len = 0, seg = [0];
+    for (var i = 1; i < pts.length; i++) { len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); seg.push(len); }
+    traces.push({ p: pts, seg: seg, len: len, kind: kind, w: w || 1.6 });
+  }
+  function build() {
+    traces = []; seed = 7;
+    var s = SOC.s / 2, L = SOC.x - s, R = SOC.x + s, Tp = SOC.y - s, B = SOC.y + s;
+    // Bus 1: LAN-Buchse (8 Adern, 4 Paare) -> PHY -> SoC links
+    for (var i = 0; i < 8; i++) {
+      var y0 = 262 + i * 11, yPhy = 270 + i * 8, y1 = SOC.y - 56 + i * 16;
+      var x0 = 118, xa = 170 + i * 3, xb = 250, xc = 330;
+      var d1 = Math.abs(yPhy - y0), d2 = Math.abs(y1 - yPhy);
+      poly([[x0, y0], [xa, y0], [xa + d1, yPhy], [xb, yPhy]], 'lan', 1.8);
+      poly([[xb + 60, yPhy], [xc, yPhy], [xc + d2, y1], [L, y1]], 'phy', 1.6);
+    }
+    // Bus 2: SoC rechts -> zwei DDR-Chips, mit Mäandern zum Längenausgleich
+    for (var c = 0; c < 2; c++) {
+      for (var j = 0; j < 8; j++) {
+        var yy = SOC.y - 60 + c * 64 + j * 7, ty = (c ? 360 : 172) + j * 9, x0b = R, mx = R + 40 + j * 4;
+        var pts = [[x0b, yy], [mx, yy]], dy = ty - yy, ax = mx + Math.abs(dy);
+        pts.push([ax, ty]);
+        var mw = 6 + (7 - j) * 1.5, xx = ax;   // innere Leitungen bekommen mehr Mäander
+        for (var k = 0; k < 3 + (7 - j) % 4; k++) { pts.push([xx + 5, ty]); pts.push([xx + 5, ty - mw]); pts.push([xx + 10, ty - mw]); pts.push([xx + 10, ty]); xx += 10; }
+        pts.push([800, ty]);
+        poly(pts, 'ddr', 1.2);
+      }
+    }
+    // Bus 3: SoC oben -> WLAN-Funkteil, unten -> Flash und Spannungsregler
+    for (var m = 0; m < 6; m++) {
+      var xs = SOC.x - 50 + m * 20;
+      poly([[xs, Tp], [xs, 130 - m * 4], [xs - 60 - m * 6, 70 - m * 4], [445, 70 - m * 4]], 'rf', 1.4);
+      poly([[xs, B], [xs, 470 + m * 4], [xs + 50 + m * 8, 520 + m * 4], [930, 520 + m * 4]], 'io', 1.2);
+    }
+    // Feine Füllbahnen zu Kondensatoren rund um die SoC
+    for (var q = 0; q < 26; q++) {
+      var a = q / 26 * Math.PI * 2, r0 = SOC.s * 0.78, r1 = r0 + 30 + rand() * 60;
+      var xA = SOC.x + Math.cos(a) * r0, yA = SOC.y + Math.sin(a) * r0;
+      poly([[xA, yA], [SOC.x + Math.cos(a) * r1, SOC.y + Math.sin(a) * r1]], 'cap', 0.9);
+    }
+  }
+  function path(c, pts) { c.beginPath(); for (var i = 0; i < pts.length; i++) { var p = T(pts[i][0], pts[i][1]); if (i) c.lineTo(p[0], p[1]); else c.moveTo(p[0], p[1]); } }
+  function rectL(c, x, y, w, h) { var a = T(x, y), b = T(x + w, y + h); c.rect(Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1])); }
+  function textL(c, s, x, y, size, col, align) {
+    var p = T(x, y); c.save(); c.translate(p[0], p[1]); if (portrait) c.rotate(Math.PI / 2);
+    c.font = (size * sc) + 'px "Share Tech Mono", monospace'; c.fillStyle = col; c.textAlign = align || 'left'; c.fillText(s, 0, 0); c.restore();
+  }
+  function drawBoard() {
+    var c = bctx; c.setTransform(DPR, 0, 0, DPR, 0, 0);
+    c.fillStyle = '#030605'; c.fillRect(0, 0, W, H);
+    // Kupferfläche als feines Rautenmuster
+    c.strokeStyle = 'rgba(40,70,58,.18)'; c.lineWidth = 1;
+    for (var d = -H; d < W + H; d += 9 * sc) { c.beginPath(); c.moveTo(d, 0); c.lineTo(d + H, H); c.stroke(); }
+    // Leiterbahnen
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    traces.forEach(function (t) { c.strokeStyle = t.kind === 'cap' ? '#10201a' : '#173027'; c.lineWidth = t.w * sc; path(c, t.p); c.stroke(); });
+    // Vias
+    c.fillStyle = '#0d1714'; c.strokeStyle = 'rgba(201,162,74,.55)'; c.lineWidth = 1;
+    traces.forEach(function (t, i) { if (t.kind === 'cap' || i % 2) return; var p = T(t.p[t.p.length - 1][0], t.p[t.p.length - 1][1]); c.beginPath(); c.arc(p[0], p[1], 2.4 * sc, 0, 7); c.fill(); c.stroke(); });
+    // Bauteile
+    function chip(x, y, w, h, label, sub, pins) {
+      c.fillStyle = '#0a0f0e'; c.strokeStyle = 'rgba(214,226,220,.25)'; c.lineWidth = 1;
+      c.beginPath(); rectL(c, x, y, w, h); c.fill(); c.stroke();
+      c.fillStyle = '#c9a24a';
+      for (var i = 0; i < pins; i++) {
+        var f = (i + .5) / pins;
+        c.beginPath(); rectL(c, x - 5, y + f * h - 1.5, 5, 3); rectL(c, x + w, y + f * h - 1.5, 5, 3); c.fill();
+      }
+      textL(c, label, x + w / 2, y + h / 2, 9, 'rgba(214,226,220,.75)', 'center');
+      if (sub) textL(c, sub, x + w / 2, y + h / 2 + 12, 6.5, 'rgba(214,226,220,.4)', 'center');
+    }
+    // LAN-Buchse
+    c.fillStyle = '#0b100f'; c.strokeStyle = 'rgba(214,226,220,.35)'; c.beginPath(); rectL(c, 20, 236, 92, 128); c.fill(); c.stroke();
+    c.fillStyle = '#c9a24a'; for (var i = 0; i < 8; i++) { c.beginPath(); rectL(c, 104, 259 + i * 11, 14, 6); c.fill(); }
+    textL(c, 'J1 · RJ45', 66, 228, 8, 'rgba(214,226,220,.8)', 'center');
+    textL(c, 'LAN', 66, 304, 16, 'rgba(214,226,220,.18)', 'center');
+    chip(250, 258, 60, 80, 'U3', 'PHY', 8);
+    chip(800, 160, 70, 90, 'U4', 'DDR4', 9);
+    chip(800, 350, 70, 90, 'U5', 'DDR4', 9);
+    chip(370, 26, 70, 70, 'U6', 'WLAN', 6);
+    chip(860, 500, 60, 50, 'U7', 'FLASH', 4);
+    // SoC mit Pin-Ring
+    var s = SOC.s;
+    c.fillStyle = '#c9a24a';
+    for (var p = 0; p < 14; p++) { var f = (p + .5) / 14;
+      c.beginPath(); rectL(c, SOC.x - s / 2 + f * s - 1.5, SOC.y - s / 2 - 7, 3, 7); rectL(c, SOC.x - s / 2 + f * s - 1.5, SOC.y + s / 2, 3, 7);
+      rectL(c, SOC.x - s / 2 - 7, SOC.y - s / 2 + f * s - 1.5, 7, 3); rectL(c, SOC.x + s / 2, SOC.y - s / 2 + f * s - 1.5, 7, 3); c.fill(); }
+    c.fillStyle = '#070b0a'; c.strokeStyle = 'rgba(214,226,220,.35)'; c.beginPath(); rectL(c, SOC.x - s / 2, SOC.y - s / 2, s, s); c.fill(); c.stroke();
+    textL(c, 'U1 · SoC', SOC.x - s / 2, SOC.y - s / 2 - 14, 8, 'rgba(214,226,220,.8)');
+    // Kleinteile: Kondensatoren und Widerstände an den Enden der Füllbahnen
+    traces.forEach(function (t, i) {
+      if (t.kind !== 'cap') return; var e = t.p[1];
+      c.fillStyle = i % 3 ? '#3a2c1a' : '#1b1b1b'; c.beginPath(); rectL(c, e[0] - 5, e[1] - 3, 10, 6); c.fill();
+      c.fillStyle = '#c9a24a'; c.beginPath(); rectL(c, e[0] - 6, e[1] - 3, 2, 6); rectL(c, e[0] + 4, e[1] - 3, 2, 6); c.fill();
+      if (i % 4 === 0) textL(c, (i % 3 ? 'C' : 'R') + (10 + i), e[0], e[1] - 6, 5.5, 'rgba(214,226,220,.35)', 'center');
+    });
+    // Befestigungslöcher und Platinenrand
+    [[30, 30], [970, 30], [30, 570], [970, 570]].forEach(function (h) { var p = T(h[0], h[1]); c.strokeStyle = 'rgba(201,162,74,.6)'; c.lineWidth = 3 * sc; c.beginPath(); c.arc(p[0], p[1], 9 * sc, 0, 7); c.stroke(); });
+    textL(c, 'OPENWRT LAN-SPEEDTEST · REV A', 960, 588, 7, 'rgba(214,226,220,.35)', 'right');
+    // Ergebnis im Bestückungsdruck
+    if (etch) {
+      var n = Math.floor(etch.n);
+      etch.lines.forEach(function (ln, i) {
+        var shownTxt = ln.slice(0, Math.max(0, n - i * 30));
+        textL(c, shownTxt, 168, 150 + i * 15, 10, 'rgba(214,226,220,.88)');
+      });
+      var a = T(160, 136), b = T(400, 194);
+      c.strokeStyle = 'rgba(214,226,220,.5)'; c.lineWidth = 1; c.strokeRect(Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]));
+    }
+  }
+
+  // ---------- Impulse ----------
+  function at(t, d) {   // Punkt bei Abstand d entlang einer Bahn
+    var s = t.seg, i = 1; while (i < s.length - 1 && s[i] < d) i++;
+    var f = s[i] === s[i - 1] ? 0 : (d - s[i - 1]) / (s[i] - s[i - 1]), a = t.p[i - 1], b = t.p[i];
+    return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+  }
+  function spawn(kind, dir, col, speed, tail) {
+    var list = traces.filter(function (t) { return t.kind === kind; });
+    if (!list.length) return;
+    var t = list[Math.floor(Math.random() * list.length)];
+    pulses.push({ t: t, d: dir > 0 ? 0 : t.len, dir: dir, col: col, v: speed * rnd(.8, 1.2), tail: tail });
+  }
+  // Datenweg: Download SoC -> PHY -> LAN (rückwärts entlang der Bahnen), Upload umgekehrt.
+  // Der Speicherbus läuft in beiden Fällen mit, weil die Daten durch den RAM gehen.
+  var acc = { lan: 0, ddr: 0, rf: 0, io: 0 }, lastT = 0, rafId = 0, energy = 0, flick = [];
+  function loop(t) {
+    rafId = 0;
+    var dt = Math.min(0.05, (t - (lastT || t)) / 1000); lastT = t;
+    shown += (live - shown) * Math.min(1, dt * 3);
+    var flowing = phase === 'download' || phase === 'upload';
+    var target = flowing ? Math.log(1 + shown / 20) / Math.log(1 + 10000 / 20) : 0;
+    energy += (target - energy) * Math.min(1, dt * 2.5);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(bg, 0, 0);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+    var col = phase === 'upload' ? '255,177,59' : '62,240,255', dir = phase === 'upload' ? 1 : -1;
+    if (flowing && !reduce) {
+      acc.lan += dt * (4 + energy * 110); acc.ddr += dt * (2 + energy * 70);
+      while (acc.lan >= 1) { acc.lan--; spawn('lan', dir, col, 380 + energy * 900, 40 + energy * 70); spawn('phy', dir, col, 380 + energy * 900, 40 + energy * 70); }
+      while (acc.ddr >= 1) { acc.ddr--; spawn('ddr', Math.random() < .5 ? 1 : -1, '160,255,230', 300 + energy * 700, 30 + energy * 40); }
+    }
+    // Leerlauf: gelegentliches Flackern auf Funk- und IO-Bahnen
+    acc.rf += dt * (running ? 1.2 : 0.6);
+    while (acc.rf >= 1) { acc.rf--; spawn(Math.random() < .5 ? 'rf' : 'io', Math.random() < .5 ? 1 : -1, '120,160,150', 160, 26); }
+
+    ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+    for (var i = pulses.length - 1; i >= 0; i--) {
+      var p = pulses[i]; p.d += p.dir * p.v * dt;
+      if (p.d < -p.tail || p.d > p.t.len + p.tail) { pulses.splice(i, 1); continue; }
+      var head = Math.max(0, Math.min(p.t.len, p.d)), back = Math.max(0, Math.min(p.t.len, p.d - p.dir * p.tail));
+      var steps = 6, a0 = at(p.t, back);
+      for (var k = 1; k <= steps; k++) {
+        var dd = back + (head - back) * k / steps, a1 = at(p.t, dd), al = k / steps;
+        var A = T(a0[0], a0[1]), B = T(a1[0], a1[1]);
+        ctx.strokeStyle = 'rgba(' + p.col + ',' + (al * 0.35).toFixed(3) + ')'; ctx.lineWidth = p.t.w * sc * 3.2;
+        ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+        ctx.strokeStyle = 'rgba(' + p.col + ',' + (al * 0.95).toFixed(3) + ')'; ctx.lineWidth = p.t.w * sc;
+        ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+        a0 = a1;
+      }
+      var hp = at(p.t, head), H2 = T(hp[0], hp[1]);
+      ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.beginPath(); ctx.arc(H2[0], H2[1], p.t.w * sc * 0.9, 0, 7); ctx.fill();
+    }
+    // SoC-Die: Kerne als Felder, live flackernd, nach der Messung in echter Last
+    var s = SOC.s * 0.62, n = cores, cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols), g = 6, cw = (s - g * (cols - 1)) / cols, ch = (s * 0.62 - g * (rows - 1)) / rows;
+    for (var c = 0; c < n; c++) {
+      var cx = SOC.x - s / 2 + (c % cols) * (cw + g), cy = SOC.y - s * 0.38 + Math.floor(c / cols) * (ch + g);
+      flick[c] = (flick[c] || 0) + ((flowing ? energy * (0.5 + 0.5 * Math.random()) : 0.05) - (flick[c] || 0)) * Math.min(1, dt * 8);
+      var lv = coreLoad && !running ? coreLoad[c] / 100 : flick[c];
+      var cc = lv > .9 ? '255,90,60' : (phase === 'upload' || (coreLoad && !running) ? '255,177,59' : '62,240,255');
+      ctx.fillStyle = 'rgba(' + cc + ',' + (0.08 + lv * 0.6).toFixed(3) + ')';
+      var A2 = T(cx, cy), B2 = T(cx + cw, cy + ch);
+      ctx.fillRect(Math.min(A2[0], B2[0]), Math.min(A2[1], B2[1]), Math.abs(B2[0] - A2[0]), Math.abs(B2[1] - A2[1]));
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    var lab = T(SOC.x - s / 2, SOC.y + s * 0.42);
+    ctx.save(); ctx.translate(lab[0], lab[1]); if (portrait) ctx.rotate(Math.PI / 2);
+    ctx.font = (7 * sc) + 'px "Share Tech Mono", monospace'; ctx.fillStyle = 'rgba(214,226,220,.55)';
+    ctx.fillText(n + ' KERNE' + (coreLoad && !running ? ' · ' + coreLoad.map(Math.round).join('/') + ' %' : ''), 0, 0); ctx.restore();
+
+    if (etch && etch.n < etch.max) { etch.n += dt * 60; drawBoard(); }
+    schedule();
+  }
+  function schedule() { if (!rafId && !document.hidden) rafId = requestAnimationFrame(loop); }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { lastT = 0; schedule(); } });
+  function pingPulse() { spawn('lan', 1, '244,247,255', 1400, 60); spawn('phy', 1, '244,247,255', 1400, 60); }
+
+  // =====================================================================
+  // Oberfläche
+  // =====================================================================
+  function setV(id, v, u) { $(id).innerHTML = v + '<small>' + u + '</small>'; }
+  function spark(svg, series, color) {
+    if (series.length < 2) { svg.innerHTML = ''; return; }
+    var max = Math.max.apply(null, series) * 1.08, n = series.length;
+    var d = series.map(function (v, i) { return (i ? 'L' : 'M') + (i / (n - 1) * 300).toFixed(1) + ' ' + (48 - v / max * 44).toFixed(1); }).join(' ');
+    svg.innerHTML = '<path d="' + d + ' L300 50 L0 50 Z" fill="' + color + '" fill-opacity=".12"/><path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="1.5" vector-effect="non-scaling-stroke"/>';
+  }
+  function pinOn(p) { ['p-ping', 'p-dl', 'p-ul'].forEach(function (id) { $(id).classList.remove('on'); }); var id = { ping: 'p-ping', download: 'p-dl', upload: 'p-ul' }[p]; if (id) $(id).classList.add('on'); }
+  function verdict(dl) {
+    if (dl >= 4700) return 'Signalintegrität top: <b>über 5 Gbit/s</b>, also 10 GbE.';
+    if (dl >= 2000) return 'Die <b>2,5-GbE-Strecke</b> ist voll ausgereizt.';
+    if (dl >= 940) return '<b>Schneller als Gigabit</b>, also 2,5 GbE oder schnelles WLAN.';
+    if (dl >= 600) return 'Solide <b>Gigabit-Klasse</b>.';
+    if (dl >= 90) return 'Typisch für <b>WLAN mit Abstand</b> oder 100-Mbit-Kabel.';
+    return '<b>Langsam</b>: Kabel, Port oder WLAN-Empfang prüfen.';
+  }
+  function mode(on) {
+    running = on;
+    $('go').classList.toggle('run', on); $('go-t').textContent = on ? 'STOP' : 'START'; $('go').setAttribute('aria-label', on ? 'Messung stoppen' : 'Messung starten');
+    if (!on) { phase = null; live = 0; document.body.className = ''; pinOn(null); }
+  }
+  function start() {
+    if (running) { E.stop(); mode(false); $('phase').textContent = 'Abgebrochen'; return; }
+    var streams = +$('streams').value, duration = +$('duration').value, label = $('label').value.replace(/^\s+|\s+$/g, '');
+    try { localStorage.setItem('st-label', label); localStorage.setItem('st-streams', streams); localStorage.setItem('st-duration', duration); } catch (e) { }
+    $('result').hidden = true; coreLoad = null; etch = null; drawBoard();
+    setV('v-ping', '–', 'ms'); setV('v-jit', '–', 'ms'); setV('v-dl', '–', 'Mbit/s'); setV('v-ul', '–', 'Mbit/s'); setV('v-cpu', '–', '%');
+    $('s-dl').textContent = 'SoC → LAN'; $('s-ul').textContent = 'LAN → SoC';
+    mode(true);
+    var res = {}, ping = null, jit = null;
+    E.run({ streams: streams, duration: duration, label: label }, {
+      phase: function (p) {
+        phase = p; live = 0; shown = 0; document.body.className = 'p-' + p; pinOn(p);
+        $('phase').textContent = { ping: 'TP1 · Ping', download: 'TP3 · Download · SoC → LAN', upload: 'TP4 · Upload · LAN → SoC' }[p];
+        $('big').innerHTML = '…<small>' + (p === 'ping' ? 'ms' : 'Mbit/s') + '</small>'; $('prog').style.width = '0';
+        $('sub').textContent = { ping: 'Einzelimpulse zur Laufzeitmessung', download: 'Daten aus dem RAM über die SoC zur Buchse', upload: 'Daten von der Buchse über die SoC in den RAM' }[p];
+      },
+      pingSample: function (ms, i, n) { $('big').innerHTML = E.fmt(ms, 1) + '<small>ms</small>'; $('prog').style.width = ((i + 1) / n * 100) + '%'; pingPulse(); },
+      ping: function (p, j) { ping = p; jit = j; setV('v-ping', E.fmt(p, p < 10 ? 1 : 0), 'ms'); setV('v-jit', E.fmt(j, 1), 'ms'); },
+      live: function (kind, m, prog) { $('prog').style.width = (prog * 100) + '%'; if (m === null) return; live = m; var s = E.fmtSpeed(m); $('big').innerHTML = s.v + '<small>' + s.u + '</small>'; },
+      result: function (kind, r) {
+        res[kind] = r; var s = E.fmtSpeed(r.peak), a = E.fmtSpeed(r.avg);
+        setV(kind === 'download' ? 'v-dl' : 'v-ul', s.v, s.u); $(kind === 'download' ? 's-dl' : 's-ul').textContent = 'Ø ' + a.v + ' ' + a.u;
+        var mc = Math.max(res.download ? res.download.core || 0 : 0, res.upload ? res.upload.core || 0 : 0);
+        if (r.core !== null) setV('v-cpu', Math.round(mc), '%');
+      },
+      done: function () { mode(false); finish(res, ping, jit, streams); loadHistory(); },
+      error: function (msg) { mode(false); $('phase').textContent = msg; }
+    });
+  }
+  function finish(res, ping, jit, streams) {
+    var d = res.download, u = res.upload, sd = E.fmtSpeed(d.peak), su = E.fmtSpeed(u.peak), ad = E.fmtSpeed(d.avg), au = E.fmtSpeed(u.avg);
+    $('phase').textContent = 'Geprüft · Download-Spitze'; $('big').innerHTML = sd.v + '<small>' + sd.u + '</small>'; $('prog').style.width = '100%';
+    // Kernlast: jeweils der höhere Wert aus Download und Upload
+    coreLoad = [];
+    for (var i = 0; i < cores; i++) coreLoad.push(Math.max(d.cores ? d.cores[i] || 0 : 0, u.cores ? u.cores[i] || 0 : 0));
+    var dt = new Date(), stamp = ('0' + dt.getDate()).slice(-2) + '.' + ('0' + (dt.getMonth() + 1)).slice(-2) + '.' + dt.getFullYear();
+    etch = { n: 0, max: 130, lines: ['DL ' + sd.v + ' ' + sd.u + '  UL ' + su.v + ' ' + su.u, 'PING ' + (ping === null ? '-' : E.fmt(ping, 1)) + ' MS  JIT ' + (jit === null ? '-' : E.fmt(jit, 1)) + ' MS', 'GEPRUEFT ' + stamp + '  ' + streams + 'X TCP'] };
+    $('verdict').innerHTML = verdict(d.peak);
+    $('r-dl').innerHTML = sd.v + '<small>' + sd.u + '</small>'; $('r-dl-s').textContent = 'Ø ' + ad.v + ' ' + ad.u;
+    $('r-ul').innerHTML = su.v + '<small>' + su.u + '</small>'; $('r-ul-s').textContent = 'Ø ' + au.v + ' ' + au.u;
+    spark($('c-dl'), d.series, '#3ef0ff'); spark($('c-ul'), u.series, '#ffb13b');
+    $('bom').innerHTML = '<tr><th>REF</th><th>MESSGRÖSSE</th><th>WERT</th></tr>' +
+      '<tr><td class="ref">TP1</td><td>Ping</td><td>' + (ping === null ? '–' : E.fmt(ping, 1) + ' ms') + '</td></tr>' +
+      '<tr><td class="ref">TP2</td><td>Jitter</td><td>' + (jit === null ? '–' : E.fmt(jit, 1) + ' ms') + '</td></tr>' +
+      '<tr><td class="ref">TP3</td><td>Download Spitze / Ø</td><td>' + sd.v + ' / ' + ad.v + ' ' + ad.u + '</td></tr>' +
+      '<tr><td class="ref">TP4</td><td>Upload Spitze / Ø</td><td>' + su.v + ' / ' + au.v + ' ' + au.u + '</td></tr>' +
+      '<tr><td class="ref">U1</td><td>Router-CPU gesamt ↓ / ↑</td><td>' + (d.cpu === null ? '–' : Math.round(d.cpu)) + ' / ' + (u.cpu === null ? '–' : Math.round(u.cpu)) + ' %</td></tr>';
+    $('die').innerHTML = coreLoad.map(function (l, i) { return '<div class="' + (l >= 90 ? 'hot' : '') + '"><i style="width:' + Math.round(l) + '%"></i><span>KERN ' + i + '</span><b>' + Math.round(l) + ' %</b></div>'; }).join('');
+    var mc = Math.max(d.core || 0, u.core || 0);
+    $('warn').hidden = mc < 90; $('warn').textContent = 'Ein Kern lag bei ' + Math.round(mc) + ' %. Das Ergebnis zeigt eher die Grenze des Routers als die des Netzes.';
+    $('result').hidden = false;
+    // erst das Ätzen im Bestückungsdruck zeigen, dann zum Prüfbericht
+    setTimeout(function () { if (!running) $('result').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' }); }, reduce ? 0 : 2600);
+  }
+
+  // ---------- Verlauf ----------
+  function n0(v) { return v === null || v === undefined ? '–' : E.fmt(v, 0); }
+  function sp(peak, avg) { return peak === null || peak === undefined ? n0(avg) : n0(peak) + ' <small>/ ' + n0(avg) + '</small>'; }
+  function loadHistory() {
+    E.history(function (h) {
+      if (!h.length) { $('history').innerHTML = '<div class="empty">Noch keine Messungen.</div>'; return; }
+      var rows = '';
+      for (var i = h.length - 1; i >= 0; i--) {
+        var e = h[i], d = new Date(e.ts * 1000), rev = i < 26 ? String.fromCharCode(65 + i) : 'Z' + (i - 25);
+        var when = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '. ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        var who = e.label || e.host || e.ip; if (e.label && e.host) who = esc(e.label) + ' <small>' + esc(e.host) + '</small>'; else who = esc(who);
+        rows += '<tr><td class="ref">REV ' + rev + '</td><td>' + when + '</td><td>' + who + '</td><td>' + (e.ping === null ? '–' : E.fmt(e.ping, 1)) + '</td><td>' + (e.jitter === null || e.jitter === undefined ? '–' : E.fmt(e.jitter, 1)) +
+          '</td><td class="dl">' + sp(e.dl_peak, e.dl) + '</td><td class="ul">' + sp(e.ul_peak, e.ul) + '</td><td>' + (e.core_dl === null || e.core_dl === undefined ? '–' : e.core_dl + ' / ' + e.core_ul) + '</td></tr>';
+      }
+      $('history').innerHTML = '<table><tr><th>REV</th><th>ZEIT</th><th>GERÄT</th><th>PING MS</th><th>JITTER MS</th><th>DOWN MBIT/S<br>SPITZE / Ø</th><th>UP MBIT/S<br>SPITZE / Ø</th><th>KERN %<br>↓ / ↑</th></tr>' + rows + '</table>';
+      $('rev').textContent = 'REV ' + (h.length < 26 ? String.fromCharCode(65 + h.length - 1) : 'Z' + (h.length - 26)) + ' · LAN-SPEEDTEST';
+    });
+  }
+  function clearAsk() {
+    $('clear-wrap').innerHTML = '<span class="confirm">Alles löschen? <button class="btn" id="yes">Ja</button><button class="btn" id="no">Nein</button></span>';
+    $('yes').onclick = function () { E.clearHistory(function () { loadHistory(); clearReset(); }); };
+    $('no').onclick = clearReset;
+  }
+  function clearReset() { $('clear-wrap').innerHTML = '<button class="btn" id="clear">Löschen</button>'; $('clear').onclick = clearAsk; }
+  $('clear').onclick = clearAsk;
+
+  $('go').onclick = start;
+  $('again').onclick = function () { window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' }); start(); };
+
+  try {
+    var l = localStorage.getItem('st-label'), s = localStorage.getItem('st-streams'), d = localStorage.getItem('st-duration');
+    if (l) $('label').value = l; if (s) $('streams').value = s; if (d) $('duration').value = d;
+  } catch (e) { }
+
+  size();
+  window.addEventListener('resize', size);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawBoard);
+  schedule();
+
+  E.init(function (i) {
+    info = i; cores = Math.max(1, Math.min(16, i.cores || 2));
+    $('who').innerHTML = '<span><b>' + esc(i.hostname) + '</b> · ' + esc(i.model || '') + '</span><span>U1: ' + i.cores + ' Kerne · Du: ' + esc(i.client_host ? i.client_host + ' (' + i.client_ip + ')' : i.client_ip) + '</span>' + (i.demo ? '<span><span class="demo">DEMO</span></span>' : '');
+    $('go').disabled = false;
+    loadHistory();
+  });
+})();
+</script>
+</body>
+</html>
