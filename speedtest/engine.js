@@ -11,12 +11,14 @@
  *     pingSample(ms, i, count),
  *     ping(ms, jitter),
  *     live(kind, mbit, progress),  mbit === null in der ersten Sekunde
- *     result(kind, r),             r = { peak, avg, cpu, core, series: [mbit, ...] }
+ *     result(kind, r),             r = { peak, avg, cpu, core, cores: [% je Kern], series: [mbit, ...] }
  *     done(record),                Datensatz, wie er im Verlauf landet
  *     error(message)
  *   })
  *   SpeedEngine.stop(); SpeedEngine.running()
  *   SpeedEngine.history(cb); SpeedEngine.clearHistory(cb)
+ *   SpeedEngine.link(cb, demoPreset)  Verbindung des Geraets: { type: 'wired'|'wifi'|null, port, speed, duplex, wifi }
+ *                                     demoPreset 'wifi' zeigt im Demo-Modus ein WLAN-Geraet
  *   SpeedEngine.fmtSpeed(mbit) -> { v: '1,42', u: 'Gbit/s' }
  */
 (function () {
@@ -28,7 +30,7 @@
   var WARMUP = 1.5;                // Sekunden, die nicht in den Durchschnitt eingehen
   var PING_COUNT = 20;
 
-  var info = null, demo = false, run = 0, active = false, demoHistory = [];
+  var info = null, demo = false, run = 0, active = false, demoHistory = [], demoWifi = false;
 
   function now() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
   function fmt(n, d) { return n.toFixed(d).replace('.', ','); }
@@ -56,7 +58,7 @@
   // ---------- Router-CPU: zwei Schnappschuesse von /proc/stat ----------
   function CpuWatch() {
     var self = this, first = null;
-    self.avg = null; self.core = null;
+    self.avg = null; self.core = null; self.cores = null;
     self.mark = function () {
       if (demo) return;
       req('GET', API + '/cpu', null, function (d) { if (d && d.length) first = d; });
@@ -64,7 +66,9 @@
     self.finish = function (kind, cb) {
       if (demo) {
         self.avg = kind === 'download' ? 14 + Math.random() * 8 : 45 + Math.random() * 10;
-        self.core = self.avg * 1.6;
+        self.cores = [];
+        for (var c = 0; c < info.cores; c++) self.cores.push(Math.min(100, self.avg * (c === 0 ? 1.6 : 0.5 + Math.random() * 0.8)));
+        self.core = self.cores[0];
         return setTimeout(cb, 50);
       }
       req('GET', API + '/cpu', null, function (d) {
@@ -72,8 +76,9 @@
           for (var i = 0; i < d.length; i++) {
             var dt = d[i][0] - first[i][0], di = d[i][1] - first[i][1];
             var busy = dt > 0 ? 100 * (dt - di) / dt : 0;
-            if (i === 0) self.avg = busy;
-            else if (self.core === null || busy > self.core) self.core = busy;
+            if (i === 0) { self.avg = busy; self.cores = []; continue; }
+            self.cores.push(busy);
+            if (self.core === null || busy > self.core) self.core = busy;
           }
         }
         cb();
@@ -123,7 +128,7 @@
   // Spitze = bester 1-s-Wert, Durchschnitt = 1-s-Werte nach dem Anlauf ohne die langsamsten 30 % und schnellsten 10 %.
   function runTransfer(id, kind, streams, duration, h, done) {
     var state = { stop: false, aborts: [] }, bytes = 0, t0 = now(), warm = null, samples = [], rates = [], series = [], peak = 0;
-    var cpu = new CpuWatch(), demoTarget = kind === 'download' ? 2300 : 1450;
+    var cpu = new CpuWatch(), demoTarget = demoWifi ? (kind === 'download' ? 880 : 610) : (kind === 'download' ? 2300 : 1450);
     function count(b) { bytes += b; }
     if (!demo) for (var i = 0; i < streams; i++) (kind === 'download' ? dlWorker : ulWorker)(state, count);
     function halt() {
@@ -164,7 +169,7 @@
         if (peak < avg) peak = avg;
         cpu.finish(kind, function () {
           if (id !== run) return;
-          done({ peak: peak, avg: avg, cpu: cpu.avg, core: cpu.core, series: series });
+          done({ peak: peak, avg: avg, cpu: cpu.avg, core: cpu.core, cores: cpu.cores, series: series });
         });
       }
     }, 200);
@@ -283,6 +288,19 @@
     ];
   }
 
+  function link(cb, demoPreset) {
+    if (demo) {
+      demoWifi = demoPreset === 'wifi';
+      return setTimeout(function () {
+        cb(demoWifi ? { type: 'wifi', port: 'phy1-ap0', speed: null, duplex: null,
+                        wifi: { ssid: 'Heimnetz', band: '5', channel: 36, width: 160, standard: 6, signal: -54, noise: -95,
+                                tx_rate: 1729, rx_rate: 1441, nss: 2, mcs: 9 } }
+                    : { type: 'wired', port: 'lan1', speed: 2500, duplex: 'full', wifi: null });
+      }, 30);
+    }
+    req('GET', API + '/link', null, function (d) { cb(d && d.type ? d : null); });
+  }
+
   window.SpeedEngine = {
     init: function (cb) { init(function (i) { if (i.demo && !demoHistory.length) seedDemoHistory(); cb(i); }); },
     run: start,
@@ -290,6 +308,7 @@
     running: function () { return active; },
     history: function (cb) { if (demo) return cb(demoHistory.slice()); req('GET', API + '/history', null, function (d) { cb(d || []); }); },
     clearHistory: function (cb) { if (demo) { demoHistory = []; return cb([]); } req('DELETE', API + '/history', null, function () { cb([]); }); },
+    link: link,
     fmtSpeed: fmtSpeed,
     fmt: fmt
   };

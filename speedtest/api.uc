@@ -60,6 +60,108 @@ function client_name(ip) {
 	return null;
 }
 
+// ---------- Verbindung des Geraets: Kabel-Port oder WLAN ----------
+// Weg: IP -> MAC (ARP-Tabelle) -> Bridge-Port (brforward) -> Port-Speed bzw. WLAN-Daten (iwinfo per ubus).
+// Alles optional: was fehlt, bleibt null, die Seite schaetzt dann aus den Messwerten.
+const NET = '/sys/class/net/';
+
+function arp_lookup(ip) {
+	for (let line in split(read('/proc/net/arp') || '', '\n')) {
+		let f = split(trim(line), /\s+/);
+		if (length(f) >= 6 && f[0] == ip && f[3] != '00:00:00:00:00:00')
+			return { mac: lc(f[3]), dev: f[5] };
+	}
+	return null;
+}
+
+// /sys/class/net/<br>/brforward: Eintraege zu je 16 Byte (mac[6], port_no, is_local, ageing[4], port_hi, pad, unused[2])
+function bridge_port(br, mac) {
+	let s = read(NET + br + '/brforward');
+	if (!s)
+		return null;
+	let no = null;
+	for (let i = 0; i + 16 <= length(s); i += 16) {
+		let m = join(':', map([0, 1, 2, 3, 4, 5], (k) => sprintf('%02x', ord(s, i + k))));
+		if (m == mac && ord(s, i + 7) == 0) {
+			no = ord(s, i + 6) | (ord(s, i + 12) << 8);
+			break;
+		}
+	}
+	if (no == null)
+		return null;
+	for (let p in fs.lsdir(NET + br + '/brif') || []) {
+		if (hex(trim(read(NET + br + '/brif/' + p + '/port_no') || '')) == no)
+			return p;
+	}
+	return null;
+}
+
+function is_wifi(dev) {
+	return !!(fs.stat(NET + dev + '/wireless') || fs.stat(NET + dev + '/phy80211'));
+}
+
+function wifi_info(dev, mac) {
+	let ubus = null, c = null;
+	try { ubus = require('ubus'); c = ubus.connect(); } catch (e) { }
+	if (!c)
+		return null;
+	let w = { ssid: null, band: null, channel: null, width: null, standard: null,
+		signal: null, noise: null, tx_rate: null, rx_rate: null, nss: null, mcs: null };
+	let i = c.call('iwinfo', 'info', { device: dev });
+	if (i) {
+		w.ssid = i.ssid;
+		w.channel = i.channel;
+		let f = i.frequency || 0;
+		w.band = f >= 5925 ? '6' : (f >= 4900 ? '5' : (f > 0 ? '2.4' : null));
+		let m = match(i.htmode || '', /^(EHT|HE|VHT|HT)(\d+)/);
+		if (m) {
+			w.width = int(m[2]);
+			w.standard = { EHT: 7, HE: 6, VHT: 5, HT: 4 }[m[1]];
+		}
+	}
+	let a = c.call('iwinfo', 'assoclist', { device: dev });
+	for (let s in (a && a.results) || []) {
+		if (lc(s.mac || '') != mac)
+			continue;
+		w.signal = s.signal;
+		w.noise = s.noise;
+		if (s.tx) {
+			w.tx_rate = s.tx.rate ? s.tx.rate / 1000 : null;
+			w.nss = s.tx.nss || null;
+			w.mcs = s.tx.mcs;
+			if (s.tx.mhz)
+				w.width = s.tx.mhz;
+		}
+		if (s.rx)
+			w.rx_rate = s.rx.rate ? s.rx.rate / 1000 : null;
+		break;
+	}
+	c.disconnect();
+	return w;
+}
+
+function link_info(ip) {
+	let r = { type: null, port: null, speed: null, duplex: null, wifi: null };
+	let a = arp_lookup(ip);
+	if (!a)
+		return r;
+	let port = fs.stat(NET + a.dev + '/bridge') ? bridge_port(a.dev, a.mac) : a.dev;
+	if (!port)
+		return r;
+	r.port = port;
+	if (is_wifi(port)) {
+		r.type = 'wifi';
+		r.wifi = wifi_info(port, a.mac);
+	}
+	else {
+		r.type = 'wired';
+		let sp = int(trim(read(NET + port + '/speed') || ''));
+		r.speed = (sp > 0) ? sp : null;   // -1 bei unbekannter Geschwindigkeit
+		r.duplex = trim(read(NET + port + '/duplex') || '') || null;
+	}
+	return r;
+}
+
 // Download-Datei liegt in /tmp (RAM), nie im Flash. uhttpd liefert nur Dateien
 // innerhalb von /www aus (Symlinks nach draussen lehnt es ab), deshalb wird
 // /tmp/speedtest per Bind-Mount unter /www/speedtest/data eingeblendet.
@@ -162,6 +264,12 @@ global.handle_request = function(env) {
 
 	if (path == '/cpu')
 		return reply_json(cpu_times());
+
+	if (path == '/link') {
+		let r = null;
+		try { r = link_info(env.REMOTE_ADDR); } catch (e) { }
+		return reply_json(r || { type: null });
+	}
 
 	if (path == '/info') {
 		let ip = env.REMOTE_ADDR;
