@@ -252,6 +252,7 @@ input { width: 11em; }
   var info = null, link = null, phase = null, live = 0, shown = 0, running = false, coreLoad = null, etch = null, revName = 'A';
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function rnd(a, b) { return a + Math.random() * (b - a); }
+  function socName(i) { var s = i && i.soc; return s ? (s.vendor + ' ' + s.chip + (s.name ? ' (' + s.name + ')' : '')) + ', ' + i.cores + ' Kerne' : i.cores + ' Kerne'; }
   function gbe(m) { return m >= 1000 ? (m / 1000 + '').replace('.', ',') + 'G' : m + 'M'; }
 
   // =====================================================================
@@ -259,20 +260,21 @@ input { width: 11em; }
   // Leiterbahnen sind Polylinien mit 0/45/90 Grad; "out" = Bahn läuft von innen (SoC) nach außen.
   // =====================================================================
   var cv = $('pcb'), ctx = cv.getContext('2d'), bg = document.createElement('canvas'), bctx = bg.getContext('2d');
-  var W = 0, H = 0, DPR = 1, BRES = 1, portrait = false, sc = 1, ox = 0, oy = 0;
+  var W = 0, H = 0, DPR = 1, BRES = 1, portrait = false, sc = 1, ox = 0, oy = 0, BW = 0, BH = 0;
   var traces = [], pulses = [], SOC = { x: 560, y: 300, s: 150 }, cores = 3, seed = 7;
   var JACKS = [70, 190, 310, 430], JH = 100, active = 0;   // 4 LAN-Buchsen links
   function rand() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
   function T(x, y) { if (portrait) { var t = x; x = 600 - y; y = t; } return [ox + x * sc, oy + y * sc]; }
   function size() {
-    DPR = Math.min(window.devicePixelRatio || 1, 1.75); BRES = DPR * 1.25;   // Hintergrund feiner, damit der Zoom scharf bleibt
+    DPR = Math.min(window.devicePixelRatio || 1, 1.75); BRES = DPR;   // Zoom bleibt ≤ 1, daher keine höhere Auflösung nötig
     W = document.documentElement.clientWidth; H = Math.max(window.innerHeight, $('stage').offsetHeight); portrait = H > W * 1.05;
     cv.style.height = H + 'px';
-    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR); bg.width = Math.round(W * BRES); bg.height = Math.round(H * BRES);
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
     var lw = portrait ? 600 : 1000, lh = portrait ? 1000 : 600;
-    sc = Math.max(W / lw, H / lh) * 1.04;
-    // quer: links bündig, damit die LAN-Buchsen im Bild sind (rechts dürfen die RAM-Chips angeschnitten sein)
-    ox = portrait ? (W - lw * sc) / 2 : Math.max((W - lw * sc) / 2, 18 - 14 * sc); oy = (H - lh * sc) / 2 - (portrait ? H * 0.24 : H * 0.08);
+    // Platine passt ganz ins Bild; die Kamera zoomt höchstens so weit heran, dass nichts abgeschnitten wird
+    sc = Math.min((W - 24) / lw, (H - 24) / lh); BW = lw * sc; BH = lh * sc;
+    ox = (W - BW) / 2; oy = portrait ? Math.min((H - BH) / 2, 64) : (H - BH) / 2;
+    bg.width = Math.round(BW * BRES); bg.height = Math.round(BH * BRES);
     build(); drawBoard();
   }
   function poly(pts, kind, w, out, jack) {
@@ -326,8 +328,8 @@ input { width: 11em; }
   function path(c, pts) { c.beginPath(); for (var i = 0; i < pts.length; i++) { var p = T(pts[i][0], pts[i][1]); if (i) c.lineTo(p[0], p[1]); else c.moveTo(p[0], p[1]); } }
   function box(x, y, w, h) { var a = T(x, y), b = T(x + w, y + h); return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1])]; }
   function rectL(c, x, y, w, h) { var r = box(x, y, w, h); c.rect(r[0], r[1], r[2], r[3]); }
-  function textL(c, s, x, y, size, col, align) {
-    var p = T(x, y); c.save(); c.translate(p[0], p[1]); if (portrait) c.rotate(Math.PI / 2);
+  function textL(c, s, x, y, size, col, align, upright) {
+    var p = T(x, y); c.save(); c.translate(p[0], p[1]); if (portrait && !upright) c.rotate(Math.PI / 2);
     c.font = (size * sc) + 'px "Share Tech Mono", monospace'; c.fillStyle = col; c.textAlign = align || 'left'; c.fillText(s, 0, 0); c.restore();
   }
   function goldFill(c, r) {   // Pad mit Glanz: hell oben links, dunkel unten rechts
@@ -336,12 +338,14 @@ input { width: 11em; }
   }
   function pad(c, x, y, w, h) { var r = box(x, y, w, h); c.fillStyle = goldFill(c, r); c.fillRect(r[0], r[1], r[2], r[3]); }
   function drawBoard() {
-    var c = bctx; c.setTransform(BRES, 0, 0, BRES, 0, 0);
-    // Lötstopplack mit leichtem Lichtabfall zum Rand
-    var vg = c.createRadialGradient(W * .55, H * .45, 0, W * .55, H * .45, Math.max(W, H) * .8);
-    vg.addColorStop(0, '#07100d'); vg.addColorStop(1, '#020403'); c.fillStyle = vg; c.fillRect(0, 0, W, H);
+    var c = bctx; c.setTransform(BRES, 0, 0, BRES, -ox * BRES, -oy * BRES);   // Bildschirmkoordinaten, Ursprung an der Platinenecke
+    c.clearRect(ox, oy, BW, BH);
+    // Lötstopplack mit leichtem Lichtabfall zum Rand, abgerundete Platinenecken
+    var mx = ox + BW / 2, my = oy + BH / 2, vg = c.createRadialGradient(mx, my, 0, mx, my, Math.max(BW, BH) * .7);
+    vg.addColorStop(0, '#08130f'); vg.addColorStop(1, '#030705'); c.fillStyle = vg;
+    c.save(); c.beginPath(); roundRect(c, ox, oy, BW, BH, 14 * sc); c.fill(); c.clip();
     c.strokeStyle = 'rgba(40,70,58,.16)'; c.lineWidth = 1;
-    for (var d = -H; d < W + H; d += 9 * sc) { c.beginPath(); c.moveTo(d, 0); c.lineTo(d + H, H); c.stroke(); }
+    for (var d = ox - BH; d < ox + BW; d += 9 * sc) { c.beginPath(); c.moveTo(d, oy); c.lineTo(d + BH, oy + BH); c.stroke(); }
     // Leiterbahnen: dunkler Grund und feine Kupferkante
     c.lineCap = 'round'; c.lineJoin = 'round';
     traces.forEach(function (t) {
@@ -403,6 +407,16 @@ input { width: 11em; }
     gs.addColorStop(0, '#26302d'); gs.addColorStop(.35, '#0e1312'); gs.addColorStop(1, '#050807');
     c.fillStyle = gs; c.fillRect(rs[0], rs[1], rs[2], rs[3]); c.strokeStyle = 'rgba(214,226,220,.35)'; c.strokeRect(rs[0], rs[1], rs[2], rs[3]);
     textL(c, 'U1 · SoC', SOC.x - s / 2, SOC.y - s / 2 - 14, 8, 'rgba(214,226,220,.85)');
+    // Aufdruck auf dem Chip wie beim echten Bauteil: Hersteller, Typ, Produktname
+    var soc = info && info.soc;
+    if (soc) {
+      // im Hochformat bleibt der Aufdruck waagerecht lesbar (Chip ist quadratisch)
+      var ty = portrait ? function (f) { return [SOC.x + s * f, SOC.y]; } : function (f) { return [SOC.x, SOC.y + s * f]; };
+      var a1 = ty(0.2), a2 = ty(0.3), a3 = ty(0.385);
+      textL(c, String(soc.vendor || '').toUpperCase(), a1[0], a1[1], 13, 'rgba(214,226,220,.72)', 'center', true);
+      textL(c, soc.chip || '', a2[0], a2[1], 10, 'rgba(214,226,220,.6)', 'center', true);
+      if (soc.name) textL(c, String(soc.name).toUpperCase(), a3[0], a3[1], 7, 'rgba(214,226,220,.42)', 'center', true);
+    }
     // Kleinteile an den Enden der Füllbahnen
     traces.forEach(function (t, i) {
       if (t.kind !== 'cap') return; var e = t.p[1], r = box(e[0] - 5, e[1] - 3, 10, 6);
@@ -421,7 +435,10 @@ input { width: 11em; }
       c.strokeStyle = 'rgba(214,226,220,.55)'; c.lineWidth = 1; c.strokeRect(bx[0], bx[1], bx[2], bx[3]);
       etch.lines.forEach(function (ln, i) { textL(c, ln.slice(0, Math.max(0, n - i * 30)), 270, 126 + i * 17, 10, 'rgba(214,226,220,.9)'); });
     }
+    c.restore();
+    c.strokeStyle = 'rgba(201,162,74,.35)'; c.lineWidth = 1.5; c.beginPath(); roundRect(c, ox + .75, oy + .75, BW - 1.5, BH - 1.5, 14 * sc); c.stroke();
   }
+  function roundRect(c, x, y, w, h, r) { c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
 
   // ---------- Impulse und Kamera ----------
   function at(t, d) {
@@ -447,13 +464,24 @@ input { width: 11em; }
     shown += (live - shown) * Math.min(1, dt * 3);
     var flowing = phase === 'download' || phase === 'upload';
     energy += ((flowing ? Math.log(1 + shown / 20) / Math.log(1 + 10000 / 20) : 0) - energy) * Math.min(1, dt * 2.5);
-    // Kamera: bei Durchsatz an die SoC heran, sonst leichtes Schweben
-    zoom += ((1 + (reduce ? 0 : energy * 0.13)) - zoom) * Math.min(1, dt * 1.2);
-    var fc = portrait ? T(SOC.x, SOC.y) : T(120, 300), dx = reduce ? 0 : Math.sin(t / 5200) * 6, dy = reduce ? 0 : Math.cos(t / 6100) * 4;
-    var tx = fc[0] - fc[0] * zoom + dx, ty = fc[1] - fc[1] * zoom + dy;
+    // Kamera: zoomt langsam aus und wieder ein und dreht sich leicht um die Platinenmitte.
+    // Größter Zoom = die gedrehte Platine passt gerade noch ganz ins Bild; bei Datenfluss geht es bis dorthin.
+    var ang = reduce ? 0 : 0.05 * Math.sin(t / 9000), ca = Math.abs(Math.cos(ang)), sa = Math.abs(Math.sin(ang));
+    var bcx = ox + BW / 2, bcy = oy + BH / 2;
+    var zMax = Math.min((2 * Math.min(bcx, W - bcx) - 8) / (BW * ca + BH * sa), (2 * Math.min(bcy, H - bcy) - 8) / (BW * sa + BH * ca));
+    var cyc = reduce ? 1 : 0.5 + 0.5 * Math.cos(t / 15000 * Math.PI * 2);
+    zoom += (zMax * (0.84 + 0.16 * Math.max(cyc, energy)) - zoom) * Math.min(1, dt * 1.2);
+    if (zoom > zMax) zoom = zMax;
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#020403'; ctx.fillRect(0, 0, cv.width, cv.height);
-    ctx.setTransform(DPR * zoom, 0, 0, DPR * zoom, DPR * tx, DPR * ty);
-    ctx.drawImage(bg, 0, 0, W, H);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    // Werkbank: feines Raster unter der Platine
+    ctx.strokeStyle = 'rgba(80,120,105,.07)'; ctx.lineWidth = 1;
+    for (var gx = (W / 2) % 32; gx < W; gx += 32) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke(); }
+    for (var gy = (H / 2) % 32; gy < H; gy += 32) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke(); }
+    ctx.translate(bcx, bcy); ctx.rotate(ang); ctx.scale(zoom, zoom); ctx.translate(-bcx, -bcy);
+    ctx.shadowColor = 'rgba(0,0,0,.8)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 18;
+    ctx.drawImage(bg, ox, oy, BW, BH);
+    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
 
     var col = phase === 'upload' ? '255,177,59' : '62,240,255', toward = phase === 'upload' ? -1 : 1, rt = route();
     if (flowing && !reduce) {
@@ -481,13 +509,15 @@ input { width: 11em; }
       ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.beginPath(); ctx.arc(H2[0], H2[1], p.t.w * sc * 0.9, 0, 7); ctx.fill();
     }
     // SoC-Die: Kerne live flackernd, nach der Messung in echter Last
-    var s = SOC.s * 0.62, n = cores, cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols), g = 6, cw = (s - g * (cols - 1)) / cols, ch = (s * 0.62 - g * (rows - 1)) / rows;
+    var s = SOC.s * 0.62, n = cores, cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols), g = 6, cw = (s - g * (cols - 1)) / cols, ch = (s * 0.5 - g * (rows - 1)) / rows;
     for (var c = 0; c < n; c++) {
-      var cx = SOC.x - s / 2 + (c % cols) * (cw + g), cy = SOC.y - s * 0.38 + Math.floor(c / cols) * (ch + g);
+      var cx = SOC.x - s / 2 + (c % cols) * (cw + g), cy = SOC.y - s * 0.42 + Math.floor(c / cols) * (ch + g);
       flick[c] = (flick[c] || 0) + ((flowing ? energy * (0.5 + 0.5 * Math.random()) : 0.05) - (flick[c] || 0)) * Math.min(1, dt * 8);
       var lv = coreLoad && !running ? coreLoad[c] / 100 : flick[c];
       var cc = lv > .9 ? '255,90,60' : (phase === 'upload' || (coreLoad && !running) ? '255,177,59' : '62,240,255');
-      var r2 = box(cx, cy, cw, ch); ctx.fillStyle = 'rgba(' + cc + ',' + (0.08 + lv * 0.6).toFixed(3) + ')'; ctx.fillRect(r2[0], r2[1], r2[2], r2[3]);
+      ctx.fillStyle = 'rgba(' + cc + ',' + (0.08 + lv * 0.6).toFixed(3) + ')';
+      // Lage im Bild statt auf der Platine, damit die Kerne auch im Hochformat oben im Chip sitzen
+      var sc0 = T(SOC.x, SOC.y); ctx.fillRect(sc0[0] + (cx - SOC.x) * sc, sc0[1] + (cy - SOC.y) * sc, cw * sc, ch * sc);
     }
     // LEDs an der aktiven Buchse (Link nach Geschwindigkeit, Aktivität blinkt) oder am WLAN-Chip
     var wifi = link && link.type === 'wifi', blink = flowing ? (Math.sin(t / (60 - energy * 45)) > 0 ? 1 : .25) : (running ? .6 : 1);
@@ -496,16 +526,12 @@ input { width: 11em; }
       led(18, jy + 6, lc, 1); led(18, jy + 86, '255,177,59', flowing || phase === 'ping' ? blink : .15);
     } else { led(436, 30, '62,240,255', blink); }
     ctx.globalCompositeOperation = 'source-over';
-    var lab = T(SOC.x - s / 2, SOC.y + s * 0.42);
-    ctx.save(); ctx.translate(lab[0], lab[1]); if (portrait) ctx.rotate(Math.PI / 2);
-    ctx.font = (7 * sc) + 'px "Share Tech Mono", monospace'; ctx.fillStyle = 'rgba(214,226,220,.55)';
-    ctx.fillText(n + ' KERNE' + (coreLoad && !running ? ' · ' + coreLoad.map(Math.round).join('/') + ' %' : ''), 0, 0); ctx.restore();
     // Lichtkante, die langsam über die Platine wandert (Glanz auf Lack und Gold)
     if (!reduce) {
       sheen = (sheen + dt * 0.05) % 1.6;
-      var sx = (sheen - 0.3) * (W + H), sg = ctx.createLinearGradient(sx, 0, sx + H * .5, H * .5);
+      var sx = ox + (sheen - 0.3) * (BW + BH), sg = ctx.createLinearGradient(sx, oy, sx + BH * .5, oy + BH * .5);
       sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(.5, 'rgba(200,255,235,.035)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = sg; ctx.fillRect(-W, -H, W * 3, H * 3); ctx.globalCompositeOperation = 'source-over';
+      ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = sg; ctx.fillRect(ox, oy, BW, BH); ctx.globalCompositeOperation = 'source-over';
     }
     if (etch && etch.n < etch.max) { etch.n += dt * 60; drawBoard(); }
     schedule();
@@ -625,7 +651,7 @@ input { width: 11em; }
     $('stamp').innerHTML = (pass ? 'Bestanden' : 'Mit Hinweisen') + '<small>' + stamp + ' · REV ' + revName + '</small>';
     $('pp-no').textContent = 'Nr. ' + (rec && rec.ts ? rec.ts : Math.floor(Date.now() / 1000)) + ' · REV ' + revName;
     $('pp-date').textContent = stamp + ', ' + clock + ' Uhr';
-    $('pp-router').textContent = info.hostname + (info.model ? ', ' + info.model : '') + ', ' + info.cores + ' Kerne';
+    $('pp-router').textContent = info.hostname + (info.model ? ', ' + info.model : '') + ', ' + socName(info);
     $('pp-dev').textContent = (label || info.client_host || 'Gerät') + ', ' + info.client_ip;
     $('pp-link').textContent = linkText(false);
     $('pp-method').textContent = 'HTTP, ' + streams + ' TCP-Verbindungen, ' + $('duration').value + ' s je Richtung';
@@ -685,8 +711,8 @@ input { width: 11em; }
   schedule();
 
   E.init(function (i) {
-    info = i; cores = Math.max(1, Math.min(16, i.cores || 2));
-    $('who').innerHTML = '<span><b>' + esc(i.hostname) + '</b> · ' + esc(i.model || '') + '</span><span>U1: ' + i.cores + ' Kerne · Du: ' + esc(i.client_host ? i.client_host + ' (' + i.client_ip + ')' : i.client_ip) + '</span><span class="lk">Anschluss wird ermittelt …</span>' + (i.demo ? '<span><span class="demo">DEMO</span></span>' : '');
+    info = i; cores = Math.max(1, Math.min(16, i.cores || 2)); drawBoard();
+    $('who').innerHTML = '<span><b>' + esc(i.hostname) + '</b> · ' + esc(i.model || '') + '</span><span>U1: ' + esc(socName(i)) + ' · Du: ' + esc(i.client_host ? i.client_host + ' (' + i.client_ip + ')' : i.client_ip) + '</span><span class="lk">Anschluss wird ermittelt …</span>' + (i.demo ? '<span><span class="demo">DEMO</span></span>' : '');
     E.link(function (l) { setLink(l); $('go').disabled = false; });
     loadHistory();
   });

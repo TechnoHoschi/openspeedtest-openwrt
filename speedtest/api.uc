@@ -51,6 +51,30 @@ function cpu_times() {
 	return out;   // [0] = gesamt, [1..] = einzelne Kerne
 }
 
+// SoC-Bezeichnung: letzter Eintrag im Device-Tree (z. B. "mediatek,mt7988a"),
+// sonst "system type" (MIPS) oder "model name" (x86) aus /proc/cpuinfo
+const VENDORS = { mediatek: 'MediaTek', qcom: 'Qualcomm', brcm: 'Broadcom', realtek: 'Realtek', marvell: 'Marvell',
+	rockchip: 'Rockchip', airoha: 'Airoha', econet: 'EcoNet', ralink: 'Ralink', allwinner: 'Allwinner', amlogic: 'Amlogic',
+	nxp: 'NXP', fsl: 'NXP', ti: 'TI', lantiq: 'Lantiq', intel: 'Intel', 'bcm': 'Broadcom' };
+const MARKETING = { mt7988a: 'Filogic 880', mt7988d: 'Filogic 860', mt7986a: 'Filogic 830', mt7981b: 'Filogic 820' };
+
+function soc_info() {
+	let dt = read('/proc/device-tree/compatible');
+	if (dt) {
+		let parts = filter(split(dt, '\u0000'), (x) => length(x) > 0);
+		let m = match(parts[length(parts) - 1] || '', /^([^,]+),(.+)$/);
+		if (m) {
+			let chip = lc(m[2]);
+			return { vendor: VENDORS[m[1]] || m[1], chip: uc(chip), name: MARKETING[chip] };
+		}
+	}
+	let ci = read('/proc/cpuinfo') || '';
+	let m2 = match(ci, /system type\s*:\s*(\S+)\s+(\S+)/) || match(ci, /model name\s*:\s*(\S+)\s+([^\n]+)/);
+	if (m2)
+		return { vendor: m2[1], chip: trim(m2[2]), name: null };
+	return null;
+}
+
 function client_name(ip) {
 	for (let line in split(read('/tmp/dhcp.leases') || '', '\n')) {
 		let f = split(line, ' ');
@@ -278,6 +302,7 @@ global.handle_request = function(env) {
 			hostname: trim(read('/proc/sys/kernel/hostname') || ''),
 			model: trim(read('/tmp/sysinfo/model') || ''),
 			cores: length(cpu_times()) - 1,
+			soc: soc_info(),
 			client_ip: ip,
 			client_host: client_name(ip),
 			dl_url: '/speedtest/data/dl.bin',

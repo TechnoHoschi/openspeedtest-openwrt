@@ -236,6 +236,7 @@
       else {
         demo = true;
         info = { demo: true, hostname: 'OpenWrt-BT8', model: 'ASUS ZenWiFi BT8 (Demo)', cores: 3,
+                 soc: { vendor: 'MediaTek', chip: 'MT7988A', name: 'Filogic 880' },
                  client_ip: '192.168.1.3', client_host: 'yoga', dl_url: '', dl_size: 0 };
       }
       info.demo = demo;
