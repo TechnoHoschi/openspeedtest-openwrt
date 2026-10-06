@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#020308">
+<title>Speedtest Fusionskern</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Michroma&family=Exo+2:wght@300;400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Konzept "Fusionskern": Der Router ist ein Fusionsreaktor. Jeder CPU-Kern ist ein Plasmaring um den Kern,
+   der Durchsatz ist die Leistung. Download: Energie strömt aus dem Kern nach außen. Upload: Plasma wird
+   eingespeist und spiralt hinein. Jeder Ping ist eine Schockwelle. Nach der Messung glühen die Ringe in der
+   gemessenen Kernlast, darunter das Reaktorprotokoll. Ein Canvas im Hintergrund, alle Werte als Text im DOM. */
+:root {
+  --void: #020308;
+  --ink: #eaf2ff;
+  --mute: #8a97b8;
+  --faint: #4b5674;
+  --line: rgba(120, 170, 255, .16);
+  --glass: rgba(6, 10, 24, .62);
+  --down: #3ff0ff;          /* Ausgangsleistung: Plasma-Cyan */
+  --up: #ff4fd8;            /* Einspeisung: Magenta */
+  --ping: #ffc247;          /* Zündung: Bernstein */
+  --hot: #ff6a3d;
+  --acc: #7fb4ff;
+  --f-d: "Michroma", "Eurostile", "Bahnschrift", "Segoe UI", sans-serif;
+  --f-u: "Exo 2", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --f-m: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+body.p-ping { --acc: var(--ping); }
+body.p-download { --acc: var(--down); }
+body.p-upload { --acc: var(--up); }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { background: var(--void); }
+body { margin: 0; color: var(--ink); font: 15px/1.5 var(--f-u); overflow-x: hidden; min-height: 100vh; background: var(--void); }
+#cv { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; display: block; pointer-events: none; }
+main { position: relative; z-index: 1; }
+main *, .stage > * { min-width: 0; }
+button, select, input { font: inherit; }
+:focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; }
+
+.stage { min-height: 100vh; min-height: 100svh; max-width: 1240px; margin: 0 auto; padding: 18px 24px 22px; display: flex; flex-direction: column; gap: 14px; }
+.top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 20px; }
+.mark { font: 400 1rem/1 var(--f-d); letter-spacing: .42em; text-transform: uppercase; }
+.mark i { font-style: normal; color: var(--acc); transition: color .6s; }
+.who { color: var(--mute); font: .78rem var(--f-m); display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: flex-end; align-items: center; }
+.who b { color: var(--ink); font-weight: 600; }
+.demo { color: #140d00; background: var(--ping); border-radius: 2px; padding: 1px 8px; font: 700 .66rem var(--f-u); letter-spacing: .14em; text-transform: uppercase; }
+
+.reactor { flex: 1; display: grid; place-items: center; text-align: center; padding: 10px 0; }
+.readout { display: grid; justify-items: center; gap: 4px; padding: 30px 60px; max-width: 100%;
+  background: radial-gradient(closest-side, rgba(2,3,8,.82), rgba(2,3,8,.55) 55%, rgba(2,3,8,0)); }
+.phase { font: 400 .72rem/1 var(--f-d); letter-spacing: .5em; text-transform: uppercase; color: var(--acc); padding-left: .5em; transition: color .5s; min-height: 1em; }
+.big { font: 300 clamp(4.4rem, 19vw, 12rem)/.9 var(--f-u); letter-spacing: -.04em; font-variant-numeric: tabular-nums; white-space: nowrap;
+  text-shadow: 0 0 40px color-mix(in srgb, var(--acc) 55%, transparent); transition: text-shadow .6s; }
+.unit { font: 400 .9rem var(--f-d); letter-spacing: .3em; text-transform: uppercase; color: var(--mute); padding-left: .3em; }
+.sub { font: .78rem var(--f-m); color: var(--mute); min-height: 1.3em; }
+.prog { width: min(300px, 64vw); height: 2px; background: var(--line); margin-top: 10px; overflow: hidden; }
+.prog i { display: block; height: 100%; width: 0; background: var(--acc); box-shadow: 0 0 10px var(--acc); }
+
+.ignite { position: relative; width: 168px; height: 168px; border-radius: 50%; border: 0; cursor: pointer; color: var(--ink);
+  background: radial-gradient(circle at 50% 50%, rgba(63,240,255,.18), rgba(2,3,8,.2) 60%, transparent 70%);
+  font: 400 .9rem/1.4 var(--f-d); letter-spacing: .36em; text-transform: uppercase; padding-left: .36em; }
+.ignite::before, .ignite::after { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(63,240,255,.55); }
+.ignite::after { inset: -14px; border-color: rgba(63,240,255,.18); border-style: dashed; animation: spin 18s linear infinite; }
+.ignite small { display: block; font: .62rem var(--f-m); letter-spacing: .2em; color: var(--mute); margin-top: 6px; }
+.ignite:hover::before { border-color: var(--down); box-shadow: 0 0 30px rgba(63,240,255,.35), inset 0 0 30px rgba(63,240,255,.2); }
+.ignite:disabled { opacity: .4; cursor: default; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.gauges { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.g { background: var(--glass); border: 1px solid var(--line); padding: 10px 12px 12px; position: relative; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px)); }
+.g .k { font: 400 .58rem var(--f-d); letter-spacing: .26em; text-transform: uppercase; color: var(--mute); }
+.g .k i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 6px; vertical-align: 1px; }
+.g .v { font: 300 1.9rem/1.1 var(--f-u); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.g .v small { font: .7rem var(--f-m); color: var(--mute); margin-left: 4px; }
+.g .s { font: .68rem var(--f-m); color: var(--faint); min-height: 1.2em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g.ping .k { color: var(--ping); } .g.dl .k { color: var(--down); } .g.ul .k { color: var(--up); } .g.cpu .k { color: var(--hot); }
+.g.on { border-color: color-mix(in srgb, var(--acc) 60%, transparent); box-shadow: inset 0 0 24px color-mix(in srgb, var(--acc) 14%, transparent); }
+
+.ctrl { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 18px; color: var(--mute); font: .78rem var(--f-m); }
+.ctrl label { display: flex; align-items: center; gap: 6px; }
+select, input { color: var(--ink); background: rgba(10,16,34,.8); border: 1px solid var(--line); border-radius: 2px; padding: 5px 8px; font: .8rem var(--f-m); }
+input { width: 11em; }
+.btn { font: 400 .66rem var(--f-d); letter-spacing: .24em; text-transform: uppercase; color: var(--ink); background: transparent; border: 1px solid var(--line); padding: 8px 16px; cursor: pointer; }
+.btn:hover { border-color: var(--acc); color: var(--acc); }
+.btn.stop { color: var(--hot); border-color: var(--hot); }
+
+/* Reaktorprotokoll */
+.sheet { max-width: 1240px; margin: 0 auto; padding: 10px 24px 40px; display: grid; gap: 22px; }
+.sheet h2 { margin: 0; font: 400 .8rem var(--f-d); letter-spacing: .42em; text-transform: uppercase; color: var(--mute); display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.proto { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; }
+.panel { background: var(--glass); border: 1px solid var(--line); padding: 18px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: grid; gap: 14px; align-content: start;
+  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 18px 100%, 0 calc(100% - 18px)); }
+.verdict { font: 400 clamp(1.1rem, 3vw, 1.6rem)/1.3 var(--f-d); letter-spacing: .06em; text-wrap: balance; }
+.verdict em { font-style: normal; color: var(--down); }
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.pv .k { font: .6rem var(--f-d); letter-spacing: .24em; text-transform: uppercase; }
+.pv.dl .k { color: var(--down); } .pv.ul .k { color: var(--up); }
+.pv .v { font: 300 clamp(2.4rem, 7vw, 3.8rem)/1 var(--f-u); font-variant-numeric: tabular-nums; }
+.pv .v small { font: .8rem var(--f-m); color: var(--mute); margin-left: 6px; }
+.pv .s { font: .72rem var(--f-m); color: var(--mute); }
+.pv svg { width: 100%; height: 54px; display: block; margin-top: 6px; }
+.facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; font: .78rem var(--f-m); }
+.facts div { border-top: 1px solid var(--line); padding-top: 6px; }
+.facts b { display: block; font: 300 1.3rem var(--f-u); color: var(--ink); }
+.facts span { color: var(--mute); }
+.rings { display: grid; gap: 10px; }
+.ring { display: grid; grid-template-columns: 5.5em minmax(0, 1fr) 4.2em; gap: 10px; align-items: center; font: .74rem var(--f-m); color: var(--mute); }
+.ring .bar { height: 8px; background: rgba(120,170,255,.08); position: relative; }
+.ring .bar i { position: absolute; left: 0; top: 0; bottom: 0; }
+.ring .bar i.d { background: var(--down); opacity: .85; height: 50%; }
+.ring .bar i.u { background: var(--up); opacity: .85; top: 50%; }
+.ring b { color: var(--ink); text-align: right; font-weight: 600; }
+.warn { color: var(--hot); font-size: .85rem; }
+
+.tbl { overflow-x: auto; background: var(--glass); border: 1px solid var(--line); }
+table { width: 100%; border-collapse: collapse; font: .8rem var(--f-m); font-variant-numeric: tabular-nums; }
+th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+th { color: var(--mute); font: 400 .56rem var(--f-d); letter-spacing: .2em; text-transform: uppercase; }
+th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
+td.dl { color: var(--down); } td.ul { color: var(--up); }
+td small { color: var(--faint); }
+.empty { color: var(--mute); padding: 12px; font: .8rem var(--f-m); }
+.confirm { display: inline-flex; gap: 8px; align-items: center; font: .72rem var(--f-m); letter-spacing: 0; text-transform: none; }
+
+@media (max-width: 760px) {
+  .gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .g.cpu { grid-column: span 2; }
+  .proto { grid-template-columns: minmax(0, 1fr); }
+  .stage, .sheet { padding-left: 16px; padding-right: 16px; }
+  .ignite { width: 140px; height: 140px; }
+}
+@media (prefers-reduced-motion: reduce) { .ignite::after { animation: none; } }
+</style>
+</head>
+<body>
+<canvas id="cv" aria-hidden="true"></canvas>
+<main>
+  <section class="stage">
+    <div class="top">
+      <div class="mark">Fusions<i>kern</i></div>
+      <div class="who" id="who">Verbinde mit dem Reaktor …</div>
+    </div>
+
+    <div class="reactor">
+      <button class="ignite" id="go" disabled>Zünden<small>Messung starten</small></button>
+      <div class="readout" id="readout" hidden>
+        <div class="phase" id="phase">Zündung</div>
+        <div class="big" id="big">0</div>
+        <div class="unit" id="unit">Mbit/s</div>
+        <div class="sub" id="sub"></div>
+        <div class="prog"><i id="prog"></i></div>
+      </div>
+    </div>
+
+    <div class="gauges">
+      <div class="g ping" id="g-ping"><div class="k"><i></i>Ping</div><div class="v" id="v-ping">–<small>ms</small></div><div class="s">Zündverzögerung</div></div>
+      <div class="g jit"><div class="k" style="color:var(--ping)">Jitter</div><div class="v" id="v-jit">–<small>ms</small></div><div class="s" id="s-jit">Plasmastabilität</div></div>
+      <div class="g dl" id="g-dl"><div class="k"><i></i>Download</div><div class="v" id="v-dl">–<small>Mbit/s</small></div><div class="s" id="s-dl">Ausgangsleistung</div></div>
+      <div class="g ul" id="g-ul"><div class="k"><i></i>Upload</div><div class="v" id="v-ul">–<small>Mbit/s</small></div><div class="s" id="s-ul">Einspeisung</div></div>
+      <div class="g cpu" id="g-cpu"><div class="k"><i></i>Router-CPU</div><div class="v" id="v-cpu">–<small>%</small></div><div class="s" id="s-cpu">Kernlast, stärkster Kern</div></div>
+    </div>
+
+    <div class="ctrl">
+      <label for="streams">Verbindungen <select id="streams"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select></label>
+      <label for="duration">Dauer <select id="duration"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></label>
+      <label for="label">Gerät <input id="label" maxlength="40" placeholder="z. B. Laptop WLAN"></label>
+      <button class="btn stop" id="stop" hidden>Notabschaltung</button>
+    </div>
+  </section>
+
+  <section class="sheet">
+    <div id="result" hidden>
+      <h2>Reaktorprotokoll <button class="btn" id="again">Erneut zünden</button></h2>
+      <div class="proto" style="margin-top:12px">
+        <div class="panel">
+          <div class="verdict" id="verdict">–</div>
+          <div class="pair">
+            <div class="pv dl"><div class="k">Ausgangsleistung · Download</div><div class="v" id="r-dl">–</div><div class="s" id="r-dl-s"></div><svg id="c-dl" viewBox="0 0 300 54" preserveAspectRatio="none"></svg></div>
+            <div class="pv ul"><div class="k">Einspeisung · Upload</div><div class="v" id="r-ul">–</div><div class="s" id="r-ul-s"></div><svg id="c-ul" viewBox="0 0 300 54" preserveAspectRatio="none"></svg></div>
+          </div>
+          <div class="facts">
+            <div><span>Zündverzögerung (Ping)</span><b id="r-ping">–</b></div>
+            <div><span>Plasmastabilität (Jitter)</span><b id="r-jit">–</b></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="k" style="font:.6rem var(--f-d);letter-spacing:.26em;text-transform:uppercase;color:var(--hot)">Plasmaringe · Kernlast</div>
+          <div class="rings" id="rings"></div>
+          <div class="facts"><div><span>Router-CPU gesamt ↓ / ↑</span><b id="r-cpu">–</b></div><div><span>Parallele Verbindungen</span><b id="r-st">–</b></div></div>
+          <div class="warn" id="warn" hidden></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <h2>Betriebsbuch <span id="clear-wrap"><button class="btn" id="clear">Löschen</button></span></h2>
+      <div class="tbl" id="history" style="margin-top:10px"><div class="empty">Noch keine Messungen.</div></div>
+    </div>
+  </section>
+</main>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.SpeedEngine, $ = function (id) { return document.getElementById(id); };
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var info = null, phase = null, live = 0, shown = 0, coreLoad = [], running = false;
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function now() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
+
+  // =====================================================================
+  // Reaktor: Ringe = CPU-Kerne, Teilchen laufen auf den Ringen.
+  // Projektion: einfache Perspektive, additive Mischung für das Glühen.
+  // =====================================================================
+  var cv = $('cv'), ctx = cv.getContext('2d'), W = 0, H = 0, DPR = 1, CX = 0, CY = 0, S = 1;
+  var rings = [], parts = [], waves = [], sparks = [], rotY = 0, rotX = 0.35, energy = 0, flash = 0;
+  function size() {
+    DPR = Math.min(window.devicePixelRatio || 1, 1.75);
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    CX = W / 2; CY = H * 0.43; S = Math.min(W, H) * 0.34;
+    ctx.fillStyle = '#020308'; ctx.fillRect(0, 0, W, H);
+  }
+  function buildRings(n) {
+    rings = [];
+    n = Math.max(2, Math.min(n || 3, 12));
+    for (var i = 0; i < n; i++) {
+      // Ringebene über zwei Neigungswinkel, gleichmäßig verteilt wie die Bahnen eines Atommodells
+      var a = Math.PI * i / n, b = 0.9 + 0.25 * Math.sin(i * 1.7);
+      var u = [Math.cos(a), 0, Math.sin(a)];
+      var v = [-Math.sin(a) * Math.cos(b), Math.sin(b), Math.cos(a) * Math.cos(b)];
+      rings.push({ u: u, v: v, R: 0.86 + 0.07 * (i % 3), load: null, spin: (i % 2 ? 1 : -1) * (0.8 + 0.1 * i) });
+    }
+    var count = Math.round(Math.min(1400, Math.max(500, W * H / 1100)));
+    parts = [];
+    for (var k = 0; k < count; k++) parts.push(newPart(Math.random()));
+  }
+  function newPart(r) {
+    return { ring: Math.floor(Math.random() * rings.length), th: Math.random() * Math.PI * 2, r: r, sp: 0.6 + Math.random() * 0.8, jit: (Math.random() - 0.5) * 0.06, px: null, py: null };
+  }
+  function rot(p) {   // Drehung um Y, dann Neigung um X
+    var cy = Math.cos(rotY), sy = Math.sin(rotY), cx = Math.cos(rotX), sx = Math.sin(rotX);
+    var x = p[0] * cy + p[2] * sy, z = -p[0] * sy + p[2] * cy, y = p[1];
+    return [x, y * cx - z * sx, y * sx + z * cx];
+  }
+  function proj(p) { var f = 3.2 / (3.2 + p[2]); return [CX + p[0] * S * f, CY + p[1] * S * f, f]; }
+  function ringPoint(ring, th, r) {
+    var c = Math.cos(th), s = Math.sin(th), R = ring.R * r;
+    return [(ring.u[0] * c + ring.v[0] * s) * R, (ring.u[1] * c + ring.v[1] * s) * R, (ring.u[2] * c + ring.v[2] * s) * R];
+  }
+  function heat(l) {   // Kernlast als Glühfarbe: kühles Blau -> weiß -> rot
+    if (l === null || l === undefined) return [90, 150, 255];
+    var t = Math.max(0, Math.min(1, l / 100));
+    if (t < 0.5) { var k = t / 0.5; return [90 + 165 * k, 150 + 90 * k, 255]; }
+    var m = (t - 0.5) / 0.5; return [255, 240 - 150 * m, 255 - 205 * m];
+  }
+
+  var lastT = 0, rafId = 0;
+  function loop(t) {
+    rafId = 0;
+    var dt = Math.min(0.05, (t - (lastT || t)) / 1000); lastT = t;
+    shown += (live - shown) * Math.min(1, dt * 3);
+    // Leistung 0..1 logarithmisch bis 10 Gbit/s
+    var target = (phase === 'download' || phase === 'upload') ? Math.log(1 + shown / 20) / Math.log(1 + 10000 / 20) : (running ? 0.08 : 0.04);
+    energy += (target - energy) * Math.min(1, dt * 2);
+    flash *= Math.pow(0.02, dt);
+    rotY += dt * (0.12 + energy * 0.9) * (reduce ? 0.2 : 1);
+
+    // Nachleuchten: halbtransparent übermalen statt löschen
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = 'rgba(2,3,8,' + (reduce ? 1 : 0.22 + 0.1 * (1 - energy)) + ')';
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'lighter';
+
+    var col = phase === 'upload' ? [255, 79, 216] : (phase === 'ping' ? [255, 194, 71] : [63, 240, 255]);
+
+    // Kern
+    var coreR = S * (0.12 + energy * 0.12 + flash * 0.06);
+    var g = ctx.createRadialGradient(CX, CY, 0, CX, CY, coreR * 3.2);
+    g.addColorStop(0, 'rgba(255,255,255,' + (0.85) + ')');
+    g.addColorStop(0.18, 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',' + (0.55 + energy * 0.4) + ')');
+    g.addColorStop(0.5, 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',' + (0.12 + energy * 0.15) + ')');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(CX, CY, coreR * 3.2, 0, 7); ctx.fill();
+
+    // Ringe als feine Bahnen
+    for (var i = 0; i < rings.length; i++) {
+      var rg = rings[i], hc = heat(rg.load), a = rg.load === null ? 0.10 + energy * 0.12 : 0.18 + 0.5 * rg.load / 100;
+      ctx.strokeStyle = 'rgba(' + Math.round(hc[0]) + ',' + Math.round(hc[1]) + ',' + Math.round(hc[2]) + ',' + a + ')';
+      ctx.lineWidth = rg.load === null ? 1 : 1 + 2.5 * rg.load / 100;
+      ctx.beginPath();
+      for (var s = 0; s <= 64; s++) {
+        var pp = proj(rot(ringPoint(rg, s / 64 * Math.PI * 2, 1)));
+        if (s) ctx.lineTo(pp[0], pp[1]); else ctx.moveTo(pp[0], pp[1]);
+      }
+      ctx.stroke();
+    }
+
+    // Teilchen: Download strömt nach außen, Upload spiralt hinein, sonst ruhige Umlaufbahn
+    var flowing = phase === 'download' || phase === 'upload', dir = phase === 'upload' ? -1 : 1;
+    var spd = 0.6 + energy * 9;
+    ctx.lineCap = 'round';
+    for (var k = 0; k < parts.length; k++) {
+      var p = parts[k], ring = rings[p.ring];
+      p.th += dt * spd * p.sp * ring.spin;
+      if (flowing) {
+        p.r += dir * dt * (0.15 + energy * 1.6) * p.sp;
+        if (dir > 0 && p.r > 2.6) { p.r = 0.15 + Math.random() * 0.2; p.px = null; }
+        if (dir < 0 && p.r < 0.12) { p.r = 2.2 + Math.random() * 0.4; p.px = null; }
+      } else { p.r += (1 + p.jit - p.r) * Math.min(1, dt * 1.5); }
+      var q = proj(rot(ringPoint(ring, p.th, p.r + p.jit)));
+      var lc = ring.load === null || flowing ? col : heat(ring.load);
+      var alpha = Math.min(0.8, 0.25 + energy * 0.7) * (flowing && dir > 0 ? Math.max(0, 1 - (p.r - 1.4) / 1.2) : 1);
+      if (p.px !== null && !reduce) {
+        ctx.strokeStyle = 'rgba(' + lc[0] + ',' + lc[1] + ',' + Math.round(lc[2]) + ',' + alpha.toFixed(3) + ')';
+        ctx.lineWidth = 0.6 + q[2] * (1 + energy * 1.6);
+        ctx.beginPath(); ctx.moveTo(p.px, p.py); ctx.lineTo(q[0], q[1]); ctx.stroke();
+      } else {
+        ctx.fillStyle = 'rgba(' + lc[0] + ',' + lc[1] + ',' + Math.round(lc[2]) + ',' + alpha.toFixed(3) + ')';
+        ctx.fillRect(q[0] - 1, q[1] - 1, 2, 2);
+      }
+      p.px = q[0]; p.py = q[1];
+    }
+
+    // Schockwellen (Ping) und Funken
+    for (var w = waves.length - 1; w >= 0; w--) {
+      var wv = waves[w]; wv.r += dt * S * 2.4; wv.a -= dt * 0.9;
+      if (wv.a <= 0) { waves.splice(w, 1); continue; }
+      ctx.strokeStyle = 'rgba(255,194,71,' + wv.a.toFixed(3) + ')'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(CX, CY, wv.r, wv.r * (0.55 + 0.45 * Math.cos(rotX)), 0, 0, 7); ctx.stroke();
+    }
+    for (var f = sparks.length - 1; f >= 0; f--) {
+      var sp = sparks[f]; sp.x += sp.vx * dt; sp.y += sp.vy * dt; sp.l -= dt;
+      if (sp.l <= 0) { sparks.splice(f, 1); continue; }
+      ctx.fillStyle = 'rgba(255,220,160,' + Math.min(1, sp.l * 2).toFixed(3) + ')'; ctx.fillRect(sp.x, sp.y, 2, 2);
+    }
+
+    // Eindämmungsfeld: feines Sechseckgitter am Rand, dreht mit
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = 'rgba(120,170,255,' + (0.05 + energy * 0.08) + ')'; ctx.lineWidth = 1;
+    var hr = S * 1.55;
+    for (var h = 0; h < 6; h++) {
+      ctx.beginPath();
+      for (var e = 0; e <= 6; e++) {
+        var an = rotY * 0.3 + h * Math.PI / 18 + e * Math.PI / 3, rr = hr + h * 6;
+        var x = CX + Math.cos(an) * rr, y = CY + Math.sin(an) * rr * 0.92;
+        if (e) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+      }
+      ctx.stroke();
+    }
+    schedule();
+  }
+  function schedule() { if (!rafId && !document.hidden) rafId = requestAnimationFrame(loop); }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { lastT = 0; schedule(); } });
+  function shock() {
+    waves.push({ r: S * 0.15, a: 0.9 }); flash = 1;
+    for (var i = 0; i < 14; i++) { var a = Math.random() * 7, v = S * (0.6 + Math.random()); sparks.push({ x: CX, y: CY, vx: Math.cos(a) * v, vy: Math.sin(a) * v, l: 0.4 + Math.random() * 0.4 }); }
+  }
+
+  // =====================================================================
+  // Oberfläche
+  // =====================================================================
+  function setV(id, val, unit) { $(id).innerHTML = val + '<small>' + unit + '</small>'; }
+  function spd(m) { var s = E.fmtSpeed(m); return s; }
+  function gauge(p) { ['g-ping', 'g-dl', 'g-ul'].forEach(function (id) { $(id).classList.remove('on'); }); var id = { ping: 'g-ping', download: 'g-dl', upload: 'g-ul' }[p]; if (id) $(id).classList.add('on'); }
+  function spark(svg, series, color) {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    if (series.length < 2) return;
+    var max = Math.max.apply(null, series) * 1.08, n = series.length;
+    var d = series.map(function (v, i) { return (i ? 'L' : 'M') + (i / (n - 1) * 300).toFixed(1) + ' ' + (52 - v / max * 48).toFixed(1); }).join(' ');
+    svg.innerHTML = '<path d="' + d + ' L300 54 L0 54 Z" fill="' + color + '" fill-opacity=".14"/><path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>';
+  }
+  function verdict(dl) {
+    if (dl >= 4700) return 'Überlichtbetrieb: <em>mehr als 5 Gbit/s</em>, das schafft nur 10 GbE.';
+    if (dl >= 2000) return 'Volllast: Die <em>2,5-GbE-Strecke</em> läuft am Anschlag.';
+    if (dl >= 940) return 'Hochleistung: <em>schneller als Gigabit</em>.';
+    if (dl >= 600) return 'Stabiler Betrieb in der <em>Gigabit-Klasse</em>.';
+    if (dl >= 90) return 'Teillast: typisch für <em>WLAN mit Abstand</em> oder 100-Mbit-Kabel.';
+    return 'Reaktor unterversorgt: <em>Kabel, Port oder WLAN prüfen</em>.';
+  }
+
+  function mode(on) {
+    running = on; $('go').hidden = on; $('readout').hidden = !on; $('stop').hidden = !on;
+    if (!on) { phase = null; live = 0; document.body.className = ''; gauge(null); }
+  }
+  function start() {
+    var streams = +$('streams').value, duration = +$('duration').value, label = $('label').value.replace(/^\s+|\s+$/g, '');
+    try { localStorage.setItem('st-label', label); localStorage.setItem('st-streams', streams); localStorage.setItem('st-duration', duration); } catch (e) { }
+    $('result').hidden = true;
+    rings.forEach(function (r) { r.load = null; });
+    ['v-ping', 'v-jit'].forEach(function (id) { setV(id, '–', 'ms'); });
+    setV('v-dl', '–', 'Mbit/s'); setV('v-ul', '–', 'Mbit/s'); setV('v-cpu', '–', '%');
+    $('s-dl').textContent = 'Ausgangsleistung'; $('s-ul').textContent = 'Einspeisung'; $('s-cpu').textContent = 'Kernlast, stärkster Kern';
+    mode(true);
+    var res = {}, ping = null, jit = null, t0 = 0, dur = duration;
+    E.run({ streams: streams, duration: duration, label: label }, {
+      phase: function (p) {
+        phase = p; live = 0; shown = 0; document.body.className = 'p-' + p; gauge(p); t0 = now();
+        $('phase').textContent = { ping: 'Zündung · Ping', download: 'Ausgangsleistung · Download', upload: 'Einspeisung · Upload' }[p];
+        $('big').textContent = '…'; $('unit').textContent = p === 'ping' ? 'ms' : 'Mbit/s'; $('sub').textContent = ''; $('prog').style.width = '0';
+      },
+      pingSample: function (ms, i, n) { $('big').textContent = E.fmt(ms, 1); $('prog').style.width = ((i + 1) / n * 100) + '%'; shock(); },
+      ping: function (p, j) { ping = p; jit = j; setV('v-ping', E.fmt(p, p < 10 ? 1 : 0), 'ms'); setV('v-jit', E.fmt(j, 1), 'ms'); $('s-jit').textContent = 'Stabilität ' + Math.max(0, Math.round(100 - j / Math.max(p, 0.1) * 100)) + ' %'; },
+      live: function (kind, m, prog) {
+        $('prog').style.width = (prog * 100) + '%';
+        if (m === null) return;
+        live = m; var s = spd(m); $('big').textContent = s.v; $('unit').textContent = s.u;
+        $('sub').textContent = 'Kernleistung ' + Math.round(Math.log(1 + m / 20) / Math.log(1 + 10000 / 20) * 100) + ' % · Skala bis 10 Gbit/s';
+      },
+      result: function (kind, r) {
+        res[kind] = r; var s = spd(r.peak), a = spd(r.avg);
+        setV(kind === 'download' ? 'v-dl' : 'v-ul', s.v, s.u);
+        $(kind === 'download' ? 's-dl' : 's-ul').textContent = 'Ø ' + a.v + ' ' + a.u;
+        if (r.cores) r.cores.forEach(function (c, i) { if (rings[i]) rings[i].load = Math.max(rings[i].load || 0, c); });
+        var mc = Math.max(res.download ? res.download.core || 0 : 0, res.upload ? res.upload.core || 0 : 0);
+        if (r.core !== null) { setV('v-cpu', Math.round(mc), '%'); $('s-cpu').textContent = 'stärkster Kern'; }
+      },
+      done: function () { mode(false); showResult(res, ping, jit, streams); loadHistory(); },
+      error: function (msg) { mode(false); $('go').hidden = false; $('who').insertAdjacentHTML('beforeend', ' <b style="color:var(--hot)">' + esc(msg) + '</b>'); }
+    });
+  }
+  function showResult(res, ping, jit, streams) {
+    var d = res.download, u = res.upload, sd = spd(d.peak), su = spd(u.peak), ad = spd(d.avg), au = spd(u.avg);
+    $('verdict').innerHTML = verdict(d.peak);
+    $('r-dl').innerHTML = sd.v + '<small>' + sd.u + '</small>'; $('r-dl-s').textContent = 'Spitze · Ø ' + ad.v + ' ' + ad.u;
+    $('r-ul').innerHTML = su.v + '<small>' + su.u + '</small>'; $('r-ul-s').textContent = 'Spitze · Ø ' + au.v + ' ' + au.u;
+    spark($('c-dl'), d.series, '#3ff0ff'); spark($('c-ul'), u.series, '#ff4fd8');
+    $('r-ping').textContent = ping === null ? '–' : E.fmt(ping, 1) + ' ms';
+    $('r-jit').textContent = jit === null ? '–' : E.fmt(jit, 1) + ' ms';
+    $('r-cpu').textContent = (d.cpu === null ? '–' : Math.round(d.cpu)) + ' / ' + (u.cpu === null ? '–' : Math.round(u.cpu)) + ' %';
+    $('r-st').textContent = streams;
+    var n = Math.max(d.cores ? d.cores.length : 0, u.cores ? u.cores.length : 0), html = '';
+    for (var i = 0; i < n; i++) {
+      var a = d.cores ? d.cores[i] : 0, b = u.cores ? u.cores[i] : 0;
+      html += '<div class="ring"><span>Ring ' + (i + 1) + '</span><div class="bar"><i class="d" style="width:' + Math.round(a) + '%"></i><i class="u" style="width:' + Math.round(b) + '%"></i></div><b>' + Math.round(Math.max(a, b)) + ' %</b></div>';
+    }
+    $('rings').innerHTML = html || '<div class="ring"><span>keine Daten</span></div>';
+    var mc = Math.max(d.core || 0, u.core || 0);
+    $('warn').hidden = mc < 90;
+    $('warn').textContent = 'Ring überhitzt: Ein Kern lag bei ' + Math.round(mc) + ' %. Das Ergebnis zeigt eher die Grenze des Routers als die des Netzes.';
+    $('result').hidden = false;
+    $('result').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+  }
+
+  // ---------- Verlauf ----------
+  function n0(v) { return v === null || v === undefined ? '–' : E.fmt(v, 0); }
+  function sp(peak, avg) { return peak === null || peak === undefined ? n0(avg) : n0(peak) + ' <small>/ ' + n0(avg) + '</small>'; }
+  function loadHistory() {
+    E.history(function (h) {
+      if (!h.length) { $('history').innerHTML = '<div class="empty">Noch keine Messungen.</div>'; return; }
+      var rows = '';
+      for (var i = h.length - 1; i >= 0; i--) {
+        var e = h[i], d = new Date(e.ts * 1000);
+        var when = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '. ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        var who = e.label || e.host || e.ip; if (e.label && e.host) who = esc(e.label) + ' <small>' + esc(e.host) + '</small>'; else who = esc(who);
+        rows += '<tr><td>' + when + '</td><td>' + who + '</td><td>' + (e.ping === null ? '–' : E.fmt(e.ping, 1)) + '</td><td>' + (e.jitter === null || e.jitter === undefined ? '–' : E.fmt(e.jitter, 1)) +
+          '</td><td class="dl">' + sp(e.dl_peak, e.dl) + '</td><td class="ul">' + sp(e.ul_peak, e.ul) + '</td><td>' + (e.core_dl === null || e.core_dl === undefined ? '–' : e.core_dl + ' / ' + e.core_ul) + '</td></tr>';
+      }
+      $('history').innerHTML = '<table><tr><th>Zeit</th><th>Gerät</th><th>Ping ms</th><th>Jitter ms</th><th>Down Mbit/s<br>Spitze / Ø</th><th>Up Mbit/s<br>Spitze / Ø</th><th>Kern %<br>↓ / ↑</th></tr>' + rows + '</table>';
+    });
+  }
+  function clearAsk() {
+    $('clear-wrap').innerHTML = '<span class="confirm">Alles löschen? <button class="btn" id="yes">Ja</button><button class="btn" id="no">Nein</button></span>';
+    $('yes').onclick = function () { E.clearHistory(function () { loadHistory(); clearReset(); }); };
+    $('no').onclick = clearReset;
+  }
+  function clearReset() { $('clear-wrap').innerHTML = '<button class="btn" id="clear">Löschen</button>'; $('clear').onclick = clearAsk; }
+  $('clear').onclick = clearAsk;
+
+  $('go').onclick = start;
+  $('again').onclick = function () { window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' }); start(); };
+  $('stop').onclick = function () { E.stop(); mode(false); };
+
+  try {
+    var l = localStorage.getItem('st-label'), s = localStorage.getItem('st-streams'), d = localStorage.getItem('st-duration');
+    if (l) $('label').value = l; if (s) $('streams').value = s; if (d) $('duration').value = d;
+  } catch (e) { }
+
+  size(); buildRings(3);
+  window.addEventListener('resize', function () { size(); });
+  schedule();
+
+  E.init(function (i) {
+    info = i; buildRings(i.cores);
+    $('who').innerHTML = '<b>' + esc(i.hostname) + '</b><span>' + esc(i.model || '') + '</span><span>' + i.cores + ' Kerne = ' + i.cores + ' Ringe</span><span>Du: ' +
+      esc(i.client_host ? i.client_host + ' (' + i.client_ip + ')' : i.client_ip) + '</span>' + (i.demo ? '<span class="demo">Demo</span>' : '');
+    $('go').disabled = false;
+    loadHistory();
+  });
+})();
+</script>
+</body>
+</html>
