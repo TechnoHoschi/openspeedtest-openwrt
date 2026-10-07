@@ -2,445 +2,54 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>LAN-Speedtest</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#030605">
+<title>Speedtest</title>
 <style>
-:root {
-  --bg: #f4f5f7; --card: #ffffff; --text: #1d2330; --muted: #677085;
-  --line: #dde1e8; --accent: #1a73e8; --down: #1a73e8; --up: #8e44ad; --warn: #b45309; --warn-bg: #fff4e0;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #12151b; --card: #1c2029; --text: #e7eaf0; --muted: #98a1b3;
-    --line: #2c323e; --accent: #5aa0ff; --down: #5aa0ff; --up: #c18cf0; --warn: #f5b041; --warn-bg: #3a2c12;
-  }
-}
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--text);
-  font: 16px/1.4 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-main { max-width: 920px; margin: 0 auto; padding: 16px; }
-h1 { font-size: 1.4em; margin: 0 0 2px; }
-.sub { color: var(--muted); font-size: .9em; }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-top: 16px; }
-.live { text-align: center; }
-.phase { color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-size: .8em; min-height: 1.2em; }
-.big { font-size: 3.4em; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.15; margin: 4px 0; }
-.big small { font-size: .35em; font-weight: 400; color: var(--muted); }
-.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 10px 0 16px; }
-.bar div { height: 100%; width: 0; background: var(--accent); transition: width .25s linear; }
-button { font: inherit; border: 0; border-radius: 8px; padding: 12px 28px; cursor: pointer;
-  background: var(--accent); color: #fff; font-weight: 600; }
-button:disabled { opacity: .5; cursor: default; }
-button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); padding: 6px 12px; font-weight: 400; font-size: .85em; }
-.opts { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 16px; font-size: .9em; color: var(--muted); }
-.opts label { display: flex; align-items: center; gap: 6px; }
-select, input { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
-input { width: 11em; }
-.grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-.res { text-align: center; }
-.res .k { color: var(--muted); font-size: .8em; text-transform: uppercase; letter-spacing: .06em; }
-.res .v { font-size: 1.6em; font-weight: 600; font-variant-numeric: tabular-nums; }
-.res .u { color: var(--muted); font-size: .8em; }
-.res .c { color: var(--muted); font-size: .75em; margin-top: 4px; min-height: 1.2em; white-space: pre-line; }
-#res-dl .v { color: var(--down); } #res-ul .v { color: var(--up); }
-.note { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 10px 12px; margin-top: 12px; font-size: .9em; display: none; }
-.head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.head h2 { font-size: 1.05em; margin: 0; }
-.tbl { overflow-x: auto; margin-top: 8px; }
-table { width: 100%; border-collapse: collapse; font-size: .88em; font-variant-numeric: tabular-nums; }
-th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-th { color: var(--muted); font-weight: 500; }
-th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
-.empty { color: var(--muted); font-size: .9em; padding: 8px 0; }
-@media (max-width: 600px) {
-  .grid { grid-template-columns: repeat(2, 1fr); }
-  .big { font-size: 2.6em; }
-}
+/* Einstieg: prüft, ob der Browser die 3D-Ansicht flüssig darstellen kann, und lädt dann silizium3d.html
+   oder silizium2d.html. Eine einmal gewählte Ansicht (Knopf in der Messoberfläche) hat Vorrang. */
+:root { --board: #030605; --silk: #d6e2dc; --mute: #8aa39a; --acc: #3ef0ff; color-scheme: dark; }
+html, body { margin: 0; height: 100%; background: var(--board); color: var(--silk); font: 15px/1.5 ui-monospace, Consolas, monospace; }
+main { min-height: 100%; display: grid; place-items: center; text-align: center; padding: 16px; box-sizing: border-box; }
+p { margin: 6px 0; } small { color: var(--mute); }
+a { color: var(--acc); }
 </style>
 </head>
 <body>
 <main>
-  <h1 id="title">LAN-Speedtest</h1>
-  <div class="sub" id="who">Verbinde mit dem Router …</div>
-
-  <div class="card live">
-    <div class="phase" id="phase">Bereit</div>
-    <div class="big" id="big">–<small></small></div>
-    <div class="bar"><div id="bar"></div></div>
-    <button id="start" disabled>Start</button>
-    <div class="opts">
-      <label>Verbindungen
-        <select id="streams"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select>
-      </label>
-      <label>Dauer
-        <select id="duration"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select>
-      </label>
-      <label>Gerätename <input id="label" maxlength="40" placeholder="z. B. Laptop WLAN"></label>
-    </div>
-    <div class="note" id="note"></div>
-  </div>
-
-  <div class="card">
-    <div class="grid">
-      <div class="res" id="res-ping"><div class="k">Ping</div><div class="v">–</div><div class="u">ms</div><div class="c"></div></div>
-      <div class="res" id="res-jitter"><div class="k">Jitter</div><div class="v">–</div><div class="u">ms</div><div class="c"></div></div>
-      <div class="res" id="res-dl"><div class="k">Download</div><div class="v">–</div><div class="u">Mbit/s</div><div class="c"></div></div>
-      <div class="res" id="res-ul"><div class="k">Upload</div><div class="v">–</div><div class="u">Mbit/s</div><div class="c"></div></div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="head"><h2>Verlauf</h2><button class="ghost" id="clear">Verlauf löschen</button></div>
-    <div class="tbl" id="history"><div class="empty">Noch keine Messungen.</div></div>
-    <div class="sub" style="margin-top:8px">Der Verlauf liegt im RAM des Routers und ist nach einem Neustart leer.</div>
+  <div>
+    <p id="msg">Speedtest wird geladen …</p>
+    <p><small>Ansicht direkt wählen: <a href="silizium3d.html" id="a3">3D</a> · <a href="silizium2d.html" id="a2">2D</a></small></p>
+    <noscript><p>Der Speedtest braucht JavaScript.</p></noscript>
   </div>
 </main>
-
 <script>
-// Bewusst ES5 ohne Abhaengigkeiten, damit auch aeltere Browser (SmartTV) die Seite ausfuehren.
 (function () {
   'use strict';
-  var API = '/speedtest-api';
-  var PING_URL = '/speedtest/ping.txt';
-  var UL_CHUNK = 32 * 1048576;    // Groesse eines Upload-Requests (gross, weil uhttpd jede Antwort ~40 ms verzoegert)
-  var XHR_DL_CHUNK = 32 * 1048576; // XHR-Fallback: nach so vielen Bytes neu anfragen, haelt den Browser-RAM klein
-  var WARMUP = 1.5;               // Sekunden, die am Anfang nicht in das Ergebnis eingehen
-
-  var info = null, running = false, cancelled = false;
-
-  function $(id) { return document.getElementById(id); }
-  function now() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
-  function fmt(n, d) { return n.toFixed(d).replace('.', ','); }
-  function fmtSpeed(mbit) {
-    if (mbit >= 1000) return { v: fmt(mbit / 1000, 2), u: 'Gbit/s' };
-    return { v: fmt(mbit, mbit < 100 ? 1 : 0), u: 'Mbit/s' };
+  // Kann der Browser die 3D-Ansicht? Hardware-WebGL (keine Software-Notlösung), genug Kerne und Speicher,
+  // kein SmartTV-Browser und keine Einstellung "weniger Bewegung".
+  function can3d() {
+    var ua = navigator.userAgent || '';
+    if (/SMART-TV|SmartTV|Tizen|Web0S|webOS|NetCast|BRAVIA|HbbTV|VIDAA|AFT[A-Z]|CrKey|PlayStation|Xbox/i.test(ua)) return false;
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
+    if ((navigator.hardwareConcurrency || 4) < 4) return false;
+    if (navigator.deviceMemory && navigator.deviceMemory < 3) return false;
+    try {
+      var c = document.createElement('canvas'), o = { failIfMajorPerformanceCaveat: true };
+      var gl = c.getContext('webgl2', o) || c.getContext('webgl', o);
+      if (!gl) return false;
+      if (gl.getParameter(gl.MAX_TEXTURE_SIZE) < 4096) return false;
+      var lose = gl.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext();
+      return true;
+    } catch (e) { return false; }
   }
-  function esc(s) {
-    return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
-  }
-  function store(k, v) {
-    try { if (v === undefined) return window.localStorage.getItem(k); window.localStorage.setItem(k, v); } catch (e) { }
-    return null;
-  }
-  function bust(url) { return url + (url.indexOf('?') < 0 ? '?' : '&') + 'r=' + Math.random().toString(36).slice(2); }
-
-  function req(method, url, body, cb) {
-    var x = new XMLHttpRequest();
-    x.open(method, bust(url));
-    x.onload = function () {
-      var d = null;
-      try { d = JSON.parse(x.responseText); } catch (e) { }
-      cb(x.status === 200 ? d : null);
-    };
-    x.onerror = function () { cb(null); };
-    if (body) x.setRequestHeader('Content-Type', 'application/json');
-    x.send(body || null);
-  }
-
-  // ---------- Anzeige ----------
-  function setBig(mbit) {
-    if (mbit === null) { $('big').innerHTML = '–<small></small>'; return; }
-    var s = fmtSpeed(mbit);
-    $('big').innerHTML = s.v + ' <small>' + s.u + '</small>';
-  }
-  function setRes(id, value, unit, cpu) {
-    var el = $(id);
-    el.querySelector('.v').textContent = value;
-    if (unit) el.querySelector('.u').textContent = unit;
-    el.querySelector('.c').textContent = cpu || '';
-  }
-  function note(text) {
-    var el = $('note');
-    if (text) { el.innerHTML = text; el.style.display = 'block'; } else { el.style.display = 'none'; }
-  }
-
-  // ---------- Router-CPU ----------
-  // Zwei Schnappschuesse von /proc/stat (nach dem Anlauf und am Ende) statt laufender Abfragen,
-  // damit die Messung den Router nicht zusaetzlich belastet. Ergebnis: Durchschnitt aller Kerne
-  // und der am staerksten ausgelastete Kern ueber das Messfenster.
-  function CpuWatch() {
-    var self = this, first = null;
-    self.avg = null; self.core = null;
-    self.mark = function () { req('GET', API + '/cpu', null, function (d) { if (d && d.length) first = d; }); };
-    self.finish = function (cb) {
-      req('GET', API + '/cpu', null, function (d) {
-        if (d && first && d.length === first.length) {
-          for (var i = 0; i < d.length; i++) {
-            var dt = d[i][0] - first[i][0], di = d[i][1] - first[i][1];
-            var busy = dt > 0 ? 100 * (dt - di) / dt : 0;
-            if (i === 0) self.avg = busy;
-            else if (self.core === null || busy > self.core) self.core = busy;
-          }
-        }
-        cb();
-      });
-    };
-    self.text = function () {
-      if (self.avg === null) return '';
-      return 'Router-CPU Ø ' + Math.round(self.avg) + ' %, Kern max ' + Math.round(self.core) + ' %';
-    };
-  }
-
-  // ---------- Ping ----------
-  // Gemessen wird bis zum ersten Antwort-Byte (Resource Timing). Die Gesamtzeit waere unbrauchbar:
-  // uhttpd in OpenWrt 25.12 haelt den Rest einer kleinen Antwort ~40 ms zurueck (kein TCP_NODELAY).
-  function runPing(done) {
-    var times = [], n = 0, COUNT = 20;
-    var rt = !!(window.performance && performance.getEntriesByName);
-    if (rt && performance.clearResourceTimings) performance.clearResourceTimings();
-    function one() {
-      var x = new XMLHttpRequest(), t0 = now(), url = bust(PING_URL);
-      x.open('GET', url);
-      x.onload = function () {
-        if (cancelled) return;
-        var v = now() - t0;
-        if (rt) {
-          var e = performance.getEntriesByName(location.protocol + '//' + location.host + url).pop();
-          if (e && e.responseStart > 0 && e.requestStart > 0) v = e.responseStart - e.requestStart;
-        }
-        if (n++ >= 2) times.push(v);   // die ersten zwei waermen die Verbindung an
-        if (n < COUNT + 2) one(); else finish();
-      };
-      x.onerror = function () { finish(); };
-      x.send();
-    }
-    function finish() {
-      if (!times.length) return done(null, null);
-      var sorted = times.slice().sort(function (a, b) { return a - b; });
-      var med = sorted[Math.floor(sorted.length / 2)], j = 0;
-      for (var i = 1; i < times.length; i++) j += Math.abs(times[i] - times[i - 1]);
-      done(med, times.length > 1 ? j / (times.length - 1) : 0);
-    }
-    one();
-  }
-
-  // ---------- Durchsatz ----------
-  // Startet `streams` parallele Verbindungen fuer `duration` Sekunden.
-  // worker(state, count) startet eine Verbindung und ruft count(bytes) fuer jedes empfangene/gesendete Stueck.
-  // Live-Anzeige und Spitze nutzen dieselben gleitenden 1-s-Werte, damit nichts angezeigt wird, was die
-  // Auswertung nicht kennt. Spitze = bester 1-s-Wert ueber die ganze Messung.
-  // Durchschnitt = 1-s-Werte nach dem Anlauf ohne die langsamsten 30 % und schnellsten 10 %, gemittelt.
-  function runTransfer(streams, duration, worker, onLive, done, onWarm) {
-    var state = { stop: false, aborts: [] }, bytes = 0, t0 = now(), warmBytes = null, warmT = 0, samples = [], rates = [], peak = 0;
-    function count(b) { bytes += b; }
-    for (var i = 0; i < streams; i++) worker(state, count);
-    function halt() {
-      clearInterval(timer);
-      state.stop = true;
-      if (window.performance && performance.clearResourceTimings) performance.clearResourceTimings();
-      for (var k = 0; k < state.aborts.length; k++) { try { state.aborts[k](); } catch (e) { } }
-    }
-    var timer = setInterval(function () {
-      if (cancelled) return halt();
-      var t = (now() - t0) / 1000;
-      samples.push([t, bytes]);
-      while (samples.length > 2 && t - samples[1][0] >= 1.0) samples.shift();   // Fenster bleibt >= 1 s
-      if (samples.length > 1) {
-        var s = samples[0], rate = (bytes - s[1]) * 8 / 1e6 / (t - s[0]);
-        if (t - s[0] >= 0.95) {   // erst ab einem vollen Sekundenfenster anzeigen und zaehlen
-          onLive(rate, Math.min(1, t / duration));
-          if (rate > peak) peak = rate;
-          if (warmBytes !== null) rates.push(rate);
-        } else {
-          onLive(null, Math.min(1, t / duration));
-        }
-      }
-      if (warmBytes === null && t >= WARMUP) { warmBytes = bytes; warmT = t; if (onWarm) onWarm(); }
-      if (t >= duration) {
-        halt();
-        var mbit = (warmBytes !== null && t > warmT) ? (bytes - warmBytes) * 8 / 1e6 / (t - warmT) : 0;
-        if (peak < mbit) peak = mbit;
-        if (rates.length >= 5) {
-          rates.sort(function (a, b) { return a - b; });
-          var keep = rates.slice(Math.floor(rates.length * 0.3), Math.ceil(rates.length * 0.9)), sum = 0;
-          for (var j = 0; j < keep.length; j++) sum += keep[j];
-          mbit = sum / keep.length;
-        }
-        done(mbit, peak);
-      }
-    }, 200);
-  }
-
-  var canStream = !!(window.fetch && window.ReadableStream && window.AbortController &&
-                     window.Response && 'body' in window.Response.prototype);
-
-  function dlWorker(state, count) {
-    var url = info.dl_url;
-    function next() {
-      if (state.stop) return;
-      if (canStream) {
-        var ctrl = new AbortController();
-        state.aborts.push(function () { ctrl.abort(); });
-        fetch(bust(url), { cache: 'no-store', signal: ctrl.signal }).then(function (res) {
-          var reader = res.body.getReader();
-          function pump() {
-            return reader.read().then(function (r) {
-              if (r.done) return next();
-              count(r.value.length);
-              if (state.stop) { ctrl.abort(); return; }
-              return pump();
-            });
-          }
-          return pump();
-        })['catch'](function () { if (!state.stop) setTimeout(next, 200); });
-      } else {
-        var x = new XMLHttpRequest(), last = 0;
-        state.aborts.push(function () { x.abort(); });
-        x.open('GET', bust(url));
-        x.onprogress = function (e) {
-          count(e.loaded - last); last = e.loaded;
-          if (state.stop || e.loaded >= XHR_DL_CHUNK) { x.onload = null; x.abort(); next(); }
-        };
-        x.onload = function (e) { count(e.loaded - last); next(); };
-        x.onerror = function () { if (!state.stop) setTimeout(next, 200); };
-        x.send();
-      }
-    }
-    next();
-  }
-
-  var ulBlob = null;
-  function ulWorker(state, count) {
-    if (!ulBlob) ulBlob = new Blob([new Uint8Array(UL_CHUNK)]);
-    function next() {
-      if (state.stop) return;
-      var x = new XMLHttpRequest(), last = 0;
-      state.aborts.push(function () { x.abort(); });
-      x.open('POST', bust(API + '/up'));
-      x.upload.onprogress = function (e) { count(e.loaded - last); last = e.loaded; };
-      x.onload = function () { count(UL_CHUNK - last); next(); };
-      x.onerror = function () { if (!state.stop) setTimeout(next, 200); };
-      x.send(ulBlob);
-    }
-    next();
-  }
-
-  // ---------- Ablauf ----------
-  function phase(text) { $('phase').textContent = text; }
-  function bar(p) { $('bar').style.width = Math.round(p * 100) + '%'; }
-
-  function start() {
-    if (running) return stop();
-    if (!info) return;
-    running = true; cancelled = false;
-    $('start').textContent = 'Stopp';
-    note('');
-    var streams = +$('streams').value, duration = +$('duration').value;
-    var label = $('label').value.replace(/^\s+|\s+$/g, '');
-    store('st-label', label); store('st-streams', streams); store('st-duration', duration);
-    var r = { streams: streams, label: label };
-    ['res-ping', 'res-jitter', 'res-dl', 'res-ul'].forEach(function (id) { setRes(id, '–', null, ''); });
-
-    phase('Ping'); setBig(null); bar(0);
-    runPing(function (ping, jitter) {
-      if (ping === null) return fail('Der Router antwortet nicht.');
-      r.ping = Math.round(ping * 10) / 10; r.jitter = Math.round(jitter * 10) / 10;
-      setRes('res-ping', fmt(ping, ping < 10 ? 1 : 0));
-      setRes('res-jitter', fmt(jitter, jitter < 10 ? 1 : 0));
-
-      phase('Download'); bar(0);
-      var cpu = new CpuWatch();
-      runTransfer(streams, duration, dlWorker, function (m, p) { if (m !== null) setBig(m); bar(p); }, function (dl, dlPeak) {
-       cpu.finish(function () {
-        if (cancelled) return;
-        r.dl = Math.round(dl * 10) / 10; r.dl_peak = Math.round(dlPeak * 10) / 10; r.cpu_dl = round(cpu.avg); r.core_dl = round(cpu.core);
-        var s = fmtSpeed(dlPeak); setRes('res-dl', s.v, s.u, avgText(dl) + cpu.text());
-
-        phase('Upload'); setBig(null); bar(0);
-        var cpu2 = new CpuWatch();
-        runTransfer(streams, duration, ulWorker, function (m, p) { if (m !== null) setBig(m); bar(p); }, function (ul, ulPeak) {
-         cpu2.finish(function () {
-          if (cancelled) return;
-          r.ul = Math.round(ul * 10) / 10; r.ul_peak = Math.round(ulPeak * 10) / 10; r.cpu_ul = round(cpu2.avg); r.core_ul = round(cpu2.core);
-          var s2 = fmtSpeed(ulPeak); setRes('res-ul', s2.v, s2.u, avgText(ul) + cpu2.text());
-          finish(r);
-         });
-        }, cpu2.mark);
-       });
-      }, cpu.mark);
-    });
-  }
-  function avgText(m) { var p = fmtSpeed(m); return 'Durchschnitt ' + p.v + ' ' + p.u + '\n'; }
-  function round(v) { return v === null || v === undefined ? null : Math.round(v); }
-
-  function finish(r) {
-    phase('Fertig'); bar(1); setBig(null);
-    if (Math.max(r.core_dl || 0, r.core_ul || 0) >= 90)
-      note('Ein Prozessorkern des Routers war voll ausgelastet. Das Ergebnis zeigt eher die Grenze des Routers als die des Netzes. Mehr Verbindungen können helfen.');
-    req('POST', API + '/history', JSON.stringify(r), function () { loadHistory(); });
-    idle();
-  }
-  function fail(msg) {
-    phase('Fehler'); note(msg);
-    idle();
-  }
-  // Laufende Messung abbrechen: Verbindungen schliessen, nichts in den Verlauf schreiben
-  function stop() {
-    cancelled = true;
-    phase('Abgebrochen'); setBig(null); bar(0);
-    idle();
-    // kurz sperren, bis alle Timer und offenen Anfragen der alten Messung beendet sind
-    $('start').disabled = true;
-    setTimeout(function () { $('start').disabled = false; }, 500);
-  }
-  function idle() { running = false; $('start').textContent = 'Start'; }
-
-  // ---------- Verlauf ----------
-  function cell(v, d) { return (v === null || v === undefined) ? '–' : fmt(v, d); }
-  // Aeltere Eintraege ohne Spitze zeigen nur den Durchschnitt
-  function speedCell(peak, avg) {
-    if (peak === null || peak === undefined) return cell(avg, 0);
-    return cell(peak, 0) + ' <small>/ ' + cell(avg, 0) + '</small>';
-  }
-  function loadHistory() {
-    req('GET', API + '/history', null, function (h) {
-      if (!h || !h.length) { $('history').innerHTML = '<div class="empty">Noch keine Messungen.</div>'; return; }
-      var rows = '';
-      for (var i = h.length - 1; i >= 0; i--) {
-        var e = h[i], d = new Date(e.ts * 1000);
-        var when = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '. ' +
-                   ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
-        var who = e.label || e.host || e.ip;
-        if (e.label && e.host) who += ' (' + e.host + ')';
-        var core = Math.max(e.core_dl || 0, e.core_ul || 0);
-        rows += '<tr><td>' + when + '</td><td title="' + esc(e.ip) + '">' + esc(who) + '</td><td>' +
-          cell(e.ping, 1) + '</td><td>' + speedCell(e.dl_peak, e.dl) + '</td><td>' + speedCell(e.ul_peak, e.ul) + '</td><td>' +
-          (e.streams || '–') + '</td><td>' + (core ? core + ' %' : '–') + '</td></tr>';
-      }
-      $('history').innerHTML = '<table><tr><th>Zeit</th><th>Gerät</th><th>Ping ms</th><th>Down Mbit/s<br><small>Spitze / Ø</small></th>' +
-        '<th>Up Mbit/s<br><small>Spitze / Ø</small></th><th>Verb.</th><th>CPU-Kern max</th></tr>' + rows + '</table>';
-    });
-  }
-
-  // ---------- Start ----------
-  function init() {
-    var l = store('st-label'), s = store('st-streams'), d = store('st-duration');
-    if (l) $('label').value = l;
-    if (s) $('streams').value = s;
-    if (d) $('duration').value = d;
-    if (location.protocol === 'https:')
-      note('Die Seite läuft über HTTPS. Die Verschlüsselung kostet den Router viel Rechenzeit und drückt das Ergebnis. Besser über http:// aufrufen.');
-
-    req('GET', API + '/info', null, function (d) {
-      if (!d || !d.dl_size) {
-        $('who').textContent = 'Die Speedtest-API antwortet nicht. Ist install.sh gelaufen?';
-        return;
-      }
-      info = d;
-      var name = d.hostname || location.hostname;
-      document.title = 'Speedtest ' + name;
-      $('title').textContent = 'LAN-Speedtest ' + name;
-      $('who').textContent = (d.model ? d.model + ' · ' : '') + d.cores + ' Kerne · Du: ' +
-        (d.client_host ? d.client_host + ' (' + d.client_ip + ')' : d.client_ip);
-      $('start').disabled = false;
-    });
-    loadHistory();
-    $('start').onclick = start;
-    $('clear').onclick = function () {
-      if (window.confirm('Verlauf für alle Geräte löschen?')) req('DELETE', API + '/history', null, loadHistory);
-    };
-  }
-  init();
+  var pref = null;
+  try { pref = localStorage.getItem('st-view'); } catch (e) { }
+  var target = pref === '2d' ? 'silizium2d.html' : (pref === '3d' || can3d() ? 'silizium3d.html' : 'silizium2d.html');
+  // Direktwahl über die Links merkt sich die Ansicht ebenfalls
+  document.getElementById('a3').onclick = function () { try { localStorage.setItem('st-view', '3d'); } catch (e) { } };
+  document.getElementById('a2').onclick = function () { try { localStorage.setItem('st-view', '2d'); } catch (e) { } };
+  location.replace(target + location.search + location.hash);
 })();
 </script>
 </body>

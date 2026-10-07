@@ -101,46 +101,52 @@ select, input { color: var(--ink); background: rgba(6,12,10,.9); border: 1px sol
 input { width: 11em; }
 .btn { font: .74rem var(--f-m); letter-spacing: .16em; text-transform: uppercase; color: var(--silk); background: transparent; border: 1px solid var(--line); padding: 7px 14px; cursor: pointer; }
 .btn:hover { border-color: var(--acc); color: var(--acc); }
-.view { margin-left: auto; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
-.view b { font-weight: 400; color: var(--acc); }
 
-/* Messprotokoll im Stil der Messung: Bestückungsdruck auf schwarzer Platine */
+/* Prüfprotokoll: ein ausgedrucktes Blatt auf der Werkbank */
 .sheet { max-width: 1280px; margin: 0 auto; padding: 10px 24px 40px; display: grid; gap: 26px; }
 .sheet h2 { margin: 0 0 10px; font: .8rem var(--f-m); letter-spacing: .3em; text-transform: uppercase; color: var(--mute); display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
-.report { position: relative; background: var(--glass); border: 1px solid var(--line); padding: 22px 24px 18px; display: grid; gap: 18px;
-  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-  background-image: repeating-linear-gradient(45deg, rgba(40,70,58,.10) 0 1px, transparent 1px 9px); }
-.report::before, .report::after { content: ""; position: absolute; width: 10px; height: 10px; border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #f0d68e, #7d5f22); box-shadow: 0 0 0 5px rgba(214,226,220,.08); }
-.report::before { left: 10px; top: 10px; } .report::after { right: 10px; bottom: 10px; }
-.rh { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 6px 20px; border-bottom: 1px solid rgba(214,226,220,.3); padding: 0 0 10px 18px; }
-.rh h3 { margin: 0; font: 700 clamp(1rem, 2.6vw, 1.3rem)/1.1 var(--f-d); letter-spacing: .42em; text-transform: uppercase; color: var(--silk); }
-.rh .no { font: .74rem var(--f-m); color: var(--mute); letter-spacing: .08em; }
-.meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 18px; font: .76rem var(--f-m); }
-.meta div { border-left: 2px solid rgba(201,162,74,.55); padding-left: 9px; }
-.meta span { display: block; color: var(--faint); font-size: .66rem; letter-spacing: .16em; text-transform: uppercase; }
-.meta b { font-weight: 400; color: var(--ink); overflow-wrap: anywhere; }
-.tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
-.tile { position: relative; background: rgba(3,8,7,.7); border: 1px solid var(--line); padding: 10px 14px 12px; display: grid; gap: 2px; align-content: start; grid-column: span 2; }
-.tile.wide { grid-column: span 3; }
-.tile::before { content: ""; position: absolute; left: -1px; top: 10px; width: 3px; height: 14px; background: linear-gradient(180deg, #ecd28a, var(--gold) 50%, #8d6c26); }
-.tile .k { font: .7rem var(--f-m); letter-spacing: .14em; color: var(--mute); display: flex; justify-content: space-between; gap: 6px; text-transform: uppercase; }
-.tile .k em { font-style: normal; color: var(--faint); }
-.tile .v { font: 200 clamp(2rem, 5vw, 3rem)/1.05 var(--f-d); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.tile.wide .v { font-size: clamp(2.6rem, 7vw, 4.2rem); }
-.tile .v small { font: .74rem var(--f-m); color: var(--mute); margin-left: 6px; }
-.tile .s { font: .72rem var(--f-m); color: var(--faint); }
-.tile.dl .v { color: var(--down); text-shadow: 0 0 22px rgba(62,240,255,.25); } .tile.ul .v { color: var(--up); text-shadow: 0 0 22px rgba(255,177,59,.22); }
-.tile svg { display: block; width: 100%; height: 56px; margin-top: 6px; }
-.die { display: grid; gap: 5px; margin-top: 4px; }
-.die div { display: grid; grid-template-columns: 4.4em minmax(0, 1fr) 3em; gap: 6px; align-items: center; font: .7rem var(--f-m); color: var(--mute); }
-.die i { display: block; height: 8px; background: rgba(160,220,200,.08); position: relative; }
-.die i b { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, var(--down), var(--up)); box-shadow: 0 0 8px rgba(62,240,255,.3); }
-.die div.hot i b { background: var(--hot); }
-.die em { font-style: normal; text-align: right; color: var(--ink); }
-.foot { display: flex; justify-content: space-between; align-items: flex-end; gap: 8px 20px; flex-wrap: wrap; font: .7rem var(--f-m); color: var(--faint); border-top: 1px solid var(--line); padding-top: 10px; }
-.foot b { color: var(--silk); font-weight: 400; }
-.note { font: .78rem var(--f-m); color: var(--hot); }
+.paper { position: relative; background: var(--paper); color: var(--paper-ink); padding: 26px 28px 22px; box-shadow: 0 24px 60px rgba(0,0,0,.6);
+  background-image: linear-gradient(transparent 0 31px, rgba(23,32,28,.05) 31px 32px); background-size: 100% 32px; display: grid; gap: 18px; font-family: var(--f-m); }
+.paper::before { content: ""; position: absolute; left: 0; right: 0; top: -6px; height: 12px;
+  background: radial-gradient(circle at 6px 6px, var(--board) 4px, transparent 4.5px) 0 0 / 18px 12px repeat-x; }
+.ph { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 20px; align-items: center; border-bottom: 2px solid var(--paper-ink); padding-bottom: 12px; }
+.ph h3 { margin: 0; font: 700 clamp(1.2rem, 3vw, 1.7rem)/1.1 var(--f-d); letter-spacing: .14em; text-transform: uppercase; }
+.ph .no { font-size: .78rem; color: #4a5a52; margin-top: 4px; }
+.meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 18px; font-size: .74rem; }
+.meta div { border-left: 2px solid rgba(23,32,28,.25); padding-left: 8px; }
+.meta span { display: block; color: #5a6a62; font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; }
+.meta b { font-weight: 400; overflow-wrap: anywhere; }
+.ptab { width: 100%; border-collapse: collapse; font-size: .84rem; font-variant-numeric: tabular-nums; }
+.ptab th { text-align: left; font-weight: 400; font-size: .66rem; letter-spacing: .14em; text-transform: uppercase; color: #5a6a62; border-bottom: 1px solid var(--paper-ink); padding: 6px 8px; }
+.ptab td { padding: 8px; border-bottom: 1px dashed rgba(23,32,28,.25); vertical-align: top; }
+.ptab td:first-child { color: #8d6c26; white-space: nowrap; }
+.ptab td.ist { font-size: 1.05rem; white-space: nowrap; }
+.ptab td.soll { color: #4a5a52; }
+.ptab td.ok { color: #1c7a43; white-space: nowrap; }
+.ptab td.hint { color: #a35d00; white-space: nowrap; }
+.ptab td.bad { color: #b42318; white-space: nowrap; }
+.ptab td small { display: block; color: #5a6a62; font-size: .7rem; }
+.tw { overflow-x: auto; }
+.curves { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(0, .9fr); gap: 18px; }
+.curves .k { font-size: .66rem; letter-spacing: .14em; text-transform: uppercase; color: #5a6a62; }
+.curves .v { font: 300 clamp(2rem, 5vw, 2.8rem)/1.05 var(--f-d); font-variant-numeric: tabular-nums; }
+.curves .v small { font: .74rem var(--f-m); color: #5a6a62; margin-left: 4px; }
+.curves .v.dl { color: #0a7f8f; } .curves .v.ul { color: #a8640b; }
+.curves svg { display: block; width: 100%; height: 54px; margin-top: 4px; }
+.die { display: grid; gap: 5px; margin-top: 6px; }
+.die div { display: grid; grid-template-columns: 4.6em minmax(0, 1fr) 3em; gap: 6px; align-items: center; font-size: .72rem; }
+.die i { display: block; height: 9px; background: rgba(23,32,28,.08); position: relative; }
+.die i b { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #0a7f8f, #a8640b); }
+.die div.hot i b { background: #b42318; }
+.die em { font-style: normal; text-align: right; }
+.foot { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; font-size: .72rem; color: #5a6a62; border-top: 1px solid rgba(23,32,28,.3); padding-top: 10px; }
+.foot .sig { min-width: 200px; border-top: 1px solid var(--paper-ink); padding-top: 4px; text-align: center; }
+.foot .sig b { display: block; font: 300 1.2rem var(--f-d); color: var(--paper-ink); font-style: italic; margin-top: -30px; margin-bottom: 8px; }
+.stamp { justify-self: end; transform: rotate(-8deg); border: 3px solid currentColor; border-radius: 6px; padding: 6px 14px 4px; text-align: center;
+  font: 700 1.25rem/1 var(--f-d); letter-spacing: .16em; text-transform: uppercase; opacity: .82; mix-blend-mode: multiply; pointer-events: none; }
+.stamp small { display: block; font: .58rem var(--f-m); letter-spacing: .14em; margin-top: 4px; }
+.stamp.pass { color: #1c7a43; } .stamp.hint { color: #c26a00; }
+.note { font-size: .78rem; color: #8a3a00; }
 
 .tbl { overflow-x: auto; background: var(--glass); border: 1px solid var(--line); }
 .tbl table { width: 100%; border-collapse: collapse; font: .8rem var(--f-m); font-variant-numeric: tabular-nums; }
@@ -161,11 +167,11 @@ input { width: 11em; }
   .pin.cpu { grid-column: span 2; }
   .stage, .sheet { padding-left: 16px; padding-right: 16px; }
   .who { text-align: left; }
-  .report { padding: 18px 14px 14px; }
+  .paper { padding: 22px 16px 18px; }
   .meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tile, .tile.wide { grid-column: span 1; }
-  .tile.wide, .tile:nth-child(3) { grid-column: span 2; }
+  .curves { grid-template-columns: minmax(0, 1fr); }
+  .ph { grid-template-columns: minmax(0, 1fr); }
+  .stamp { justify-self: start; transform: rotate(-4deg); }
 }
 </style>
 </head>
@@ -200,32 +206,34 @@ input { width: 11em; }
       <label for="streams">Verbindungen <select id="streams"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select></label>
       <label for="duration">Dauer <select id="duration"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></label>
       <label for="label">Gerät <input id="label" maxlength="40" placeholder="z. B. Laptop WLAN"></label>
-      <a class="btn view" id="view" href="silizium2d.html" data-view="2d" title="Zur flachen 2D-Ansicht wechseln">Ansicht <b>3D</b> → 2D</a>
+      <label for="cam">Kamera <select id="cam"><option value="orbit">Orbit</option><option value="tour">Rundgang</option><option value="drone">Drohne</option></select></label>
     </div>
   </section>
 
   <section class="sheet">
     <div id="result" hidden>
-      <h2>Messprotokoll <button class="btn" id="again">Neu messen</button></h2>
-      <article class="report" aria-label="Messprotokoll">
-        <div class="rh"><h3>Messprotokoll</h3><div class="no"><span id="pp-no">–</span> · <span id="pp-date">–</span></div></div>
-        <div class="meta">
-          <div><span>Router</span><b id="pp-router">–</b></div>
-          <div><span>Gerät</span><b id="pp-dev">–</b></div>
-          <div><span>Anschluss</span><b id="pp-link">–</b></div>
-          <div><span>Verfahren</span><b id="pp-method">–</b></div>
+      <h2>Prüfprotokoll <button class="btn" id="again">Neu prüfen</button></h2>
+      <article class="paper" aria-label="Prüfprotokoll">
+        <div class="ph">
+          <div><h3>Prüfprotokoll LAN-Strecke</h3><div class="no"><span id="pp-no">–</span> · <span id="pp-date">–</span></div></div>
+          <div class="stamp" id="stamp">–</div>
         </div>
-        <div class="tiles">
-          <div class="tile"><div class="k">Ping<em>TP1</em></div><div class="v" id="r-ping">–</div><div class="s">Median aus 20 Anfragen</div></div>
-          <div class="tile"><div class="k">Jitter<em>TP2</em></div><div class="v" id="r-jit">–</div><div class="s">mittlere Schwankung</div></div>
-          <div class="tile"><div class="k">Router-CPU<em>U1</em></div><div class="v" id="r-cpu">–</div><div class="s" id="r-cpu-s">stärkster Kern</div><div class="die" id="die"></div></div>
-          <div class="tile wide dl"><div class="k">Download · Spitze<em>TP3</em></div><div class="v" id="r-dl">–</div><div class="s" id="r-dl-s"></div><svg id="c-dl" viewBox="0 0 300 56" preserveAspectRatio="none"></svg></div>
-          <div class="tile wide ul"><div class="k">Upload · Spitze<em>TP4</em></div><div class="v" id="r-ul">–</div><div class="s" id="r-ul-s"></div><svg id="c-ul" viewBox="0 0 300 56" preserveAspectRatio="none"></svg></div>
+        <div class="meta">
+          <div><span>Prüfling</span><b id="pp-router">–</b></div>
+          <div><span>Gegenstelle</span><b id="pp-dev">–</b></div>
+          <div><span>Anschluss</span><b id="pp-link">–</b></div>
+          <div><span>Prüfverfahren</span><b id="pp-method">–</b></div>
+        </div>
+        <div class="tw"><table class="ptab" id="ptab"></table></div>
+        <div class="curves">
+          <div><div class="k">TP3 · Messkurve Download</div><div class="v dl" id="r-dl">–</div><svg id="c-dl" viewBox="0 0 300 54" preserveAspectRatio="none"></svg></div>
+          <div><div class="k">TP4 · Messkurve Upload</div><div class="v ul" id="r-ul">–</div><svg id="c-ul" viewBox="0 0 300 54" preserveAspectRatio="none"></svg></div>
+          <div><div class="k">U1 · Last je Kern (max. aus ↓/↑)</div><div class="die" id="die"></div></div>
         </div>
         <div class="note" id="note" hidden></div>
         <div class="foot">
           <span>Spitze = bester 1-s-Wert · Ø ohne Anlauf und Ausreißer · Testdaten aus dem RAM des Routers</span>
-          <span>Gemessen von <b id="pp-sig">–</b></span>
+          <span class="sig"><b id="pp-sig">–</b>Geprüft, automatisch erstellt</span>
         </div>
       </article>
     </div>
@@ -638,9 +646,22 @@ input { width: 11em; }
     return fit(P, freeRect());
   }
 
-  // ---------- Kamera im Leerlauf: Drohnenflug über die Platine (Orbit/Rundgang: siehe silizium3d-kameras.html) ----------
-  var camMode = 'drone', baseD = 1100;
+  // ---------- drei Kamera-Varianten für den Leerlauf (der Chip bleibt im Bildmittelpunkt) ----------
+  var CHIP = [WX(SOC.x), WY(SOC.y), 8], camMode = 'orbit', baseD = 1100;
   var POSES = {
+    // Orbit: kreist um den Chip, kippt dabei zwischen flach und steil, zoomt aus und ein, rollt leicht
+    orbit: function (t) {
+      var s = t / 1000;
+      return { tx: CHIP[0], ty: CHIP[1], tz: CHIP[2], az: s * Math.PI * 2 / 48, el: 0.86 + 0.34 * Math.sin(s / 7), d: baseD * (0.78 + 0.26 * Math.sin(s / 11 + 1)), roll: 0.07 * Math.sin(s / 9) };
+    },
+    // Rundgang: fährt nacheinander feste Einstellungen an, hält kurz und gleitet weiter
+    tour: function (t) {
+      var K = [[0.0, 1.05, 0.95, 0], [-0.9, 0.55, 0.62, -0.06], [-1.9, 0.38, 0.5, 0.05], [2.6, 0.62, 0.66, 0], [1.4, 0.45, 0.48, -0.05], [0.7, 1.3, 0.85, 0.04]];
+      var seg = 7000, i = Math.floor(t / seg) % K.length, f = (t % seg) / seg, e = f < 0.45 ? 0 : ease((f - 0.45) / 0.55), a = K[i], b = K[(i + 1) % K.length];
+      var daz = b[0] - a[0]; while (daz > Math.PI) daz -= 2 * Math.PI; while (daz < -Math.PI) daz += 2 * Math.PI;
+      var drift = 0.05 * Math.sin(t / 2300);
+      return { tx: CHIP[0], ty: CHIP[1], tz: CHIP[2], az: a[0] + daz * e + drift, el: a[1] + (b[1] - a[1]) * e, d: baseD * (a[2] + (b[2] - a[2]) * e), roll: a[3] + (b[3] - a[3]) * e };
+    },
     // Drohne: fliegt in Nahansicht eine Route über die Platine, blickt in Flugrichtung
     drone: function (t) {
       var R = [[250, 150], [290, 300], [420, 300], [560, 300], [700, 210], [835, 205], [880, 300], [835, 395], [890, 525], [700, 520], [560, 380], [470, 160], [405, 75], [300, 110], [240, 230], [250, 420], [350, 470], [300, 330]];
@@ -761,8 +782,8 @@ input { width: 11em; }
   function spark(svg, series, color) {
     if (series.length < 2) { svg.innerHTML = ''; return; }
     var max = Math.max.apply(null, series) * 1.08, n = series.length;
-    var d = series.map(function (v, i) { return (i ? 'L' : 'M') + (i / (n - 1) * 300).toFixed(1) + ' ' + (54 - v / max * 50).toFixed(1); }).join(' ');
-    svg.innerHTML = '<line x1="0" x2="300" y1="27" y2="27" stroke="rgba(160,220,200,.14)" stroke-dasharray="3 3"/><path d="' + d + ' L300 56 L0 56 Z" fill="' + color + '" fill-opacity=".14"/><path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>';
+    var d = series.map(function (v, i) { return (i ? 'L' : 'M') + (i / (n - 1) * 300).toFixed(1) + ' ' + (52 - v / max * 48).toFixed(1); }).join(' ');
+    svg.innerHTML = '<line x1="0" x2="300" y1="27" y2="27" stroke="rgba(23,32,28,.15)" stroke-dasharray="3 3"/><path d="' + d + ' L300 54 L0 54 Z" fill="' + color + '" fill-opacity=".14"/><path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>';
   }
   function pinOn(p) { ['p-ping', 'p-dl', 'p-ul'].forEach(function (id) { $(id).classList.remove('on'); }); var id = { ping: 'p-ping', download: 'p-dl', upload: 'p-ul' }[p]; if (id) $(id).classList.add('on'); }
   function mode(on, finished) {
@@ -803,33 +824,60 @@ input { width: 11em; }
     });
   }
 
+  // Sollwerte: LAN-typische Grenzen; Durchsatz gegen das, was der Anschluss netto hergibt
+  function capacity(kind) {
+    if (!link) return null;
+    if (link.type === 'wired' && link.speed) return link.speed * 0.94;
+    var w = link.wifi; if (link.type === 'wifi' && w) { var r = kind === 'upload' ? (w.rx_rate || w.tx_rate) : (w.tx_rate || w.rx_rate); return r ? r * 0.7 : null; }
+    return null;
+  }
+  function row(ref, name, soll, ist, verdict, extra) {
+    var cls = verdict === 'ok' ? 'ok' : (verdict === 'hint' ? 'hint' : (verdict === 'bad' ? 'bad' : ''));
+    var txt = { ok: '✓ in Ordnung', hint: '! Hinweis', bad: '✕ auffällig', info: 'i Information' }[verdict] || '';
+    return '<tr><td>' + ref + '</td><td>' + name + (extra ? '<small>' + esc(extra) + '</small>' : '') + '</td><td class="soll">' + soll + '</td><td class="ist">' + ist + '</td><td class="' + cls + '">' + txt + '</td></tr>';
+  }
   function finish(res, ping, jit, streams, label, rec) {
     var d = res.download, u = res.upload, sd = E.fmtSpeed(d.peak), su = E.fmtSpeed(u.peak), ad = E.fmtSpeed(d.avg), au = E.fmtSpeed(u.avg);
-    $('phase').textContent = 'Gemessen · Download-Spitze'; $('big').innerHTML = sd.v + '<small>' + sd.u + '</small>'; $('prog').style.width = '100%';
+    $('phase').textContent = 'Geprüft · Download-Spitze'; $('big').innerHTML = sd.v + '<small>' + sd.u + '</small>'; $('prog').style.width = '100%';
     coreLoad = [];
     for (var i = 0; i < cores; i++) coreLoad.push(Math.max(d.cores ? d.cores[i] || 0 : 0, u.cores ? u.cores[i] || 0 : 0));
     var now = new Date(), stamp = ('0' + now.getDate()).slice(-2) + '.' + ('0' + (now.getMonth() + 1)).slice(-2) + '.' + now.getFullYear(), clock = ('0' + now.getHours()).slice(-2) + ':' + ('0' + now.getMinutes()).slice(-2);
-    etch = { n: 0, max: 130, lines: ['DL ' + sd.v + ' ' + sd.u + '  UL ' + su.v + ' ' + su.u, 'PING ' + (ping === null ? '-' : E.fmt(ping, 1)) + ' MS  JIT ' + (jit === null ? '-' : E.fmt(jit, 1)) + ' MS', 'GEMESSEN ' + stamp + '  ' + streams + 'X TCP'] };
+    etch = { n: 0, max: 130, lines: ['DL ' + sd.v + ' ' + sd.u + '  UL ' + su.v + ' ' + su.u, 'PING ' + (ping === null ? '-' : E.fmt(ping, 1)) + ' MS  JIT ' + (jit === null ? '-' : E.fmt(jit, 1)) + ' MS', 'GEPRUEFT ' + stamp + '  ' + streams + 'X TCP'] };
 
-    // Messprotokoll: nur Messwerte, keine Soll- oder Grenzwerte
+    // Protokoll
+    var cd = capacity('download'), cu = capacity('upload'), verdicts = [], rows = '';
+    function judge(v) { verdicts.push(v); return v; }
+    rows += row('TP1', 'Ping', '≤ 5 ms', ping === null ? '–' : E.fmt(ping, 1) + ' ms', judge(ping === null ? 'info' : (ping <= 5 ? 'ok' : (ping <= 15 ? 'hint' : 'bad'))), 'Median aus 20 Anfragen');
+    rows += row('TP2', 'Jitter', '≤ 2 ms', jit === null ? '–' : E.fmt(jit, 1) + ' ms', judge(jit === null ? 'info' : (jit <= 2 ? 'ok' : (jit <= 5 ? 'hint' : 'bad'))), 'mittlere Schwankung');
+    function tp(r, cap, name, ref) {
+      var s = E.fmtSpeed(r.peak), a = E.fmtSpeed(r.avg), share = cap ? r.peak / cap : null;
+      var soll = cap ? '≥ ' + E.fmtSpeed(cap * 0.85).v + ' ' + E.fmtSpeed(cap * 0.85).u : 'kein Sollwert';
+      var v = share === null ? 'info' : (share >= 0.85 ? 'ok' : (share >= 0.5 ? 'hint' : 'bad'));
+      return row(ref, name, soll, s.v + ' ' + s.u, judge(v), 'Ø ' + a.v + ' ' + a.u + (share !== null ? ' · ' + Math.round(share * 100) + ' % der Anschlusskapazität' : ''));
+    }
+    rows += tp(d, cd, 'Download (Spitze)', 'TP3');
+    rows += tp(u, cu, 'Upload (Spitze)', 'TP4');
+    var mc = Math.max(d.core || 0, u.core || 0);
+    rows += row('U1', 'Router-CPU, stärkster Kern', '< 90 %', Math.round(mc) + ' %', judge(d.core === null ? 'info' : (mc < 90 ? 'ok' : 'hint')), 'gesamt ↓ ' + (d.cpu === null ? '–' : Math.round(d.cpu)) + ' % · ↑ ' + (u.cpu === null ? '–' : Math.round(u.cpu)) + ' %');
+    $('ptab').innerHTML = '<tr><th>Ref</th><th>Prüfpunkt</th><th>Sollwert</th><th>Istwert</th><th>Bewertung</th></tr>' + rows;
+    var pass = verdicts.indexOf('bad') < 0 && verdicts.indexOf('hint') < 0;
+    $('stamp').className = 'stamp ' + (pass ? 'pass' : 'hint');
+    $('stamp').innerHTML = (pass ? 'Bestanden' : 'Mit Hinweisen') + '<small>' + stamp + ' · REV ' + revName + '</small>';
     $('pp-no').textContent = 'Nr. ' + (rec && rec.ts ? rec.ts : Math.floor(Date.now() / 1000)) + ' · REV ' + revName;
     $('pp-date').textContent = stamp + ', ' + clock + ' Uhr';
     $('pp-router').textContent = info.hostname + (info.model ? ', ' + info.model : '') + ', ' + socName(info);
     $('pp-dev').textContent = (label || info.client_host || 'Gerät') + ', ' + info.client_ip;
     $('pp-link').textContent = linkText(false);
     $('pp-method').textContent = 'HTTP, ' + streams + ' TCP-Verbindungen, ' + $('duration').value + ' s je Richtung';
-    $('pp-sig').textContent = label || info.client_host || info.client_ip;
-    $('r-ping').innerHTML = ping === null ? '–' : E.fmt(ping, 1) + '<small>ms</small>';
-    $('r-jit').innerHTML = jit === null ? '–' : E.fmt(jit, 1) + '<small>ms</small>';
-    var mc = Math.max(d.core || 0, u.core || 0);
-    $('r-cpu').innerHTML = d.core === null ? '–' : Math.round(mc) + '<small>%</small>';
-    $('r-cpu-s').textContent = 'stärkster Kern · gesamt ↓ ' + (d.cpu === null ? '–' : Math.round(d.cpu)) + ' % · ↑ ' + (u.cpu === null ? '–' : Math.round(u.cpu)) + ' %';
-    $('r-dl').innerHTML = sd.v + '<small>' + sd.u + '</small>'; $('r-dl-s').textContent = 'Ø ' + ad.v + ' ' + ad.u + ' · Router → Gerät';
-    $('r-ul').innerHTML = su.v + '<small>' + su.u + '</small>'; $('r-ul-s').textContent = 'Ø ' + au.v + ' ' + au.u + ' · Gerät → Router';
-    spark($('c-dl'), d.series, '#3ef0ff'); spark($('c-ul'), u.series, '#ffb13b');
+    $('pp-sig').textContent = label || info.client_host || 'Speedtest';
+    $('r-dl').innerHTML = sd.v + '<small>' + sd.u + ' · Ø ' + ad.v + '</small>';
+    $('r-ul').innerHTML = su.v + '<small>' + su.u + ' · Ø ' + au.v + '</small>';
+    spark($('c-dl'), d.series, '#0a7f8f'); spark($('c-ul'), u.series, '#a8640b');
     $('die').innerHTML = coreLoad.map(function (l, i) { return '<div class="' + (l >= 90 ? 'hot' : '') + '"><span>Kern ' + i + '</span><i><b style="width:' + Math.round(l) + '%"></b></i><em>' + Math.round(l) + ' %</em></div>'; }).join('');
-    $('note').hidden = mc < 90;
-    $('note').textContent = 'Ein Kern lag bei ' + Math.round(mc) + ' %. Das Ergebnis zeigt eher die Grenze des Routers als die des Netzes.';
+    var notes = [];
+    if (mc >= 90) notes.push('Ein Kern lag bei ' + Math.round(mc) + ' %. Das Ergebnis zeigt eher die Grenze des Routers als die des Netzes.');
+    if (!cd) notes.push('Der Router hat keine Anschlussdaten gemeldet, deshalb fehlen die Sollwerte für Download und Upload.');
+    $('note').hidden = !notes.length; $('note').textContent = notes.join(' ');
     $('result').hidden = false;
     // erst das Ätzen im Bestückungsdruck zeigen, dann zum Protokoll
     setTimeout(function () { if (!running) $('result').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' }); }, reduce ? 0 : 2600);
@@ -874,8 +922,12 @@ input { width: 11em; }
   // Ohne WebGL (z. B. ältere SmartTVs) auf die flache Version ausweichen
   texSize(); build(); drawBoard();
   try { if (!gl) throw new Error('kein WebGL'); initGL(); } catch (e) { location.replace('silizium2d.html'); return; }
-  camMode = 'drone';
-  $('view').onclick = function () { try { localStorage.setItem('st-view', '2d'); } catch (e) { } };
+  // Kamera-Variante: aus dem Link (#orbit, #rundgang, #drohne), sonst gemerkt, sonst Orbit
+  var HASH = { orbit: 'orbit', rundgang: 'tour', drohne: 'drone' };
+  try { camMode = HASH[location.hash.slice(1)] || localStorage.getItem('st-cam') || 'orbit'; } catch (e) { }
+  if (!POSES[camMode]) camMode = 'orbit';
+  $('cam').value = camMode;
+  $('cam').onchange = function () { tween = { from: cam, t: 0, dur: 2.2 }; camMode = $('cam').value; idleClock = 0; droneAz = null; try { localStorage.setItem('st-cam', camMode); } catch (e) { } };
   size();
   window.addEventListener('resize', size);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawBoard);
