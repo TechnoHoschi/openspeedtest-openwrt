@@ -1,89 +1,133 @@
-# LAN-Speedtest für OpenWrt · Silizium
+# Silizium · der LAN-Speedtest, der auf deinem OpenWrt-Router wohnt
 
-Ein Browser-Speedtest, den der eingebaute Webserver **uhttpd** (derselbe, der LuCI ausliefert) direkt vom Router bereitstellt.
-Gemessen wird die Strecke **Gerät ↔ Router** über LAN oder WLAN, nicht die Internetleitung.
-Läuft auf Desktop, Handy, Tablet und SmartTV, ohne App und ohne Zusatzpakete außer `uhttpd-mod-ucode`.
+![Silizium 3D während einer Messung: Lichtimpulse rasen von LAN1 über den Switch zum MediaTek-Chip](docs/3d-messung.jpg)
 
-Die Oberfläche heißt **Silizium**: Die Messung läuft als Lichtimpulse über eine nachgebaute Router-Platine,
-von der LAN-Buchse, an der das Gerät wirklich hängt, über den Switch zum SoC oder über den WLAN-Chip zu den Antennen.
+Dein Router hat einen Webserver. Dein Router hat einen Prozessor. Dein Router hat jetzt auch einen Speedtest,
+der dir zeigt, wie schnell es zwischen **deinem Gerät und dem Router** wirklich geht, per Kabel oder WLAN.
+Und damit das nicht langweilig aussieht, rasen die Daten dabei als Lichtimpulse über eine Platine,
+genau über die Buchse, in der dein Kabel steckt.
 
-> **Zu 99 % Vibe-Coding.** Code, Designs und Texte dieses Repos hat eine KI geschrieben (Claude Code).
-> Der Mensch hat Ziele vorgegeben, auf dem echten Router gemessen, Ergebnisse zurückgemeldet, gestaunt und gelegentlich gesagt,
-> dass die Kamera nicht so nah ran soll. Das restliche Prozent: Debugging am Gerät und der KI auf die Sprünge helfen,
-> wenn sie vom Weg abgekommen ist. Das ist nicht zu unterschätzen. ;)
+Keine App, kein Docker, kein NGINX, keine Cloud. Nur uhttpd, das sowieso schon LuCI ausliefert, plus `uhttpd-mod-ucode`.
 
-## Was wird gemessen?
+> **Ehrlich gesagt: zu 99 % Vibe-Coding.** Code, Designs und Texte hat eine KI geschrieben (Claude Code).
+> Der Mensch hat Wünsche geäußert, auf dem echten Router gemessen, Kaffee getrunken, gestaunt
+> und gelegentlich gesagt: „Die Kamera soll nicht so nah ran.“
+> Das restliche Prozent? Debugging am Gerät und die KI wieder einfangen, wenn sie mal abgebogen ist.
+> Wird gern unterschätzt. ;)
 
-> ⚠️ Gemessen wird zwischen Browser und **LAN-Schnittstelle des Routers**, nicht die Internetgeschwindigkeit.
-> Für die Internetleitung gibt es andere Dienste.
+## Was misst das Ding?
 
-Damit siehst du, ob WLAN, Kabel, Switch-Port, Gerät oder der Router selbst der Engpass ist:
+> ⚠️ **Nicht deine Internetleitung.** Gemessen wird Browser ↔ Router im eigenen Netz.
+> Wer wissen will, ob der Provider schummelt, ist hier falsch. Wer wissen will, ob das WLAN im Schlafzimmer
+> oder das 15 Jahre alte Patchkabel schuld ist: willkommen!
 
 - **Ping und Jitter** zum Router
 - **Download und Upload**, jeweils Spitze (bester 1-s-Wert) und Durchschnitt
-- **Router-CPU je Kern**, damit klar ist, ob der Router oder das Netz begrenzt
-- **Anschluss**: welcher LAN-Port mit welcher Geschwindigkeit, bzw. WLAN-Band, Kanal, Signal und Linkrate (meldet der Router selbst)
-- **Verlauf** aller Messungen mit Hostname aus der DHCP-Liste und frei wählbarem Gerätenamen
+- **Router-CPU je Kern**, falls nicht das Netz, sondern der Router selbst schnauft
+- **Anschluss**: An welchem LAN-Port du hängst und mit wie viel Gbit, oder welches WLAN-Band mit welchem Signal. Das verrät der Router selbst, der Browser weiß davon nichts.
+- **Verlauf** aller Messungen mit Hostname aus der DHCP-Liste, damit „Handy Küche“ und „Laptop Balkon“ sich vergleichen lassen
+
+Am Ende gibt es ein Messprotokoll. Ganz ohne Stempel, versprochen.
+
+![Messprotokoll mit Ping, Jitter, CPU je Kern, Download- und Uploadkurve](docs/protokoll.jpg)
 
 ## Drei Ansichten, eine Adresse
 
-`http://<router-ip>/speedtest/` öffnet `index.html`. Die Seite prüft, was der Browser flüssig darstellen kann, und lädt dann:
+Einfach `http://<router-ip>/speedtest/` öffnen. Die Seite schaut sich deinen Browser an und entscheidet,
+wie viel Show er verträgt:
 
-| Ansicht | Datei | Für wen | Darstellung |
+| | Ansicht | Für wen | Was passiert |
 |---|---|---|---|
-| **3D** | `silizium3d.html` | Geräte mit Grafikkarten-WebGL und mindestens 4 Kernen | Platine als 3D-Körper (WebGL), im Leerlauf fliegt eine Drohnenkamera darüber, bei der Messung schräge Draufsicht |
-| **2D** | `silizium2d.html` | alles dazwischen | animierte Platine (Canvas), Kamera zoomt und dreht leicht |
-| **Lite** | `silizium-lite.html` | alte oder schwache Geräte, ältere SmartTVs, „Bewegung reduzieren“ | keine Animation, kein Canvas, nur einfaches CSS, 25 KB |
+| 🛸 | **3D** (`silizium3d.html`) | Geräte mit ordentlicher Grafik | Platine als 3D-Modell (WebGL). Im Leerlauf fliegt eine Drohne darüber, beim Messen geht's in die Draufsicht. |
+| 🖥️ | **2D** (`silizium2d.html`) | der solide Mittelbau | animierte Platine, Kamera zoomt und dreht sich ein bisschen |
+| 🥔 | **Lite** (`silizium-lite.html`) | der SmartTV von 2016, das Handy aus der Schublade, „Bewegung reduzieren“ | keine Animation, 25 KB, misst genauso genau |
 
-In jeder Ansicht kann man unten mit **Lite · 2D · 3D** wechseln, die Wahl wird im Browser gemerkt.
-Kann ein Gerät 3D doch nicht darstellen, springt die Seite selbst auf 2D zurück.
-Alle drei zeigen dieselben Messwerte und am Ende dasselbe **Messprotokoll**.
+Unten rechts kann man jederzeit zwischen **Lite · 2D · 3D** wechseln, der Browser merkt sich die Wahl.
+Und falls ein Gerät 3D bestellt, aber nicht verdauen kann, schaltet die Seite selbst auf 2D zurück.
 
-Schriften (Saira, Share Tech Mono) sind in 2D und 3D eingebettet, alles läuft ohne Internet.
+| 2D | Lite |
+|---|---|
+| ![Silizium 2D](docs/2d.jpg) | ![Silizium Lite](docs/lite.jpg) |
 
-## So funktioniert es
+Schriften sind eingebettet, alles läuft komplett offline.
 
-| Teil | Umsetzung | Warum |
+## Bonus: das Designlabor 🧪
+
+Bevor Silizium gewonnen hat, sind gut 40 Entwürfe entstanden, und keiner wurde weggeworfen.
+Alle liegen in `speedtest/` und sind voll funktionsfähig. Ohne Router laufen sie im **Demo-Modus** mit simulierten Werten.
+Zum Reinschauen einfach anklicken (die Links laufen über [raw.githack.com](https://raw.githack.com), einen freien Dienst,
+der Dateien aus GitHub direkt als Webseite ausliefert) oder das Repo klonen und die HTML-Datei im Browser öffnen:
+
+**Hommagen** (bewusst ohne geschützte Namen, Logos oder Zitate, man erkennt sie trotzdem):
+
+| Datei | angelehnt an | |
 |---|---|---|
-| Download | statische Datei in `/tmp/speedtest` (RAM), per Bind-Mount unter `/www/speedtest/data/` eingeblendet, uhttpd liefert direkt aus | schnellste Variante, kein Flash |
-| Upload | ucode-Handler `api.uc` in uhttpd, liest und verwirft die Daten | gut doppelt so schnell wie Shell-CGI |
-| Ping/Jitter | kleine Datei `ping.txt`, 20 Abfragen, Median | ohne Script-Overhead |
-| Messkern | `engine.js`, ES5 ohne Abhängigkeiten, gemeinsam für alle Ansichten; ohne Router läuft ein Demo-Modus | ein Messkern, viele Oberflächen |
-| Router-CPU | `/speedtest-api/cpu` liefert `/proc/stat`, gelesen am Anfang und Ende jeder Richtung | zeigt, ob der Router oder das Netz begrenzt |
-| Anschluss | `/speedtest-api/link`: IP → MAC (ARP) → Bridge-Port → Port-Speed, bei WLAN Band/Kanal/Signal/Linkrate über iwinfo | die Platine zeigt den echten Datenweg |
-| Router-Info | `/speedtest-api/info`: Hostname, Modell, Kerne und SoC aus dem Device-Tree (z. B. MediaTek MT7988A, Filogic 880) | Aufdruck auf dem Chip |
-| Verlauf | `/tmp/speedtest-history.json` (RAM), max. 200 Einträge | kein Flash-Verschleiß, nach Neustart leer |
+| [`testkammer.html`](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/testkammer.html) | Portal | weiße Testkammer, eine KI namens EVA-7 und ein Zertifikat. Kuchen gibt's keinen. |
+| [`portalsprung.html`](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/portalsprung.html) | Portal | endloser Fall durch Portale |
+| [`abspann.html`](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/abspann.html) | Portal | Bernstein-Terminal, die KI dichtet ein Lied über deine Messung |
+| [`leuchtwald.html`](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/leuchtwald.html) | Avatar | biolumineszenter Wald |
+| [`lichtgitter.html`](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/lichtgitter.html) | Tron | Lichtgitter |
+| [`coderegen.html`](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/coderegen.html) | Matrix | grüner Code-Regen |
+| [`sternentor.html`](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/sternentor.html) | Stargate | Tor wählt an |
+| [`horizont.html`](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/horizont.html) | Interstellar | Ereignishorizont |
+| [`traumebene.html`](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/traumebene.html) | Inception | Traumebenen |
+| [`oedland.html`](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/oedland.html) | Mad Max | Ödland |
+| [`sperrzone.html`](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/sperrzone.html) | Resident Evil | Sperrzone |
+| [`inferno.html`](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/inferno.html) | Doom | Inferno |
+| [`bunker.html`](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/bunker.html) | Fallout | Bunker-Terminal |
+| [`bestiarium.html`](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/bestiarium.html) | The Witcher | Bestiarium |
+| [`huepfwelt.html`](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/huepfwelt.html) | Giana Sisters | Jump 'n' Run |
+| [`absurd.html`](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/absurd.html) | Spaceballs | Weltraum-Parodie, Geschwindigkeit jenseits von allem |
 
-Die Download-Datei (64 MB, auf knappen Geräten weniger) legt `api.uc` beim ersten Aufruf der Seite selbst an, auch nach einem Neustart.
+**Hightech und Sci-Fi:** [Fusionskern](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/fusionskern.html) (der Router als Reaktor) ·
+[Beschleuniger](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/beschleuniger.html) (jeder Ping eine Teilchenkollision) ·
+[Netzatlas](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/netzatlas.html) (dein Heimnetz als 3D-Sternkarte) ·
+[Datenrelief](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/datenrelief.html) (die Messung als Gebirge) ·
+[Warp](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/warp.html) ·
+[Brücke](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/bruecke.html) ·
+[Fraktal](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/fraktal.html) ·
+[Silizium 3D mit drei Kamerafahrten](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/silizium3d-kameras.html)
 
-Messwerte auf dem Asus BT8 (3 Kerne, PC per 2,5 GbE, Messkit in `bench/`):
+**Retro und Analog:** [Tacho](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/tacho.html) ·
+[Röhre](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/roehre.html) (60er-Labor mit Nixie-Röhren) ·
+[Fallblatt](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/fallblatt.html) (Bahnhofstafel) ·
+[Vinyl](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/vinyl.html) ·
+[Arcade](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/arcade.html) ·
+[Frontblende](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/frontblende.html) ·
+[Cockpit](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/cockpit.html)
 
-| | 1 Verbindung | 4 Verbindungen |
-|---|---|---|
-| Download, Datei im RAM | 1019 Mbit/s | 1842 Mbit/s |
-| Upload, ucode | 599 Mbit/s | 1142 Mbit/s |
-| Upload, Shell-CGI (alt) | 319 Mbit/s | 404 Mbit/s |
-| iperf3 -P4 (Referenz) | | 2320 / 1710 Mbit/s |
+**Kunst und Natur:** [Bauhaus](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/bauhaus.html) ·
+[Datengarten](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/garten.html) ·
+[Datensand](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/sand.html) ·
+[Klar](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/klar.html)
 
-Im Browser (Chrome, Kabel) erreicht die Seite auf dem BT8 bis 2,39 Gbit/s Download und 1,0 bis 1,4 Gbit/s Upload bei 2 ms Ping.
+**Für Netzwerker:** [Netzplan](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/netzplan.html) ·
+[Engpass](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/engpass.html) ·
+[Mitschnitt](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/mitschnitt.html) ·
+[Funkfeld](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/funkfeld.html) ·
+[Statusseite](https://raw.githack.com/TechnoHoschi/openspeedtest-openwrt/main/speedtest/statusseite.html) (sieht aus wie LuCI, mit echtem Logo direkt vom Router)
 
-## Voraussetzungen
-
-- OpenWrt 25.12 (getestet: Asus BT8), ab Dual-Core und 128 MB RAM
-- `uhttpd-mod-ucode` (ist mit LuCI meist schon da, sonst `apk add uhttpd-mod-ucode`)
-- Aufruf über **http://**: HTTPS kostet den Router viel CPU. Ist `redirect_https` aktiv, weist `install.sh` darauf hin.
+Ein paar der älteren Entwürfe laden ihre Schriften noch von Google Fonts. Offline sehen sie dann etwas schlichter aus.
 
 ## Installation
+
+Voraussetzungen: OpenWrt 25.12 (getestet auf Asus ZenWiFi BT8), ab Dual-Core und 128 MB RAM,
+und `uhttpd-mod-ucode` (mit LuCI meist schon da, sonst `apk add uhttpd-mod-ucode`).
+Ein GL.iNet von 2017 mit 64 MB RAM wird keine Freude haben, und du auch nicht.
 
 1. Den Ordner `speedtest/` per WinSCP (Protokoll SCP) nach `/www/speedtest` kopieren.
    Mit Kommandozeilen-`scp` die Option `-O` verwenden, dropbear kann kein SFTP.
 2. Per SSH: `sh /www/speedtest/install.sh`
 3. Im Browser: `http://<router-ip>/speedtest/`
 
-`install.sh` trägt den ucode-Handler in `/etc/config/uhttpd` ein (`ucode_prefix /speedtest-api`), setzt `max_requests` auf mindestens 16
-und startet uhttpd neu. Läuft uhttpd danach nicht, stellt das Skript die alte Konfiguration sofort wieder her, damit LuCI erreichbar bleibt.
+Wichtig: **http://**, nicht https. HTTPS frisst Router-CPU, und dann misst du die Verschlüsselung statt des Netzes.
+Ist `redirect_https` aktiv, sagt `install.sh` Bescheid.
 
-<details><summary>Dasselbe von Hand (ohne automatischen Rückfall)</summary>
+`install.sh` trägt den ucode-Handler in `/etc/config/uhttpd` ein (`ucode_prefix /speedtest-api`), setzt `max_requests` auf mindestens 16
+und startet uhttpd neu. Läuft uhttpd danach nicht, stellt das Skript sofort die alte Konfiguration wieder her.
+LuCI bleibt also erreichbar, auch wenn etwas schiefgeht. Darauf haben wir geachtet, nachdem wir LuCI einmal versehentlich abgeschossen hatten.
+
+<details><summary>Dasselbe von Hand (ohne Sicherheitsnetz)</summary>
 
 ```sh
 head -c 2 /www/speedtest/api.uc        # muss "{%" ausgeben, sonst startet uhttpd nicht
@@ -95,51 +139,60 @@ pidof uhttpd || { cp /tmp/uhttpd.bak /etc/config/uhttpd; service uhttpd restart;
 ```
 </details>
 
-**Aktualisieren:** neue Dateien nach `/www/speedtest` kopieren. Nach Änderungen an `api.uc` zusätzlich `service uhttpd restart`
-(vorher prüfen: `head -c 2 /www/speedtest/api.uc` muss `{%` ausgeben).
+**Aktualisieren:** neue Dateien nach `/www/speedtest` kopieren. Hat sich `api.uc` geändert, danach `service uhttpd restart`
+(und vorher kurz `head -c 2 /www/speedtest/api.uc` prüfen, ob `{%` herauskommt).
 
-Für Backups: `/www/speedtest` und `/etc/config/uhttpd` sichern.
+**Entfernen:** `sh /www/speedtest/uninstall.sh` räumt uhttpd auf, gibt den RAM frei und löscht den Ordner. Keine Reste, kein Groll.
 
-## Entfernen
+**Backup:** `/www/speedtest` und `/etc/config/uhttpd` sichern.
 
-`sh /www/speedtest/uninstall.sh` nimmt den Eintrag aus uhttpd heraus, gibt den RAM frei und löscht den Ordner.
+## Unter der Haube
 
-## Dateien in `speedtest/`
+| Teil | Umsetzung | Warum |
+|---|---|---|
+| Download | 64-MB-Datei in `/tmp/speedtest` (RAM), per Bind-Mount unter `/www/speedtest/data/` eingeblendet, uhttpd liefert direkt aus | schnellste Variante und schont den Flash |
+| Upload | ucode-Handler `api.uc` in uhttpd, liest und verwirft die Daten | gut doppelt so schnell wie Shell-CGI |
+| Ping/Jitter | `ping.txt`, 20 Abfragen, Median | kein Script-Overhead |
+| Messkern | `engine.js`, ES5 ohne Abhängigkeiten, für alle Ansichten; ohne Router läuft ein Demo-Modus | ein Messkern, viele Gesichter |
+| Router-CPU | `/speedtest-api/cpu` liest `/proc/stat` am Anfang und Ende jeder Richtung | stört die Messung nicht |
+| Anschluss | `/speedtest-api/link`: IP → MAC (ARP) → Bridge-Port → Port-Speed; bei WLAN Band, Kanal, Signal und Linkrate über iwinfo | die Platine zeigt den echten Datenweg |
+| Router-Info | `/speedtest-api/info`: Hostname, Modell, Kerne, SoC aus dem Device-Tree (z. B. MediaTek MT7988A, Filogic 880) | steht als Aufdruck auf dem Chip |
+| Verlauf | `/tmp/speedtest-history.json` (RAM), max. 200 Einträge | nach einem Neustart weg, dafür kein Flash-Verschleiß |
 
-| Datei | Zweck |
-|---|---|
-| `index.html` | Einstieg, wählt Lite, 2D oder 3D |
-| `silizium-lite.html`, `silizium2d.html`, `silizium3d.html` | die drei Ansichten |
-| `engine.js` | Messkern |
-| `api.uc` | ucode-API für uhttpd (`/up`, `/cpu`, `/info`, `/link`, `/history`) |
-| `install.sh`, `uninstall.sh` | Einrichten und Entfernen |
-| `ping.txt` | Ziel der Ping-Messung |
-| `diag.html` | Diagnose: Browser-Methoden im Vergleich, falls Werte unplausibel wirken |
-| `referenz.html` | schlichte technische Referenzseite |
-| alle übrigen `*.html` | Design-Entwürfe aus der Entstehung (Tacho, Cockpit, Warp, Fusionskern, Beschleuniger, Netzatlas, Datenrelief und viele mehr), funktionsfähig und direkt aufrufbar |
+Gemessen auf dem Asus BT8 (3 Kerne, PC per 2,5 GbE, Messkit in `bench/`):
 
-## Hinweise
+| | 1 Verbindung | 4 Verbindungen |
+|---|---|---|
+| Download, Datei im RAM | 1019 Mbit/s | 1842 Mbit/s |
+| Upload, ucode | 599 Mbit/s | 1142 Mbit/s |
+| Upload, Shell-CGI (der alte Weg) | 319 Mbit/s | 404 Mbit/s |
+| iperf3 -P4 zum Vergleich | | 2320 / 1710 Mbit/s |
 
-- **Ping:** uhttpd in OpenWrt 25.12 setzt kein `TCP_NODELAY` und hält dadurch den Rest kleiner Antworten auf einer bestehenden Verbindung ~40 ms zurück
-  (behoben in uhttpd [82b4c79](https://github.com/openwrt/uhttpd/commit/82b4c79), in 25.12 noch nicht enthalten). Die Seite misst deshalb die Zeit bis zum ersten Antwort-Byte.
-  Aus demselben Grund schickt der Upload große 32-MB-Stücke.
-- **Ergebnis:** Groß angezeigt wird die Spitze (bester gleitender 1-s-Wert, derselbe Wert, den die Live-Anzeige zeigt). Darunter steht der Durchschnitt:
-  die 1-s-Werte ohne die langsamsten 30 % und schnellsten 10 %, gemittelt.
-- **Ein CPU-Kern nahe 100 %:** Dann zeigt das Ergebnis eher die Grenze des Routers als die des Netzes. Beim Speedtest ist der Router selbst die Gegenstelle;
-  Verkehr, der durch den Router läuft, nutzt Hardware-Beschleunigung und ist meist schneller.
-- **iperf3** liefert die Referenz fürs Netz, ein Browser kann das Protokoll aber nicht sprechen. Wer es dauerhaft laufen lässt, sollte es mit `-B <lan-ip>` an das LAN binden.
-- Ältere Browser ohne Fetch-Streams messen den Download per XHR in 32-MB-Häppchen, damit der Browser-RAM klein bleibt.
+Im Browser schafft die Seite auf dem BT8 bis 2,39 Gbit/s Download und 1,0 bis 1,4 Gbit/s Upload bei 2 ms Ping.
 
-## Danke
+## Gut zu wissen
 
-Dieses Projekt hat als Fork von **[OpenSpeedTest™](https://openspeedtest.com)** angefangen
+- **Ping:** uhttpd in OpenWrt 25.12 setzt kein `TCP_NODELAY` und hält kleine Antworten dadurch ~40 ms fest
+  (behoben in uhttpd [82b4c79](https://github.com/openwrt/uhttpd/commit/82b4c79), in 25.12 noch nicht drin).
+  Deshalb misst die Seite die Zeit bis zum ersten Antwort-Byte, und der Upload schickt große 32-MB-Stücke.
+- **Ergebnis:** Groß steht die Spitze (bester gleitender 1-s-Wert, derselbe wie in der Live-Anzeige). Darunter steht der Durchschnitt
+  ohne Anlauf, ohne die langsamsten 30 % und die schnellsten 10 %.
+- **Ein CPU-Kern bei fast 100 %:** Dann ist der Router selbst die Grenze, nicht das Netz. Beim Speedtest ist der Router die Gegenstelle
+  und muss jedes Paket selbst anfassen. Verkehr, der nur durch ihn durchläuft, nutzt die Hardware-Beschleunigung und ist meist schneller.
+- **iperf3** bleibt die Referenz fürs Netz, nur spricht kein Browser dieses Protokoll. Wer es dauerhaft laufen lässt: mit `-B <lan-ip>` ans LAN binden.
+- **Diagnose:** `diag.html` vergleicht verschiedene Messmethoden im Browser, falls Werte komisch aussehen.
+- Ältere Browser ohne Fetch-Streams messen den Download per XHR in 32-MB-Häppchen, damit ihnen nicht der Speicher ausgeht.
+
+## Danke! 🙏
+
+Dieses Repo hat als Fork von **[OpenSpeedTest™](https://openspeedtest.com)** angefangen
 ([github.com/openspeedtest/Speed-Test](https://github.com/openspeedtest/Speed-Test)).
-OpenSpeedTest hat gezeigt, wie gut ein Speedtest nur mit Bordmitteln des Browsers funktionieren kann, und war der Ausgangspunkt für alles hier.
-Herzlichen Dank an Vishnu und das OpenSpeedTest-Team sowie an alle, die dort beigetragen haben!
+OpenSpeedTest hat gezeigt, wie gut ein Speedtest nur mit Bordmitteln des Browsers funktioniert, und war der Startschuss für alles hier.
+**Ganz herzlichen Dank an Vishnu und das OpenSpeedTest-Team** sowie an alle, die dort mitgewirkt haben!
 
-Inzwischen ist der Code komplett neu aufgebaut. Der alte Fork-Stand mit den Shell-CGIs steckt in der Git-Historie.
+Inzwischen ist kein Stein mehr auf dem anderen. Der alte Fork mit den Shell-CGIs liegt aber weiter in der Git-Historie.
 
-Danke außerdem an das **OpenWrt**-Projekt für uhttpd, ucode, LuCI und iwinfo, auf denen der Speedtest aufsetzt,
+Danke außerdem an das **OpenWrt**-Projekt für uhttpd, ucode, LuCI und iwinfo, ohne die hier gar nichts liefe,
 und an die Gestalter der Schriften **Saira** (Omnibus-Type) und **Share Tech Mono** (Carrois Apostrophe), beide unter der SIL Open Font License.
 
 ## Lizenz
