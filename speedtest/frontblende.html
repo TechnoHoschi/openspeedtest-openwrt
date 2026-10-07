@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Speedtest Frontblende</title>
+<style>
+/* Layout: die Frontblende eines Routers als Bühne. 7-Segment-Anzeige, Status-LEDs, die im Takt der Daten blinken,
+   Prüftaste. Nach der Messung kommt ein Typenschild wie auf der Geräteunterseite dazu, darunter der Verlauf.
+   Bewusst nur dunkel (Gerät im Regal), nur Systemschriften. */
+:root {
+  --room: #16191d;         /* Regal */
+  --panel: #0c0e10;        /* Gehäusefront, fast schwarz */
+  --panel-hi: #23272c;     /* Kante, Lichtreflex */
+  --print: #8c96a0;        /* Aufdruck auf der Front */
+  --ink: #e6eaee;
+  --seg: #ff9f2e;          /* 7-Segment, Bernstein */
+  --seg-off: #1d150c;
+  --led-g: #3ee07a;        /* Link 2,5G/10G, Aktivität */
+  --led-a: #ffb020;        /* Link 1G */
+  --led-r: #ff5a3c;        /* Link 100M, Warnung */
+  --led-w: #e9f1ff;        /* Power */
+  --led-b: #4aa8ff;        /* WLAN */
+  --label: #e9ebe6;        /* Typenschild-Folie */
+  --label-ink: #1b1d1f;
+  --f-ui: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --f-print: "Arial Narrow", "Roboto Condensed", Bahnschrift, "Helvetica Neue", Arial, sans-serif;
+  --f-mono: ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { background: var(--room); color: var(--ink); }
+body { margin: 0; font: 15px/1.45 var(--f-ui); background: radial-gradient(120% 70% at 50% 0%, #22272d 0%, var(--room) 60%); min-height: 100%; }
+main { max-width: 1000px; margin: 0 auto; padding: 22px 16px 40px; display: grid; gap: 22px; }
+main > * { min-width: 0; }
+header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 4px 16px; }
+h1 { margin: 0; font: 600 1.05rem var(--f-print); letter-spacing: .3em; text-transform: uppercase; color: var(--print); }
+.meta { color: var(--print); font: .8rem var(--f-mono); }
+.demo { color: var(--room); background: var(--seg); border-radius: 2px; padding: 0 6px; font: 600 .7rem var(--f-ui); margin-left: 6px; }
+
+/* Gehäusefront */
+.front { position: relative; background: linear-gradient(180deg, var(--panel-hi) 0, var(--panel) 6px, var(--panel) calc(100% - 4px), #000 100%);
+  border-radius: 14px; padding: 22px 26px 18px; box-shadow: 0 24px 50px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.08);
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 18px 28px; align-items: center; }
+.front::after { content: ""; position: absolute; inset: 0; border-radius: 14px; pointer-events: none;
+  background: repeating-linear-gradient(90deg, rgba(255,255,255,.012) 0 2px, transparent 2px 4px); }
+.brand { display: grid; gap: 2px; }
+.brand b { font: 700 1.3rem/1 var(--f-print); letter-spacing: .12em; color: var(--ink); text-transform: uppercase; overflow-wrap: anywhere; }
+.brand span { font: .72rem var(--f-print); letter-spacing: .14em; color: var(--print); text-transform: uppercase; }
+
+.display { justify-self: center; background: #050403; border-radius: 6px; padding: 10px 14px 8px; box-shadow: inset 0 2px 8px #000, 0 0 0 1px #1d1f22;
+  display: grid; grid-template-columns: auto auto; gap: 2px 12px; align-items: center; max-width: 100%; }
+.display svg { height: 64px; width: auto; max-width: 100%; display: block; }
+.ann { display: grid; gap: 3px; font: 700 .62rem var(--f-mono); letter-spacing: .08em; }
+.ann span { color: var(--seg-off); }
+.ann span.on { color: var(--seg); text-shadow: 0 0 6px rgba(255,159,46,.6); }
+.ann-row { grid-column: 1 / -1; display: flex; gap: 14px; font: 700 .62rem var(--f-mono); letter-spacing: .08em; }
+.ann-row span { color: var(--seg-off); }
+.ann-row span.on { color: var(--seg); text-shadow: 0 0 6px rgba(255,159,46,.6); }
+
+.key { display: grid; justify-items: center; gap: 6px; }
+.go { width: 64px; height: 64px; border-radius: 50%; border: 0; cursor: pointer; color: var(--print);
+  background: radial-gradient(circle at 40% 35%, #3a3f45, #15181b 70%); box-shadow: 0 3px 0 #000, inset 0 1px 0 rgba(255,255,255,.15);
+  font: 700 .7rem var(--f-print); letter-spacing: .14em; }
+.go:active { transform: translateY(2px); box-shadow: 0 1px 0 #000; }
+.go:disabled { opacity: .45; cursor: default; }
+.go.run { color: var(--led-r); }
+.key small { font: .62rem var(--f-print); letter-spacing: .16em; color: var(--print); text-transform: uppercase; }
+.go:focus-visible, .btn:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--seg); outline-offset: 3px; }
+
+.leds { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 14px 26px; border-top: 1px solid #1c1f23; padding-top: 14px; }
+.group { display: flex; gap: 12px; align-items: flex-end; }
+.led { display: grid; justify-items: center; gap: 5px; min-width: 30px; }
+.led i { width: 10px; height: 10px; border-radius: 50%; background: #1d2024; box-shadow: inset 0 1px 1px rgba(0,0,0,.8); transition: background .05s, box-shadow .05s; }
+.led b { font: 600 .6rem var(--f-print); letter-spacing: .1em; color: var(--print); text-transform: uppercase; white-space: nowrap; }
+.led.you b { color: var(--ink); }
+.glabel { font: .58rem var(--f-print); letter-spacing: .18em; color: #5b636b; text-transform: uppercase; writing-mode: vertical-rl; transform: rotate(180deg); }
+
+.opts { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--print); font-size: .85rem; align-items: center; }
+.opts label { display: flex; align-items: center; gap: 6px; }
+select, input { font: inherit; color: var(--ink); background: #1e2226; border: 1px solid #2f353b; border-radius: 4px; padding: 5px 8px; }
+input { width: 10.5em; }
+.btn { font: 600 .85rem var(--f-ui); color: var(--ink); background: transparent; border: 1px solid #3a4148; border-radius: 4px; padding: 6px 14px; cursor: pointer; }
+.btn:hover { border-color: var(--print); }
+.hint { color: var(--print); font-size: .85rem; margin: 0; }
+.hint b { color: var(--seg); font-weight: 600; }
+
+/* Typenschild */
+.plate-wrap { display: grid; justify-items: center; }
+.plate { width: min(560px, 100%); background: var(--label); color: var(--label-ink); border-radius: 6px; padding: 14px 18px 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5); display: grid; gap: 8px; transform: rotate(-.6deg);
+  background-image: linear-gradient(135deg, rgba(255,255,255,.5), rgba(255,255,255,0) 40%); }
+.plate .top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; border-bottom: 2px solid var(--label-ink); padding-bottom: 6px; }
+.plate .top b { font: 800 1.15rem var(--f-print); letter-spacing: .06em; text-transform: uppercase; }
+.plate .top span { font: .7rem var(--f-mono); }
+.plate dl { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 14px; font-size: .86rem; }
+.plate dt { font: 600 .7rem var(--f-print); letter-spacing: .08em; text-transform: uppercase; color: #4a4f54; padding-top: 2px; }
+.plate dd { margin: 0; font: 600 .9rem var(--f-mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.plate .rating { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1.5px solid var(--label-ink); }
+.plate .rating div { padding: 5px 8px; border-right: 1.5px solid var(--label-ink); display: grid; }
+.plate .rating div:last-child { border-right: 0; }
+.plate .rating small { font: 600 .62rem var(--f-print); letter-spacing: .1em; text-transform: uppercase; color: #4a4f54; }
+.plate .rating b { font: 800 1.35rem/1.1 var(--f-print); font-variant-numeric: tabular-nums; }
+.plate .rating i { font: normal .7rem var(--f-mono); color: #4a4f54; }
+.plate .bottom { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; }
+.plate canvas { height: 38px; width: 190px; max-width: 55%; display: block; }
+.plate .fine { font: .62rem/1.35 var(--f-mono); color: #4a4f54; text-align: right; }
+.plate .warn { font: 600 .74rem var(--f-ui); color: #a2280e; }
+
+.hist h2 { font: 600 .9rem var(--f-print); letter-spacing: .2em; text-transform: uppercase; color: var(--print); margin: 0 0 6px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.tbl { overflow-x: auto; background: #111417; border: 1px solid #22272c; border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; font: .84rem var(--f-mono); font-variant-numeric: tabular-nums; }
+th, td { padding: 7px 10px; border-bottom: 1px solid #1d2125; text-align: right; white-space: nowrap; }
+th { color: var(--print); font: 600 .68rem var(--f-print); letter-spacing: .1em; text-transform: uppercase; }
+th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
+td.dl, td.ul { color: var(--seg); }
+td small { color: var(--print); }
+.empty { color: var(--print); padding: 10px 12px; }
+.confirm { display: inline-flex; gap: 8px; align-items: center; font: 400 .8rem var(--f-ui); letter-spacing: 0; text-transform: none; }
+
+@media (max-width: 720px) {
+  .front { grid-template-columns: minmax(0, 1fr) auto; padding: 18px 16px 14px; }
+  .display { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; }
+  .display svg { height: 48px; }
+  .leds { gap: 12px 18px; }
+}
+@media (prefers-reduced-motion: reduce) { .led i { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Frontblende</h1>
+    <div class="meta" id="meta">Verbinde mit dem Router …</div>
+  </header>
+
+  <section class="front" aria-label="Router-Front">
+    <div class="brand"><b id="host">Router</b><span id="model">LAN-Speedtest</span></div>
+    <div class="display" aria-live="polite">
+      <svg id="seg" viewBox="0 0 240 64" role="img" aria-label="Anzeige"></svg>
+      <div class="ann"><span id="a-g">Gbit/s</span><span id="a-m">Mbit/s</span><span id="a-ms">ms</span></div>
+      <div class="ann-row"><span id="a-ping">PING</span><span id="a-dl">DOWN</span><span id="a-ul">UP</span><span id="a-peak">PEAK</span><span id="a-avg">AVG</span></div>
+    </div>
+    <div class="key"><button class="go" id="go" disabled aria-label="Messung starten">TEST</button><small id="key-l">Messen</small></div>
+    <div class="leds" id="leds"></div>
+  </section>
+
+  <div class="opts">
+    <label for="streams">Verbindungen
+      <select id="streams"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select></label>
+    <label for="duration">Dauer
+      <select id="duration"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></label>
+    <label for="label">Gerät <input id="label" maxlength="40" placeholder="z. B. Laptop WLAN"></label>
+  </div>
+  <p class="hint" id="hint">Die LED deines Anschlusses ist hell beschriftet. Sie blinkt schneller, je mehr Daten fließen.</p>
+
+  <section class="plate-wrap" id="plate-wrap" hidden>
+    <div class="plate">
+      <div class="top"><b>Typenschild · Messung</b><span id="p-date">–</span></div>
+      <dl>
+        <dt>Router</dt><dd id="p-router">–</dd>
+        <dt>Gerät</dt><dd id="p-dev">–</dd>
+        <dt>Anschluss</dt><dd id="p-link">–</dd>
+        <dt>Ping</dt><dd id="p-ping">–</dd>
+        <dt>CPU je Kern</dt><dd id="p-cpu">–</dd>
+      </dl>
+      <div class="rating">
+        <div><small>Download</small><b id="p-dl">–</b><i id="p-dl-a">–</i></div>
+        <div><small>Upload</small><b id="p-ul">–</b><i id="p-ul-a">–</i></div>
+        <div><small>Verbindungen</small><b id="p-st">–</b><i>parallel</i></div>
+      </div>
+      <div class="warn" id="p-warn" hidden></div>
+      <div class="bottom"><canvas id="bars" width="380" height="76" aria-hidden="true"></canvas>
+        <div class="fine">Spitze = bester 1-s-Wert<br>Ø ohne Anlauf und Ausreißer<br>Gemessen im lokalen Netz</div></div>
+    </div>
+    <p><button class="btn" id="again">Neu messen</button></p>
+  </section>
+
+  <section class="hist">
+    <h2>Messprotokoll <span id="clear-wrap"><button class="btn" id="clear">Löschen</button></span></h2>
+    <div class="tbl" id="history"><div class="empty">Noch keine Messungen.</div></div>
+  </section>
+</main>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.SpeedEngine, $ = function (id) { return document.getElementById(id); };
+  var NS = 'http://www.w3.org/2000/svg';
+  var info = null, link = null, phase = null, live = 0, cores = [], running = false;
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var COLOR = { g: 'var(--led-g)', a: 'var(--led-a)', r: 'var(--led-r)', w: 'var(--led-w)', b: 'var(--led-b)' };
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  // ---------- 7-Segment-Anzeige ----------
+  // Segmente a..g als Polygone in einer 26x52-Zelle (leicht kursiv wie bei echten Anzeigen)
+  var SEG = {
+    a: '4,2 22,2 19,6 7,6', b: '23,3 23,24 19,22 19,7', c: '23,28 23,49 19,45 19,30', d: '4,50 22,50 19,46 7,46',
+    e: '3,28 7,30 7,45 3,49', f: '3,3 7,7 7,22 3,24', g: '4,26 7,24 19,24 22,26 19,28 7,28'
+  };
+  var DIG = { '0': 'abcdef', '1': 'bc', '2': 'abged', '3': 'abgcd', '4': 'fgbc', '5': 'afgcd', '6': 'afgedc', '7': 'abc', '8': 'abcdefg', '9': 'abcdfg', '-': 'g', ' ': '', 'P': 'abefg', 'L': 'def', 'o': 'cdeg', 'S': 'afgcd', 't': 'defg', 'E': 'adefg', 'r': 'eg', 'n': 'ceg', 'i': 'c', 'g': 'abcdfg' };
+  var cells = [], dots = [];
+  (function build() {
+    var svg = $('seg');
+    for (var i = 0; i < 6; i++) {
+      var g = document.createElementNS(NS, 'g'); g.setAttribute('transform', 'translate(' + (4 + i * 39) + ',6) skewX(-6) scale(1.4 1)');
+      var segs = {};
+      for (var k in SEG) { var p = document.createElementNS(NS, 'polygon'); p.setAttribute('points', SEG[k]); p.setAttribute('fill', 'var(--seg-off)'); g.appendChild(p); segs[k] = p; }
+      svg.appendChild(g); cells.push(segs);
+      var dot = document.createElementNS(NS, 'circle'); dot.setAttribute('cx', 4 + i * 39 + 36); dot.setAttribute('cy', 55); dot.setAttribute('r', 3); dot.setAttribute('fill', 'var(--seg-off)');
+      svg.appendChild(dot); dots.push(dot);
+    }
+  })();
+  function show(str) {   // rechtsbündig, Komma als Punkt der vorigen Stelle
+    var chars = [], marks = [];
+    for (var i = 0; i < str.length; i++) {
+      var c = str.charAt(i);
+      if (c === ',' || c === '.') { marks[chars.length - 1] = true; continue; }
+      chars.push(c);
+    }
+    var pad = 6 - chars.length;
+    for (var j = 0; j < 6; j++) {
+      var ch = j - pad >= 0 ? chars[j - pad] : ' ', on = DIG[ch] || '';
+      for (var k in cells[j]) cells[j][k].setAttribute('fill', on.indexOf(k) >= 0 ? 'var(--seg)' : 'var(--seg-off)');
+      dots[j].setAttribute('fill', j - pad >= 0 && marks[j - pad] ? 'var(--seg)' : 'var(--seg-off)');
+    }
+  }
+  function ann(on) { ['a-g', 'a-m', 'a-ms', 'a-ping', 'a-dl', 'a-ul', 'a-peak', 'a-avg'].forEach(function (id) { $(id).className = on.indexOf(id) >= 0 ? 'on' : ''; }); }
+  function showSpeed(m, extra) {
+    var s = E.fmtSpeed(m);
+    show(s.v); ann([s.u === 'Gbit/s' ? 'a-g' : 'a-m'].concat(extra || []));
+  }
+
+  // ---------- LEDs ----------
+  var leds = {};
+  function led(id, label, you) { return '<div class="led' + (you ? ' you' : '') + '" id="led-' + id + '"><i></i><b>' + esc(label) + '</b></div>'; }
+  function buildLeds() {
+    var html = '<div class="group">' + led('pwr', 'Power') + '</div>';
+    var n = (info && info.cores) || 2, c = '';
+    for (var i = 0; i < n; i++) c += led('cpu' + i, 'CPU' + (i + 1));
+    html += '<div class="group"><span class="glabel">Kerne</span>' + c + '</div>';
+    // LAN-Ports: lan1..lan4, der eigene Port ist hervorgehoben
+    var ports = ['lan1', 'lan2', 'lan3', 'lan4'], mine = link && link.type === 'wired' ? link.port : null;
+    if (mine && ports.indexOf(mine) < 0) ports.push(mine);
+    html += '<div class="group"><span class="glabel">LAN</span>' + ports.map(function (p) { return led(p, p.replace(/^lan/, 'LAN '), p === mine); }).join('') + '</div>';
+    var band = link && link.type === 'wifi' && link.wifi ? link.wifi.band : null;
+    html += '<div class="group"><span class="glabel">WLAN</span>' + ['2.4', '5', '6'].map(function (b) { return led('w' + b.replace('.', ''), b.replace('.', ',') + ' GHz', b === band); }).join('') + '</div>';
+    html += '<div class="group">' + led('wan', 'WAN') + '</div>';
+    $('leds').innerHTML = html;
+    leds = {};
+    var all = $('leds').querySelectorAll('.led');
+    for (var j = 0; j < all.length; j++) leds[all[j].id.slice(4)] = all[j].querySelector('i');
+    setLed('pwr', 'w', 1);
+    setLed('wan', 'g', .35);   // WAN gehört nicht zur Messung, nur gedimmt
+    if (mine) setLed(mine, linkColor(), 1);
+    if (band) setLed('w' + band.replace('.', ''), 'b', 1);
+  }
+  function linkColor() { var s = link && link.speed; return !s ? 'g' : (s >= 2500 ? 'g' : (s >= 1000 ? 'a' : 'r')); }
+  function setLed(id, col, level) {
+    var e = leds[id]; if (!e) return;
+    if (!level) { e.style.background = ''; e.style.boxShadow = ''; e.style.opacity = ''; return; }
+    e.style.background = COLOR[col];
+    e.style.opacity = level < 1 ? Math.max(.25, level) : 1;
+    e.style.boxShadow = '0 0 ' + Math.round(4 + 8 * level) + 'px ' + COLOR[col];
+  }
+  function myLedId() {
+    if (!link) return null;
+    if (link.type === 'wired') return link.port;
+    if (link.type === 'wifi' && link.wifi && link.wifi.band) return 'w' + link.wifi.band.replace('.', '');
+    return null;
+  }
+  // Aktivitäts-Blinken: Frequenz steigt logarithmisch mit dem Durchsatz (2 .. 25 Hz)
+  var blinkOn = true, nextBlink = 0;
+  function frame(ts) {
+    var me = myLedId();
+    if (running && (phase === 'download' || phase === 'upload') && live > 0 && me) {
+      var hz = 2 + 23 * Math.min(1, Math.log(1 + live / 10) / Math.log(1 + 10000 / 10));
+      if (ts >= nextBlink) {
+        blinkOn = !blinkOn; nextBlink = ts + (reduce ? 400 : 500 / hz) * (0.6 + Math.random() * 0.8);
+        setLed(me, link.type === 'wifi' ? 'b' : linkColor(), blinkOn ? 1 : 0);
+      }
+      // Kerne flackern sanft, die echte Last kommt am Ende der Phase
+      for (var i = 0; i < ((info && info.cores) || 0); i++) setLed('cpu' + i, 'g', reduce ? .6 : .35 + .5 * Math.abs(Math.sin(ts / (180 + i * 70))));
+    } else if (running && phase === 'ping' && me) {
+      setLed(me, link.type === 'wifi' ? 'b' : linkColor(), (ts % 300) < 60 ? 1 : .3);
+    }
+    requestAnimationFrame(frame);
+  }
+  function restLeds() {
+    var me = myLedId(); if (me) setLed(me, link.type === 'wifi' ? 'b' : linkColor(), 1);
+    for (var i = 0; i < ((info && info.cores) || 0); i++) {
+      var c = cores[i];
+      setLed('cpu' + i, c >= 90 ? 'r' : (c >= 60 ? 'a' : 'g'), c === undefined ? 0 : Math.max(.15, c / 100));
+    }
+  }
+
+  // ---------- Typenschild ----------
+  function linkText() {
+    if (!link) return 'unbekannt';
+    if (link.type === 'wired') return (link.port || 'LAN') + ' · ' + (link.speed ? (link.speed >= 1000 ? (link.speed / 1000 + '').replace('.', ',') + ' GbE' : link.speed + ' Mbit/s') : 'Kabel') + (link.duplex === 'full' ? ' · Vollduplex' : '');
+    var w = link.wifi || {};
+    return 'WLAN ' + [w.band ? w.band.replace('.', ',') + ' GHz' : '', w.standard ? 'Wi-Fi ' + w.standard : '', w.signal ? w.signal + ' dBm' : ''].filter(Boolean).join(' · ');
+  }
+  function today() { var d = new Date(); return ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '.' + d.getFullYear() + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+  // Strichcode-Optik aus den 1-s-Werten: jeder Strich ist eine Sekunde, Breite nach Durchsatz
+  function bars(d, u) {
+    var cv = $('bars'), x = cv.getContext('2d'); x.clearRect(0, 0, cv.width, cv.height);
+    var all = d.series.concat([0]).concat(u.series), max = 1; all.forEach(function (v) { if (v > max) max = v; });
+    var pos = 4; x.fillStyle = '#1b1d1f';
+    all.forEach(function (v) { var w = v ? 1 + Math.round(5 * v / max) : 0; if (w) x.fillRect(pos, 2, w, 72); pos += w + 3 + (v ? 0 : 8); });
+  }
+  function fillPlate(res, ping, label) {
+    var d = res.download, u = res.upload, sd = E.fmtSpeed(d.peak), su = E.fmtSpeed(u.peak), ad = E.fmtSpeed(d.avg), au = E.fmtSpeed(u.avg);
+    $('p-date').textContent = today();
+    $('p-router').textContent = info.hostname + (info.model ? ' · ' + info.model : '');
+    $('p-dev').textContent = (label || info.client_host || 'Gerät') + ' · ' + info.client_ip;
+    $('p-link').textContent = linkText();
+    $('p-ping').textContent = ping;
+    $('p-cpu').textContent = (d.cores ? d.cores.map(Math.round).join('/') : '–') + ' % ↓   ' + (u.cores ? u.cores.map(Math.round).join('/') : '–') + ' % ↑';
+    $('p-dl').textContent = sd.v + ' ' + sd.u; $('p-dl-a').textContent = 'Ø ' + ad.v + ' ' + ad.u;
+    $('p-ul').textContent = su.v + ' ' + su.u; $('p-ul-a').textContent = 'Ø ' + au.v + ' ' + au.u;
+    $('p-st').textContent = $('streams').value;
+    var mc = Math.max(d.core || 0, u.core || 0);
+    $('p-warn').hidden = mc < 90;
+    $('p-warn').textContent = 'Achtung: Ein CPU-Kern lag bei ' + Math.round(mc) + ' %. Das Ergebnis zeigt eher die Grenze des Routers als die des Netzes.';
+    bars(d, u);
+    $('plate-wrap').hidden = false;
+  }
+
+  // ---------- Ablauf ----------
+  function mode(on) {
+    running = on; $('go').classList.toggle('run', on); $('go').textContent = on ? 'STOP' : 'TEST';
+    $('go').setAttribute('aria-label', on ? 'Messung stoppen' : 'Messung starten'); $('key-l').textContent = on ? 'Stoppen' : 'Messen';
+    if (!on) { phase = null; live = 0; restLeds(); }
+  }
+  function start() {
+    if (running) { E.stop(); mode(false); show('-----'); ann([]); $('hint').textContent = 'Abgebrochen.'; return; }
+    var streams = +$('streams').value, duration = +$('duration').value, label = $('label').value.replace(/^\s+|\s+$/g, '');
+    try { localStorage.setItem('st-label', label); localStorage.setItem('st-streams', streams); localStorage.setItem('st-duration', duration); } catch (e) { }
+    $('plate-wrap').hidden = true; cores = [];
+    mode(true); show('Ping'); ann(['a-ping']);
+    var res = {}, ping = '–';
+    E.run({ streams: streams, duration: duration, label: label }, {
+      phase: function (p) {
+        phase = p; live = 0;
+        $('hint').innerHTML = { ping: '<b>Ping</b>: Die Port-LED zuckt bei jeder Antwort.', download: '<b>Download</b>: Router schickt Daten an dein Gerät.', upload: '<b>Upload</b>: Dein Gerät schickt Daten an den Router.' }[p];
+        if (p !== 'ping') { show('  ---'); ann([p === 'download' ? 'a-dl' : 'a-ul']); }
+      },
+      pingSample: function (ms) { show(E.fmt(ms, 1)); ann(['a-ms', 'a-ping']); },
+      ping: function (p, j) { ping = E.fmt(p, 1) + ' ms · Jitter ' + E.fmt(j, 1) + ' ms'; },
+      live: function (kind, m) { if (m !== null) { live = m; showSpeed(m, [kind === 'download' ? 'a-dl' : 'a-ul']); } },
+      result: function (kind, r) { res[kind] = r; cores = r.cores || []; },
+      done: function () {
+        mode(false);
+        showSpeed(res.download.peak, ['a-dl', 'a-peak']);
+        $('hint').innerHTML = 'Fertig. Die Kern-LEDs zeigen jetzt die Last beim Upload: <b>grün</b> wenig, <b>gelb</b> ab 60 %, <b>rot</b> ab 90 %.';
+        fillPlate(res, ping, $('label').value);
+        loadHistory();
+      },
+      error: function (msg) { mode(false); show('Err'); ann([]); $('hint').textContent = msg; }
+    });
+  }
+
+  // ---------- Verlauf ----------
+  function n0(v) { return v === null || v === undefined ? '–' : E.fmt(v, 0); }
+  function sp(peak, avg) { return peak === null || peak === undefined ? n0(avg) : n0(peak) + ' <small>/ ' + n0(avg) + '</small>'; }
+  function loadHistory() {
+    E.history(function (h) {
+      if (!h.length) { $('history').innerHTML = '<div class="empty">Noch keine Messungen.</div>'; return; }
+      var rows = '';
+      for (var i = h.length - 1; i >= 0; i--) {
+        var e = h[i], d = new Date(e.ts * 1000);
+        var when = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '. ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        var who = e.label || e.host || e.ip; if (e.label && e.host) who = esc(e.label) + ' <small>' + esc(e.host) + '</small>'; else who = esc(who);
+        rows += '<tr><td>' + when + '</td><td>' + who + '</td><td>' + (e.ping === null ? '–' : E.fmt(e.ping, 1)) + '</td><td class="dl">' + sp(e.dl_peak, e.dl) +
+          '</td><td class="ul">' + sp(e.ul_peak, e.ul) + '</td><td>' + (e.streams || '–') + '</td></tr>';
+      }
+      $('history').innerHTML = '<table><tr><th>Zeit</th><th>Gerät</th><th>Ping ms</th><th>Down Mbit/s<br>Spitze / Ø</th><th>Up Mbit/s<br>Spitze / Ø</th><th>Verb.</th></tr>' + rows + '</table>';
+    });
+  }
+  function clearAsk() {
+    $('clear-wrap').innerHTML = '<span class="confirm">Alles löschen? <button class="btn" id="yes">Ja</button><button class="btn" id="no">Nein</button></span>';
+    $('yes').onclick = function () { E.clearHistory(function () { loadHistory(); clearReset(); }); };
+    $('no').onclick = clearReset;
+  }
+  function clearReset() { $('clear-wrap').innerHTML = '<button class="btn" id="clear">Löschen</button>'; $('clear').onclick = clearAsk; }
+  $('clear').onclick = clearAsk;
+
+  $('go').onclick = start;
+  $('again').onclick = function () { window.scrollTo({ top: 0, behavior: 'smooth' }); start(); };
+
+  try {
+    var l = localStorage.getItem('st-label'), s = localStorage.getItem('st-streams'), d = localStorage.getItem('st-duration');
+    if (l) $('label').value = l; if (s) $('streams').value = s; if (d) $('duration').value = d;
+  } catch (e) { }
+
+  show('  ----'); buildLeds();
+  requestAnimationFrame(frame);
+
+  E.init(function (i) {
+    info = i;
+    $('host').textContent = i.hostname; $('model').textContent = i.model || 'OpenWrt';
+    $('meta').innerHTML = esc(i.cores + ' Kerne · Du: ' + (i.client_host ? i.client_host + ' (' + i.client_ip + ')' : i.client_ip)) + (i.demo ? '<span class="demo">Demo</span>' : '');
+    E.link(function (l) { link = l; buildLeds(); show('  8888'); setTimeout(function () { show('   ---'); }, 600); $('go').disabled = false; });
+    loadHistory();
+  });
+})();
+</script>
+</body>
+</html>

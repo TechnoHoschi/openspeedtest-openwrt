@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#030605">
+<title>Speedtest Silizium Lite</title>
+<style>
+/* Silizium Lite: dieselbe Messung und Optik wie Silizium, aber für langsame Geräte (alte SmartTVs, schwache Handys).
+   Bewusst sparsam: kein Canvas, keine Animationen oder Übergänge, kein Weichzeichner, keine eingebetteten Schriften,
+   keine CSS-Variablen und kein Grid (nur Flexbox), damit auch alte Browser die Seite schnell darstellen. */
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { background: #030605; color: #e9f3ef; }
+body { margin: 0; font: 15px/1.5 "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+.mono, small, .k, .s, select, input, .btn, table, .who, .meta { font-family: ui-monospace, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace; }
+button, select, input { font-size: inherit; }
+a { color: #3ef0ff; }
+:focus { outline: 2px solid #3ef0ff; outline-offset: 2px; }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 16px 16px 40px; }
+
+/* Kopf */
+.top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #1f3a30; padding-bottom: 10px; }
+.mark { font-weight: 700; letter-spacing: .45em; text-transform: uppercase; font-size: 1rem; margin: 0 20px 6px 0; }
+.mark small { display: block; font-weight: 400; letter-spacing: .2em; font-size: .66rem; color: #8aa39a; margin-top: 4px; }
+.who { color: #8aa39a; font-size: .76rem; text-align: right; }
+.who b { color: #d6e2dc; font-weight: 400; }
+.who .lk { color: #3ef0ff; }
+.demo { color: #120d00; background: #ffb13b; padding: 0 6px; }
+
+/* Messbereich: Chip-Schild links, Anzeige Mitte, Taster rechts */
+.bench { display: flex; flex-wrap: wrap; align-items: center; margin: 18px 0 14px; }
+.chip { flex: 0 0 auto; width: 170px; margin: 0 24px 14px 0; border: 1px solid #44524d; background: #0b100f; padding: 16px 10px; text-align: center; position: relative; }
+.chip:before, .chip:after { content: ""; position: absolute; left: 10px; right: 10px; height: 6px;
+  background: repeating-linear-gradient(90deg, #c9a24a 0, #c9a24a 3px, transparent 3px, transparent 9px); }
+.chip:before { top: -7px; } .chip:after { bottom: -7px; }
+.chip .u { font-size: .66rem; color: #8aa39a; letter-spacing: .14em; font-family: ui-monospace, Consolas, monospace; }
+.chip .v { font-weight: 700; letter-spacing: .1em; color: #d6e2dc; margin-top: 6px; }
+.chip .t { font-size: .8rem; color: #a9b8b2; font-family: ui-monospace, Consolas, monospace; }
+.chip .n { font-size: .62rem; color: #6d817a; letter-spacing: .12em; font-family: ui-monospace, Consolas, monospace; }
+.readout { flex: 1 1 260px; min-width: 0; margin-bottom: 14px; }
+.phase { font-size: .76rem; letter-spacing: .26em; text-transform: uppercase; color: #3ef0ff; min-height: 1.2em; font-family: ui-monospace, Consolas, monospace; }
+.phase.up { color: #ffb13b; } .phase.ping { color: #f4f7ff; }
+.big { font-size: 5.4rem; line-height: 1; font-weight: 300; letter-spacing: -.02em; white-space: nowrap; }
+.big small { font-size: 1.2rem; color: #8aa39a; margin-left: 8px; letter-spacing: .06em; }
+.bar { height: 3px; background: #14261f; width: 220px; max-width: 100%; margin: 8px 0 4px; }
+.bar b { display: block; height: 3px; width: 0; background: #3ef0ff; }
+.path { font-size: .74rem; color: #8aa39a; font-family: ui-monospace, Consolas, monospace; }
+.sw { flex: 0 0 auto; text-align: center; margin: 0 0 14px 10px; }
+.sw button { width: 100px; height: 100px; background: #0c1210; color: #d6e2dc; border: 2px solid #c9a24a; cursor: pointer; letter-spacing: .2em; font-family: ui-monospace, Consolas, monospace; font-size: .8rem; }
+.sw button span { display: inline-block; width: 52px; height: 52px; line-height: 52px; border-radius: 50%; background: #1b2522; border: 1px solid #3a4642; }
+.sw button.run { border-color: #ff5a3c; }
+.sw button.run span { color: #ff5a3c; }
+.sw button[disabled] { opacity: .45; cursor: default; }
+.sw small { display: block; font-size: .66rem; letter-spacing: .2em; color: #d6e2dc; margin-top: 6px; }
+
+/* Messwerte */
+.pins { display: flex; flex-wrap: wrap; margin: 0 -5px; }
+.pin { flex: 1 1 170px; margin: 0 5px 10px; background: #070c0b; border: 1px solid #1f3a30; border-left: 3px solid #c9a24a; padding: 8px 12px 10px; min-width: 0; }
+.pin .k { font-size: .7rem; letter-spacing: .14em; color: #8aa39a; }
+.pin .k em { font-style: normal; color: #4d6159; float: right; }
+.pin .v { font-size: 1.8rem; font-weight: 300; white-space: nowrap; }
+.pin .v small { font-size: .72rem; color: #8aa39a; margin-left: 4px; }
+.pin .s { font-size: .7rem; color: #5f7369; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pin.dl .v { color: #3ef0ff; } .pin.ul .v { color: #ffb13b; }
+.pin.on { border-color: #3ef0ff; border-left-color: #c9a24a; }
+
+.ctrl { display: flex; flex-wrap: wrap; align-items: center; color: #8aa39a; font-size: .78rem; margin-top: 4px; }
+.ctrl label { margin: 4px 18px 4px 0; }
+select, input { color: #e9f3ef; background: #08100e; border: 1px solid #2a4038; padding: 5px 8px; font-size: .8rem; }
+input { width: 11em; }
+.views { margin: 4px 0 4px auto; }
+.btn { display: inline-block; color: #d6e2dc; background: transparent; border: 1px solid #2a4038; padding: 6px 12px; cursor: pointer; font-size: .74rem; letter-spacing: .14em; text-transform: uppercase; text-decoration: none; }
+.btn:hover { border-color: #3ef0ff; color: #3ef0ff; }
+.btn.cur { border-color: #c9a24a; color: #c9a24a; cursor: default; }
+
+/* Messprotokoll */
+h2 { margin: 30px 0 10px; font-size: .8rem; font-weight: 400; letter-spacing: .3em; text-transform: uppercase; color: #8aa39a; font-family: ui-monospace, Consolas, monospace; overflow: hidden; }
+h2 .btn { float: right; letter-spacing: .14em; }
+.report { border: 1px solid #1f3a30; background: #060b0a; padding: 18px; }
+.rh { border-bottom: 1px solid #3a4c45; padding-bottom: 8px; margin-bottom: 14px; overflow: hidden; }
+.rh h3 { margin: 0; float: left; font-size: 1.1rem; letter-spacing: .4em; text-transform: uppercase; color: #d6e2dc; }
+.rh .no { float: right; font-size: .74rem; color: #8aa39a; font-family: ui-monospace, Consolas, monospace; margin-top: 4px; }
+.meta { display: flex; flex-wrap: wrap; font-size: .76rem; margin: 0 -9px 8px; }
+.meta div { flex: 1 1 200px; margin: 0 9px 10px; border-left: 2px solid #8d6c26; padding-left: 9px; min-width: 0; }
+.meta span { display: block; color: #4d6159; font-size: .66rem; letter-spacing: .16em; text-transform: uppercase; }
+.tiles { display: flex; flex-wrap: wrap; margin: 0 -5px; }
+.tile { flex: 1 1 220px; margin: 0 5px 10px; border: 1px solid #1f3a30; border-left: 3px solid #c9a24a; background: #030706; padding: 10px 14px 12px; min-width: 0; }
+.tile.wide { flex-basis: 380px; }
+.tile .k { font-size: .7rem; letter-spacing: .14em; color: #8aa39a; text-transform: uppercase; }
+.tile .k em { font-style: normal; color: #4d6159; float: right; }
+.tile .v { font-size: 2.6rem; line-height: 1.1; font-weight: 300; white-space: nowrap; }
+.tile .v small { font-size: .74rem; color: #8aa39a; margin-left: 6px; }
+.tile .s { font-size: .72rem; color: #5f7369; }
+.tile.dl .v { color: #3ef0ff; } .tile.ul .v { color: #ffb13b; }
+.tile svg { display: block; width: 100%; height: 56px; margin-top: 6px; }
+.core { font-size: .7rem; color: #8aa39a; margin-top: 4px; overflow: hidden; }
+.core span { float: left; width: 4.4em; }
+.core em { float: right; width: 3em; text-align: right; font-style: normal; color: #e9f3ef; }
+.core i { display: block; height: 8px; margin: 4px 3.4em 0 4.4em; background: #10201a; }
+.core i b { display: block; height: 8px; background: #3ef0ff; }
+.core.hot i b { background: #ff5a3c; }
+.note { color: #ff5a3c; font-size: .78rem; font-family: ui-monospace, Consolas, monospace; margin: 4px 0 10px; }
+.foot { border-top: 1px solid #1f3a30; padding-top: 8px; font-size: .7rem; color: #4d6159; overflow: hidden; }
+.foot span { float: right; } .foot b { color: #d6e2dc; font-weight: 400; }
+
+/* Verlauf */
+.tbl { overflow-x: auto; border: 1px solid #1f3a30; }
+table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+th, td { padding: 7px 10px; border-bottom: 1px solid #14261f; text-align: right; white-space: nowrap; }
+th { color: #8aa39a; font-weight: 400; font-size: .7rem; letter-spacing: .12em; }
+th.l, td.l { text-align: left; }
+td.dl { color: #3ef0ff; } td.ul { color: #ffb13b; } td.ref { color: #c9a24a; }
+td small { color: #4d6159; }
+.empty { color: #8aa39a; padding: 12px; font-size: .8rem; }
+
+@media (max-width: 640px) {
+  .chip { width: 100%; margin-right: 0; }
+  .big { font-size: 3.8rem; }
+  .views { margin-left: 0; }
+  .rh .no { float: none; display: block; clear: both; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="mark">Silizium<small id="rev">LITE · LAN-SPEEDTEST</small></div>
+    <div class="who" id="who">Verbinde mit dem Router …</div>
+  </div>
+
+  <div class="bench">
+    <div class="chip"><div class="u">U1 · SoC</div><div class="v" id="soc-v">ROUTER</div><div class="t" id="soc-t">–</div><div class="n" id="soc-n"></div></div>
+    <div class="readout">
+      <div class="phase" id="phase">Bereit · SW1 drücken</div>
+      <div class="big" id="big">0<small>Mbit/s</small></div>
+      <div class="bar"><b id="prog"></b></div>
+      <div class="path" id="path">Weg der Daten wird ermittelt …</div>
+    </div>
+    <div class="sw"><button id="go" disabled aria-label="Messung starten"><span id="go-t">START</span></button><small>SW1</small></div>
+  </div>
+
+  <div class="pins">
+    <div class="pin" id="p-ping"><div class="k">PING<em>TP1</em></div><div class="v" id="v-ping">–<small>ms</small></div><div class="s">Laufzeit Gerät ↔ Router</div></div>
+    <div class="pin"><div class="k">JITTER<em>TP2</em></div><div class="v" id="v-jit">–<small>ms</small></div><div class="s">Schwankung der Laufzeit</div></div>
+    <div class="pin dl" id="p-dl"><div class="k">DOWNLOAD<em>TP3</em></div><div class="v" id="v-dl">–<small>Mbit/s</small></div><div class="s" id="s-dl">Router → Gerät</div></div>
+    <div class="pin ul" id="p-ul"><div class="k">UPLOAD<em>TP4</em></div><div class="v" id="v-ul">–<small>Mbit/s</small></div><div class="s" id="s-ul">Gerät → Router</div></div>
+    <div class="pin"><div class="k">ROUTER-CPU<em>U1</em></div><div class="v" id="v-cpu">–<small>%</small></div><div class="s">stärkster Kern</div></div>
+  </div>
+
+  <div class="ctrl">
+    <label for="streams">Verbindungen <select id="streams"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select></label>
+    <label for="duration">Dauer <select id="duration"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></label>
+    <label for="label">Gerät <input id="label" maxlength="40" placeholder="z. B. SmartTV"></label>
+    <span class="views">Ansicht <span class="btn cur">Lite</span> <a class="btn" href="silizium2d.html" data-view="2d">2D</a> <a class="btn" href="silizium3d.html" data-view="3d">3D</a></span>
+  </div>
+
+  <div id="result" hidden>
+    <h2>Messprotokoll <button class="btn" id="again">Neu messen</button></h2>
+    <div class="report">
+      <div class="rh"><h3>Messprotokoll</h3><div class="no"><span id="pp-no">–</span> · <span id="pp-date">–</span></div></div>
+      <div class="meta">
+        <div><span>Router</span><b id="pp-router">–</b></div>
+        <div><span>Gerät</span><b id="pp-dev">–</b></div>
+        <div><span>Anschluss</span><b id="pp-link">–</b></div>
+        <div><span>Verfahren</span><b id="pp-method">–</b></div>
+      </div>
+      <div class="tiles">
+        <div class="tile"><div class="k">Ping<em>TP1</em></div><div class="v" id="r-ping">–</div><div class="s">Median aus 20 Anfragen</div></div>
+        <div class="tile"><div class="k">Jitter<em>TP2</em></div><div class="v" id="r-jit">–</div><div class="s">mittlere Schwankung</div></div>
+        <div class="tile"><div class="k">Router-CPU<em>U1</em></div><div class="v" id="r-cpu">–</div><div class="s" id="r-cpu-s">stärkster Kern</div><div id="die"></div></div>
+        <div class="tile wide dl"><div class="k">Download · Spitze<em>TP3</em></div><div class="v" id="r-dl">–</div><div class="s" id="r-dl-s"></div><svg id="c-dl" viewBox="0 0 300 56" preserveAspectRatio="none"></svg></div>
+        <div class="tile wide ul"><div class="k">Upload · Spitze<em>TP4</em></div><div class="v" id="r-ul">–</div><div class="s" id="r-ul-s"></div><svg id="c-ul" viewBox="0 0 300 56" preserveAspectRatio="none"></svg></div>
+      </div>
+      <div class="note" id="note" hidden></div>
+      <div class="foot">Spitze = bester 1-s-Wert · Ø ohne Anlauf und Ausreißer<span>Gemessen von <b id="pp-sig">–</b></span></div>
+    </div>
+  </div>
+
+  <h2>Revisionen <span id="clear-wrap"><button class="btn" id="clear">Löschen</button></span></h2>
+  <div class="tbl" id="history"><div class="empty">Noch keine Messungen.</div></div>
+</div>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.SpeedEngine, $ = function (id) { return document.getElementById(id); };
+  var info = null, link = null, running = false, revName = 'A', lastDraw = 0;
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function txt(id, s) { $(id).textContent = s; }
+  function setV(id, v, u) { $(id).innerHTML = v + '<small>' + u + '</small>'; }
+  function now() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
+  function socName(i) { var s = i && i.soc; return (s ? s.vendor + ' ' + s.chip + (s.name ? ' (' + s.name + ')' : '') + ', ' : '') + i.cores + ' Kerne'; }
+  function linkText(short) {
+    if (!link) return short ? 'Anschluss unbekannt' : 'unbekannt (Router meldet nichts)';
+    if (link.type === 'wired') return (link.port || 'LAN').toUpperCase() + (link.speed ? ' · ' + (link.speed >= 1000 ? (link.speed / 1000 + '').replace('.', ',') + ' GbE' : link.speed + ' Mbit/s') : '') + (!short && link.duplex === 'full' ? ' · Vollduplex' : '');
+    var w = link.wifi || {};
+    return 'WLAN' + (w.band ? ' ' + w.band.replace('.', ',') + ' GHz' : '') + (w.standard ? ' · Wi-Fi ' + w.standard : '') + (w.signal ? ' · ' + w.signal + ' dBm' : '') + (!short && w.tx_rate ? ' · Linkrate ' + Math.round(w.tx_rate) + ' Mbit/s' : '');
+  }
+  function setLink(l) {
+    link = l;
+    var m = l && l.type === 'wired' && /(\d+)$/.exec(l.port || ''), j = m ? Math.max(1, Math.min(4, +m[1])) : 1;
+    txt('path', l ? (l.type === 'wifi' ? 'Weg: SoC → U6 WLAN → Antennen' : 'Weg: J' + j + ' → U3 Switch → SoC') : 'Weg: LAN → Switch → SoC (Anschluss nicht gemeldet)');
+    var lk = $('lk'); if (lk) lk.textContent = linkText(true);
+  }
+  function pinOn(p) {
+    var ids = { ping: 'p-ping', download: 'p-dl', upload: 'p-ul' };
+    for (var k in ids) $(ids[k]).className = $(ids[k]).className.replace(/ on\b/, '') + (k === p ? ' on' : '');
+  }
+  function mode(on) {
+    running = on;
+    $('go').className = on ? 'run' : ''; txt('go-t', on ? 'STOP' : 'START');
+    $('go').setAttribute('aria-label', on ? 'Messung stoppen' : 'Messung starten');
+    if (!on) pinOn(null);
+  }
+  function start() {
+    if (running) { E.stop(); mode(false); txt('phase', 'Abgebrochen · nicht gespeichert'); return; }
+    var streams = +$('streams').value, duration = +$('duration').value, label = $('label').value.replace(/^\s+|\s+$/g, '');
+    try { localStorage.setItem('st-label', label); localStorage.setItem('st-streams', streams); localStorage.setItem('st-duration', duration); } catch (e) { }
+    $('result').hidden = true;
+    setV('v-ping', '–', 'ms'); setV('v-jit', '–', 'ms'); setV('v-dl', '–', 'Mbit/s'); setV('v-ul', '–', 'Mbit/s'); setV('v-cpu', '–', '%');
+    txt('s-dl', 'Router → Gerät'); txt('s-ul', 'Gerät → Router');
+    mode(true);
+    var res = {}, ping = null, jit = null;
+    E.run({ streams: streams, duration: duration, label: label }, {
+      phase: function (p) {
+        pinOn(p); $('phase').className = 'phase' + (p === 'upload' ? ' up' : (p === 'ping' ? ' ping' : ''));
+        txt('phase', { ping: 'TP1 · Ping', download: 'TP3 · Download · Router → Gerät', upload: 'TP4 · Upload · Gerät → Router' }[p]);
+        setV('big', '…', p === 'ping' ? 'ms' : 'Mbit/s'); $('prog').style.width = '0';
+        $('prog').style.background = p === 'upload' ? '#ffb13b' : '#3ef0ff';
+      },
+      pingSample: function (ms, i, n) { setV('big', E.fmt(ms, 1), 'ms'); $('prog').style.width = ((i + 1) / n * 100) + '%'; },
+      ping: function (p, j) { ping = p; jit = j; setV('v-ping', E.fmt(p, p < 10 ? 1 : 0), 'ms'); setV('v-jit', E.fmt(j, 1), 'ms'); },
+      live: function (kind, m, prog) {
+        // Anzeige höchstens zweimal pro Sekunde erneuern, das schont schwache Geräte
+        var t = now(); if (t - lastDraw < 450) return; lastDraw = t;
+        $('prog').style.width = Math.round(prog * 100) + '%';
+        if (m !== null) { var s = E.fmtSpeed(m); setV('big', s.v, s.u); }
+      },
+      result: function (kind, r) {
+        res[kind] = r; var s = E.fmtSpeed(r.peak), a = E.fmtSpeed(r.avg);
+        setV(kind === 'download' ? 'v-dl' : 'v-ul', s.v, s.u); txt(kind === 'download' ? 's-dl' : 's-ul', 'Ø ' + a.v + ' ' + a.u);
+        var mc = Math.max(res.download ? res.download.core || 0 : 0, res.upload ? res.upload.core || 0 : 0);
+        if (r.core !== null) setV('v-cpu', Math.round(mc), '%');
+      },
+      done: function (rec) { mode(false); finish(res, ping, jit, streams, label, rec); loadHistory(); },
+      error: function (msg) { mode(false); txt('phase', msg); }
+    });
+  }
+  function spark(svg, series, color) {
+    if (series.length < 2) { svg.innerHTML = ''; return; }
+    var max = Math.max.apply(null, series) * 1.08, n = series.length, d = '';
+    for (var i = 0; i < n; i++) d += (i ? 'L' : 'M') + (i / (n - 1) * 300).toFixed(1) + ' ' + (54 - series[i] / max * 50).toFixed(1) + ' ';
+    svg.innerHTML = '<path d="' + d + 'L300 56 L0 56 Z" fill="' + color + '" fill-opacity=".14"/><path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>';
+  }
+  function finish(res, ping, jit, streams, label, rec) {
+    var d = res.download, u = res.upload, sd = E.fmtSpeed(d.peak), su = E.fmtSpeed(u.peak), ad = E.fmtSpeed(d.avg), au = E.fmtSpeed(u.avg);
+    txt('phase', 'Gemessen · Download-Spitze'); setV('big', sd.v, sd.u); $('prog').style.width = '100%';
+    var dt = new Date(), stamp = ('0' + dt.getDate()).slice(-2) + '.' + ('0' + (dt.getMonth() + 1)).slice(-2) + '.' + dt.getFullYear(), clock = ('0' + dt.getHours()).slice(-2) + ':' + ('0' + dt.getMinutes()).slice(-2);
+    txt('pp-no', 'Nr. ' + (rec && rec.ts ? rec.ts : Math.floor(Date.now() / 1000)) + ' · REV ' + revName);
+    txt('pp-date', stamp + ', ' + clock + ' Uhr');
+    txt('pp-router', info.hostname + (info.model ? ', ' + info.model : '') + ', ' + socName(info));
+    txt('pp-dev', (label || info.client_host || 'Gerät') + ', ' + info.client_ip);
+    txt('pp-link', linkText(false));
+    txt('pp-method', 'HTTP, ' + streams + ' TCP-Verbindungen, ' + $('duration').value + ' s je Richtung');
+    txt('pp-sig', label || info.client_host || info.client_ip);
+    $('r-ping').innerHTML = ping === null ? '–' : E.fmt(ping, 1) + '<small>ms</small>';
+    $('r-jit').innerHTML = jit === null ? '–' : E.fmt(jit, 1) + '<small>ms</small>';
+    var mc = Math.max(d.core || 0, u.core || 0);
+    $('r-cpu').innerHTML = d.core === null ? '–' : Math.round(mc) + '<small>%</small>';
+    txt('r-cpu-s', 'stärkster Kern · gesamt ↓ ' + (d.cpu === null ? '–' : Math.round(d.cpu)) + ' % · ↑ ' + (u.cpu === null ? '–' : Math.round(u.cpu)) + ' %');
+    setV('r-dl', sd.v, sd.u); txt('r-dl-s', 'Ø ' + ad.v + ' ' + ad.u + ' · Router → Gerät');
+    setV('r-ul', su.v, su.u); txt('r-ul-s', 'Ø ' + au.v + ' ' + au.u + ' · Gerät → Router');
+    spark($('c-dl'), d.series, '#3ef0ff'); spark($('c-ul'), u.series, '#ffb13b');
+    var html = '', n = Math.max(d.cores ? d.cores.length : 0, u.cores ? u.cores.length : 0);
+    for (var i = 0; i < n; i++) {
+      var l = Math.round(Math.max(d.cores ? d.cores[i] || 0 : 0, u.cores ? u.cores[i] || 0 : 0));
+      html += '<div class="core' + (l >= 90 ? ' hot' : '') + '"><span>Kern ' + i + '</span><em>' + l + ' %</em><i><b style="width:' + l + '%"></b></i></div>';
+    }
+    $('die').innerHTML = html;
+    $('note').hidden = mc < 90;
+    txt('note', 'Ein Kern lag bei ' + Math.round(mc) + ' %. Das Ergebnis zeigt eher die Grenze des Routers als die des Netzes.');
+    $('result').hidden = false;
+    if ($('result').scrollIntoView) $('result').scrollIntoView(true);
+  }
+
+  // ---------- Verlauf ----------
+  function n0(v) { return v === null || v === undefined ? '–' : E.fmt(v, 0); }
+  function sp(peak, avg) { return peak === null || peak === undefined ? n0(avg) : n0(peak) + ' <small>/ ' + n0(avg) + '</small>'; }
+  function revOf(i) { return i < 26 ? String.fromCharCode(65 + i) : 'Z' + (i - 25); }
+  function loadHistory() {
+    E.history(function (h) {
+      revName = revOf(h.length);
+      txt('rev', 'LITE · REV ' + revName + ' · LAN-SPEEDTEST');
+      if (!h.length) { $('history').innerHTML = '<div class="empty">Noch keine Messungen.</div>'; return; }
+      var rows = '';
+      for (var i = h.length - 1; i >= 0; i--) {
+        var e = h[i], d = new Date(e.ts * 1000);
+        var when = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '. ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        var who = e.label || e.host || e.ip; if (e.label && e.host) who = esc(e.label) + ' <small>' + esc(e.host) + '</small>'; else who = esc(who);
+        rows += '<tr><td class="l ref">REV ' + revOf(i) + '</td><td class="l">' + when + '</td><td class="l">' + who + '</td><td>' + (e.ping === null ? '–' : E.fmt(e.ping, 1)) + '</td><td>' + (e.jitter === null || e.jitter === undefined ? '–' : E.fmt(e.jitter, 1)) +
+          '</td><td class="dl">' + sp(e.dl_peak, e.dl) + '</td><td class="ul">' + sp(e.ul_peak, e.ul) + '</td><td>' + (e.core_dl === null || e.core_dl === undefined ? '–' : e.core_dl + ' / ' + e.core_ul) + '</td></tr>';
+      }
+      $('history').innerHTML = '<table><tr><th class="l">REV</th><th class="l">ZEIT</th><th class="l">GERÄT</th><th>PING MS</th><th>JITTER MS</th><th>DOWN MBIT/S<br>SPITZE / Ø</th><th>UP MBIT/S<br>SPITZE / Ø</th><th>KERN %<br>↓ / ↑</th></tr>' + rows + '</table>';
+    });
+  }
+  function clearAsk() {
+    $('clear-wrap').innerHTML = '<span class="mono" style="font-size:.72rem;letter-spacing:0;text-transform:none">Alles löschen? <button class="btn" id="yes">Ja</button> <button class="btn" id="no">Nein</button></span>';
+    $('yes').onclick = function () { E.clearHistory(function () { loadHistory(); clearReset(); }); };
+    $('no').onclick = clearReset;
+  }
+  function clearReset() { $('clear-wrap').innerHTML = '<button class="btn" id="clear">Löschen</button>'; $('clear').onclick = clearAsk; }
+  $('clear').onclick = clearAsk;
+
+  $('go').onclick = start;
+  $('again').onclick = function () { window.scrollTo(0, 0); start(); };
+  // gewählte Ansicht merken; index.html nimmt beim nächsten Aufruf dieselbe
+  var views = document.querySelectorAll('.views a');
+  for (var v = 0; v < views.length; v++) views[v].onclick = function () { try { localStorage.setItem('st-view', this.getAttribute('data-view')); } catch (e) { } };
+
+  try {
+    var l = localStorage.getItem('st-label'), s = localStorage.getItem('st-streams'), du = localStorage.getItem('st-duration');
+    if (l) $('label').value = l; if (s) $('streams').value = s; if (du) $('duration').value = du;
+  } catch (e) { }
+
+  E.init(function (i) {
+    info = i;
+    var soc = i.soc;
+    txt('soc-v', soc ? String(soc.vendor).toUpperCase() : (i.hostname || 'ROUTER'));
+    txt('soc-t', soc ? soc.chip : (i.model || '–'));
+    txt('soc-n', (soc && soc.name ? String(soc.name).toUpperCase() + ' · ' : '') + i.cores + ' KERNE');
+    $('who').innerHTML = '<b>' + esc(i.hostname) + '</b> · ' + esc(i.model || '') + '<br>Du: ' + esc(i.client_host ? i.client_host + ' (' + i.client_ip + ')' : i.client_ip) +
+      '<br><span class="lk" id="lk">Anschluss wird ermittelt …</span>' + (i.demo ? ' <span class="demo">DEMO</span>' : '');
+    E.link(function (l) { setLink(l); $('go').disabled = false; });
+    loadHistory();
+  });
+})();
+</script>
+</body>
+</html>

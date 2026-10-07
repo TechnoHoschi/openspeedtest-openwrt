@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Speedtest Cockpit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: Messstand mit vier Rundinstrumenten nebeneinander (Ping, Download, Upload, Router-CPU),
+   unter jedem die Verlaufskurve; nach der Messung wird daraus ein Befund mit Einordnung. Hell und dunkel. */
+:root {
+  --bg: #eef1f4; --card: #ffffff; --ink: #18202b; --mute: #5f6b7a; --line: #d8dee6; --track: #e3e8ee;
+  --ping: #0f9fb5; --down: #e0662f; --up: #2f9e5b; --cpu: #7a5af0; --warn: #b54708;
+  --f-ui: "Manrope", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --f-num: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181f; --card: #1c222c; --ink: #e8edf3; --mute: #93a0b2; --line: #2b3340; --track: #2a313d;
+    --ping: #38c6db; --down: #ff8a4c; --up: #4cd486; --cpu: #a28bff; --warn: #f5a35c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181f; --card: #1c222c; --ink: #e8edf3; --mute: #93a0b2; --line: #2b3340; --track: #2a313d;
+  --ping: #38c6db; --down: #ff8a4c; --up: #4cd486; --cpu: #a28bff; --warn: #f5a35c; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 var(--f-ui); }
+main { max-width: 1120px; margin: 0 auto; padding: 20px 16px 40px; display: grid; gap: 18px; }
+main > * { min-width: 0; }
+
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.top h1 { margin: 0; font-size: 1.3rem; font-weight: 800; letter-spacing: -.01em; }
+.top .meta { color: var(--mute); font-size: .85rem; }
+.demo { background: var(--warn); color: var(--card); border-radius: 4px; padding: 0 6px; font-size: .72rem; font-weight: 800; margin-left: 6px; }
+.ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; color: var(--mute); font-size: .85rem; }
+.ctl label { display: flex; align-items: center; gap: 6px; }
+select, input { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+input { width: 10em; }
+.btn { font: 800 .95rem var(--f-ui); border: 0; border-radius: 10px; padding: 10px 22px; cursor: pointer; background: var(--ink); color: var(--card); }
+.btn.stop { background: var(--warn); }
+.btn.ghost { background: transparent; color: var(--mute); border: 1px solid var(--line); padding: 6px 12px; font-weight: 600; font-size: .8rem; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--ping); outline-offset: 2px; }
+
+.report { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 16px; border-left: 4px solid var(--ink); padding: 4px 0 4px 14px; }
+.report b { font-size: 1.25rem; font-weight: 800; }
+.report span { color: var(--mute); font-size: .88rem; }
+
+.panel { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.inst { padding: 18px 16px 14px; display: grid; gap: 10px; justify-items: center; border-right: 1px solid var(--line); min-width: 0; }
+.inst:last-child { border-right: 0; }
+.inst .k { font-size: .72rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--c); }
+.ring { position: relative; width: min(170px, 100%); aspect-ratio: 1; max-width: 100%; }
+.ring svg { width: 100%; height: 100%; transform: rotate(135deg); }
+.ring .trk { fill: none; stroke: var(--track); stroke-width: 9; stroke-linecap: round; }
+.ring .val { fill: none; stroke: var(--c); stroke-width: 9; stroke-linecap: round; transition: stroke-dasharray .25s linear; }
+.ring .num { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.ring .num b { font: 600 clamp(1.4rem, 3.4vw, 2.1rem)/1 var(--f-num); font-variant-numeric: tabular-nums; }
+.ring .num small { color: var(--mute); font-size: .78rem; margin-top: 4px; }
+.inst.on .ring { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--c) 45%, transparent)); }
+.chart { width: 100%; height: 64px; display: block; }
+.sub { color: var(--mute); font-size: .78rem; text-align: center; min-height: 2.4em; }
+.p-ping { --c: var(--ping); } .p-dl { --c: var(--down); } .p-ul { --c: var(--up); } .p-cpu { --c: var(--cpu); }
+.prog { height: 3px; width: 100%; background: var(--track); border-radius: 2px; overflow: hidden; }
+.prog i { display: block; height: 100%; width: 0; background: var(--c); }
+
+.note { color: var(--warn); font-size: .88rem; }
+.hist { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; }
+.hist .hd { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.hist h2 { margin: 0; font-size: .95rem; font-weight: 800; }
+.tbl { overflow-x: auto; margin-top: 8px; }
+table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+th, td { padding: 7px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+td { font-family: var(--f-num); font-size: .8rem; font-variant-numeric: tabular-nums; }
+td:nth-child(2) { font-family: var(--f-ui); }
+th { color: var(--mute); font-weight: 600; font-size: .75rem; }
+th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
+td small { color: var(--mute); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.empty { color: var(--mute); padding: 8px 0; }
+
+@media (max-width: 760px) {
+  .panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .inst:nth-child(2) { border-right: 0; }
+  .inst:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div><h1 id="title">LAN-Speedtest</h1><div class="meta" id="meta">Verbinde mit dem Router …</div></div>
+    <div class="ctl">
+      <label for="streams">Verbindungen <select id="streams"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select></label>
+      <label for="duration">Dauer <select id="duration"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></label>
+      <label for="label">Gerät <input id="label" maxlength="40" placeholder="z. B. Laptop WLAN"></label>
+      <button class="btn" id="go" disabled>Messung starten</button>
+    </div>
+  </div>
+
+  <div class="report" id="report"><b id="rep-t">Bereit für die Messung</b><span id="rep-s">Ping, Download und Upload gegen diesen Router, etwa 25 Sekunden.</span></div>
+
+  <div class="panel">
+    <div class="inst p-ping" id="i-ping"><div class="k">Latenz / Ping</div>
+      <div class="ring"><svg viewBox="0 0 100 100"><circle class="trk" cx="50" cy="50" r="42"/><circle class="val" cx="50" cy="50" r="42"/></svg><div class="num"><b>–</b><small>ms</small></div></div>
+      <svg class="chart" viewBox="0 0 200 64" preserveAspectRatio="none"></svg><div class="prog"><i></i></div><div class="sub">Jitter –</div></div>
+    <div class="inst p-dl" id="i-dl"><div class="k">Download</div>
+      <div class="ring"><svg viewBox="0 0 100 100"><circle class="trk" cx="50" cy="50" r="42"/><circle class="val" cx="50" cy="50" r="42"/></svg><div class="num"><b>–</b><small>Mbit/s</small></div></div>
+      <svg class="chart" viewBox="0 0 200 64" preserveAspectRatio="none"></svg><div class="prog"><i></i></div><div class="sub">Spitze, darunter Ø</div></div>
+    <div class="inst p-ul" id="i-ul"><div class="k">Upload</div>
+      <div class="ring"><svg viewBox="0 0 100 100"><circle class="trk" cx="50" cy="50" r="42"/><circle class="val" cx="50" cy="50" r="42"/></svg><div class="num"><b>–</b><small>Mbit/s</small></div></div>
+      <svg class="chart" viewBox="0 0 200 64" preserveAspectRatio="none"></svg><div class="prog"><i></i></div><div class="sub">Spitze, darunter Ø</div></div>
+    <div class="inst p-cpu" id="i-cpu"><div class="k">Router-CPU</div>
+      <div class="ring"><svg viewBox="0 0 100 100"><circle class="trk" cx="50" cy="50" r="42"/><circle class="val" cx="50" cy="50" r="42"/></svg><div class="num"><b>–</b><small>% stärkster Kern</small></div></div>
+      <svg class="chart" viewBox="0 0 200 64" preserveAspectRatio="none"></svg><div class="prog"><i></i></div><div class="sub">Zeigt, ob der Router bremst</div></div>
+  </div>
+  <div class="note" id="note" hidden></div>
+
+  <section class="hist">
+    <div class="hd"><h2>Verlauf</h2><span id="clear-wrap"><button class="btn ghost" id="clear">Verlauf löschen</button></span></div>
+    <div class="tbl" id="history"><div class="empty">Noch keine Messungen.</div></div>
+  </section>
+</main>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.SpeedEngine, $ = function (id) { return document.getElementById(id); };
+  var NS = 'http://www.w3.org/2000/svg', CIRC = 2 * Math.PI * 42, ARC = CIRC * 0.75;
+  var TICKS = [0, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
+
+  function speedFrac(m) {
+    if (m <= 0) return 0;
+    for (var i = 1; i < TICKS.length; i++) if (m <= TICKS[i]) return (i - 1 + (m - TICKS[i - 1]) / (TICKS[i] - TICKS[i - 1])) / (TICKS.length - 1);
+    return 1;
+  }
+  function inst(id) { var r = $(id); return { r: r, val: r.querySelector('.val'), b: r.querySelector('.num b'), u: r.querySelector('.num small'), chart: r.querySelector('.chart'), prog: r.querySelector('.prog i'), sub: r.querySelector('.sub') }; }
+  var I = { ping: inst('i-ping'), download: inst('i-dl'), upload: inst('i-ul'), cpu: inst('i-cpu') };
+  function ring(x, f) { f = Math.max(0, Math.min(1, f)); x.val.setAttribute('stroke-dasharray', (ARC * f).toFixed(1) + ' ' + CIRC.toFixed(1)); x.val.style.strokeOpacity = f < 0.003 ? 0 : 1; }
+  Object.keys(I).forEach(function (k) { I[k].val.setAttribute('stroke-dasharray', '0 ' + CIRC); I[k].r.querySelector('.trk').setAttribute('stroke-dasharray', ARC.toFixed(1) + ' ' + CIRC.toFixed(1)); });
+
+  function chart(svg, series, max) {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var W = 200, H = 64;
+    [16, 32, 48].forEach(function (y) { var l = document.createElementNS(NS, 'line'); l.setAttribute('x1', 0); l.setAttribute('x2', W); l.setAttribute('y1', y); l.setAttribute('y2', y); l.setAttribute('stroke', 'var(--line)'); l.setAttribute('stroke-width', '1'); l.setAttribute('vector-effect', 'non-scaling-stroke'); svg.appendChild(l); });
+    if (series.length < 2) return;
+    if (!max) { max = 0; series.forEach(function (v) { if (v > max) max = v; }); max *= 1.12; }
+    var n = series.length, d = '';
+    series.forEach(function (v, i) { d += (i ? 'L' : 'M') + (i / (n - 1) * W).toFixed(1) + ' ' + (H - 2 - Math.min(1, v / max) * (H - 6)).toFixed(1) + ' '; });
+    var a = document.createElementNS(NS, 'path'); a.setAttribute('d', d + 'L' + W + ' ' + H + ' L0 ' + H + ' Z'); a.setAttribute('fill', 'var(--c)'); a.setAttribute('fill-opacity', '.14'); svg.appendChild(a);
+    var p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); p.setAttribute('fill', 'none'); p.setAttribute('stroke', 'var(--c)'); p.setAttribute('stroke-width', '2'); p.setAttribute('vector-effect', 'non-scaling-stroke'); svg.appendChild(p);
+  }
+  function setSpeed(x, m) { var s = E.fmtSpeed(m); x.b.textContent = s.v; x.u.textContent = s.u; ring(x, speedFrac(m)); }
+  function on(k) { Object.keys(I).forEach(function (n) { I[n].r.classList.toggle('on', n === k); }); }
+  function verdict(dl, ping) {
+    if (dl >= 2000) return ['2,5 Gbit/s fast ausgeschöpft', 'Die Verbindung zum Router läuft nahe an der 2,5-GbE-Grenze.'];
+    if (dl >= 940) return ['Schneller als Gigabit', 'Mehr als ein 1-GbE-Kabel schafft, also 2,5 GbE oder sehr schnelles WLAN.'];
+    if (dl >= 600) return ['Gigabit-Klasse', 'Typisch für ein 1-GbE-Kabel oder gutes WLAN 6/7 in der Nähe.'];
+    if (dl >= 90) return ['Solide', 'Typisch für WLAN mit Wänden dazwischen oder ein 100-Mbit-Kabel.'];
+    return ['Langsam', 'Kabel, Port oder WLAN-Empfang prüfen.'];
+  }
+
+  var series = {}, res = {};
+  function reset() {
+    Object.keys(I).forEach(function (k) { var x = I[k]; x.b.textContent = '–'; ring(x, 0); chart(x.chart, []); x.prog.style.width = '0'; });
+    I.ping.sub.textContent = 'Jitter –'; I.download.sub.textContent = I.upload.sub.textContent = 'Spitze, darunter Ø';
+    I.cpu.sub.textContent = 'Zeigt, ob der Router bremst'; I.cpu.u.textContent = '% stärkster Kern';
+    series = { ping: [], download: [], upload: [] }; res = {}; $('note').hidden = true;
+  }
+  function start() {
+    var streams = +$('streams').value, duration = +$('duration').value, label = $('label').value.replace(/^\s+|\s+$/g, '');
+    try { localStorage.setItem('st-label', label); localStorage.setItem('st-streams', streams); localStorage.setItem('st-duration', duration); } catch (e) { }
+    reset();
+    $('rep-t').textContent = 'Messung läuft'; $('rep-s').textContent = streams + ' Verbindungen, je ' + duration + ' s Download und Upload';
+    $('go').textContent = 'Stopp'; $('go').classList.add('stop');
+    E.run({ streams: streams, duration: duration, label: label }, {
+      phase: function (p) { on(p); },
+      pingSample: function (ms, i, n) { series.ping.push(ms); I.ping.b.textContent = E.fmt(ms, 1); ring(I.ping, Math.min(1, ms / 20)); chart(I.ping.chart, series.ping, 10); I.ping.prog.style.width = ((i + 1) / n * 100) + '%'; },
+      ping: function (p, j) { I.ping.b.textContent = E.fmt(p, p < 10 ? 1 : 0); ring(I.ping, Math.min(1, p / 20)); I.ping.sub.textContent = 'Jitter ' + E.fmt(j, 1) + ' ms · Median aus 20'; },
+      live: function (k, m, p) {
+        I[k].prog.style.width = (p * 100) + '%';
+        if (m === null) return;
+        series[k].push(m); setSpeed(I[k], m); chart(I[k].chart, series[k]);
+      },
+      result: function (k, r) {
+        res[k] = r; setSpeed(I[k], r.peak);
+        var a = E.fmtSpeed(r.avg); I[k].sub.textContent = 'Spitze · Ø ' + a.v + ' ' + a.u;
+        if (r.core !== null) {
+          var cores = [res.download && res.download.core, res.upload && res.upload.core].filter(function (v) { return v !== null && v !== undefined; });
+          var mx = Math.max.apply(null, cores);
+          I.cpu.b.textContent = Math.round(mx); ring(I.cpu, mx / 100);
+          chart(I.cpu.chart, cores.length > 1 ? cores : [cores[0], cores[0]], 100);
+          I.cpu.prog.style.width = (res.upload ? 100 : 50) + '%';
+          I.cpu.sub.textContent = (res.download ? 'Download ' + Math.round(res.download.core) + ' %' : '') + (res.upload ? ' · Upload ' + Math.round(res.upload.core) + ' %' : '');
+        }
+      },
+      done: function (rec) {
+        idle(); on(null);
+        var v = verdict(res.download.peak, rec.ping);
+        $('rep-t').textContent = v[0];
+        $('rep-s').textContent = v[1] + ' Gemessen ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr.';
+        if (Math.max(res.download.core || 0, res.upload.core || 0) >= 90) {
+          $('note').textContent = 'Ein Prozessorkern des Routers war voll ausgelastet. Das Ergebnis zeigt eher die Grenze des Routers als die des Netzes.';
+          $('note').hidden = false;
+        }
+        loadHistory();
+      },
+      error: function (msg) { idle(); $('rep-t').textContent = msg; $('rep-s').textContent = ''; }
+    });
+  }
+  function idle() { $('go').textContent = 'Neu messen'; $('go').classList.remove('stop'); }
+  $('go').onclick = function () {
+    if (E.running()) { E.stop(); idle(); on(null); $('rep-t').textContent = 'Abgebrochen'; $('rep-s').textContent = 'Die abgebrochene Messung wurde nicht gespeichert.'; return; }
+    start();
+  };
+
+  // ---------- Verlauf ----------
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function n0(v) { return v === null || v === undefined ? '–' : E.fmt(v, 0); }
+  function sp(pk, avg) { return pk === null || pk === undefined ? n0(avg) : n0(pk) + ' <small>/ ' + n0(avg) + '</small>'; }
+  function loadHistory() {
+    E.history(function (h) {
+      if (!h.length) { $('history').innerHTML = '<div class="empty">Noch keine Messungen.</div>'; return; }
+      var rows = '';
+      for (var i = h.length - 1; i >= 0; i--) {
+        var e = h[i], d = new Date(e.ts * 1000), core = Math.max(e.core_dl || 0, e.core_ul || 0);
+        var when = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '. ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        var who = esc(e.label || e.host || e.ip) + (e.label && e.host ? ' <small>' + esc(e.host) + '</small>' : '');
+        rows += '<tr><td>' + when + '</td><td>' + who + '</td><td>' + (e.ping === null ? '–' : E.fmt(e.ping, 1)) + '</td><td>' + sp(e.dl_peak, e.dl) + '</td><td>' + sp(e.ul_peak, e.ul) + '</td><td>' + (core ? core + ' %' : '–') + '</td></tr>';
+      }
+      $('history').innerHTML = '<table><tr><th>Zeit</th><th>Gerät</th><th><span class="dot" style="background:var(--ping)"></span>Ping ms</th><th><span class="dot" style="background:var(--down)"></span>Down Spitze / Ø</th><th><span class="dot" style="background:var(--up)"></span>Up Spitze / Ø</th><th><span class="dot" style="background:var(--cpu)"></span>CPU-Kern</th></tr>' + rows + '</table>';
+    });
+  }
+  function clearAsk() {
+    $('clear-wrap').innerHTML = 'Alles löschen? <button class="btn ghost" id="yes">Ja</button> <button class="btn ghost" id="no">Nein</button>';
+    $('yes').onclick = function () { E.clearHistory(function () { loadHistory(); clearReset(); }); };
+    $('no').onclick = clearReset;
+  }
+  function clearReset() { $('clear-wrap').innerHTML = '<button class="btn ghost" id="clear">Verlauf löschen</button>'; $('clear').onclick = clearAsk; }
+  $('clear').onclick = clearAsk;
+
+  try {
+    var l = localStorage.getItem('st-label'), s = localStorage.getItem('st-streams'), d = localStorage.getItem('st-duration');
+    if (l) $('label').value = l; if (s) $('streams').value = s; if (d) $('duration').value = d;
+  } catch (e) { }
+  reset();
+  E.init(function (info) {
+    $('title').textContent = 'LAN-Speedtest ' + info.hostname;
+    $('meta').innerHTML = esc((info.model ? info.model + ' · ' : '') + info.cores + ' Kerne · Du: ' + (info.client_host ? info.client_host + ' (' + info.client_ip + ')' : info.client_ip)) + (info.demo ? '<span class="demo">DEMO</span>' : '');
+    $('go').disabled = false;
+    loadHistory();
+  });
+})();
+</script>
+</body>
+</html>

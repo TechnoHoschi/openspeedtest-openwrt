@@ -1,121 +1,147 @@
-# OpenSpeedTest – OpenWrt / uhttpd CGI Fork
+# LAN-Speedtest für OpenWrt · Silizium
 
-> **TL;DR:** OpenSpeedTest ohne NGINX, ohne Docker, ohne statische Download-Dateien – läuft direkt auf OpenWrt via uhttpd und drei Shell-CGIs. Weil manchmal muss es einfach der Router selbst richten.
+Ein Browser-Speedtest, den der eingebaute Webserver **uhttpd** (derselbe, der LuCI ausliefert) direkt vom Router bereitstellt.
+Gemessen wird die Strecke **Gerät ↔ Router** über LAN oder WLAN, nicht die Internetleitung.
+Läuft auf Desktop, Handy, Tablet und SmartTV, ohne App und ohne Zusatzpakete außer `uhttpd-mod-ucode`.
 
-Dieses Repository ist ein Fork von [OpenSpeedTest™](https://openspeedtest.com) und wurde für den Betrieb auf **OpenWrt mit uhttpd** angepasst. Das Original setzt NGINX oder Docker voraus. Beides ist auf einem Router-SoC entweder nicht verfügbar oder eine schlechte Idee.
+Die Oberfläche heißt **Silizium**: Die Messung läuft als Lichtimpulse über eine nachgebaute Router-Platine,
+von der LAN-Buchse, an der das Gerät wirklich hängt, über den Switch zum SoC oder über den WLAN-Chip zu den Antennen.
 
-Die eigentliche Arbeit hat größtenteils eine KI erledigt. Der Mensch hat primär auf den "Deploy"-Button gedrückt, Kaffee getrunken und gelegentlich den Browser-Tab neu geladen. Klassisches Vibecoding – aber es funktioniert. Kommentar: Das wäre zu schön gewesen, Debugging und der KI auf die Sprünge zu helfen, wenn sie vom Weg abgekommen ist, sind zu unterschätzen. ;)
+> **Zu 99 % Vibe-Coding.** Code, Designs und Texte dieses Repos hat eine KI geschrieben (Claude Code).
+> Der Mensch hat Ziele vorgegeben, auf dem echten Router gemessen, Ergebnisse zurückgemeldet, gestaunt und gelegentlich gesagt,
+> dass die Kamera nicht so nah ran soll. Das restliche Prozent: Debugging am Gerät und der KI auf die Sprünge helfen,
+> wenn sie vom Weg abgekommen ist. Das ist nicht zu unterschätzen. ;)
 
----
+## Was wird gemessen?
 
-## Was wird hier eigentlich gemessen?
+> ⚠️ Gemessen wird zwischen Browser und **LAN-Schnittstelle des Routers**, nicht die Internetgeschwindigkeit.
+> Für die Internetleitung gibt es andere Dienste.
 
-> ⚠️ **Wichtig:** Dieser Speedtest misst die Geschwindigkeit zwischen dem Client (Browser) und der **LAN-Schnittstelle des Routers** – **nicht** die Internetgeschwindigkeit.
+Damit siehst du, ob WLAN, Kabel, Switch-Port, Gerät oder der Router selbst der Engpass ist:
 
-Das ist kein Bug, sondern der Sinn der Sache. Du misst damit:
-- Die Leistung deines LAN/WLAN-Links zum Router
-- Den Durchsatz des Router-SoC beim Streamen/Empfangen
-- Ob dein Switch, dein Patchkabel oder deine WLAN-Verbindung der Flaschenhals ist
+- **Ping und Jitter** zum Router
+- **Download und Upload**, jeweils Spitze (bester 1-s-Wert) und Durchschnitt
+- **Router-CPU je Kern**, damit klar ist, ob der Router oder das Netz begrenzt
+- **Anschluss**: welcher LAN-Port mit welcher Geschwindigkeit, bzw. WLAN-Band, Kanal, Signal und Linkrate (meldet der Router selbst)
+- **Verlauf** aller Messungen mit Hostname aus der DHCP-Liste und frei wählbarem Gerätenamen
 
-Für einen WAN-Speedtest (Internet) nimm [fast.com](https://fast.com) oder [speedtest.net](https://speedtest.net).
+## Drei Ansichten, eine Adresse
 
----
+`http://<router-ip>/speedtest/` öffnet `index.html`. Die Seite prüft, was der Browser flüssig darstellen kann, und lädt dann:
 
-## Was wurde geändert?
+| Ansicht | Datei | Für wen | Darstellung |
+|---|---|---|---|
+| **3D** | `silizium3d.html` | Geräte mit Grafikkarten-WebGL und mindestens 4 Kernen | Platine als 3D-Körper (WebGL), im Leerlauf fliegt eine Drohnenkamera darüber, bei der Messung schräge Draufsicht |
+| **2D** | `silizium2d.html` | alles dazwischen | animierte Platine (Canvas), Kamera zoomt und dreht leicht |
+| **Lite** | `silizium-lite.html` | alte oder schwache Geräte, ältere SmartTVs, „Bewegung reduzieren“ | keine Animation, kein Canvas, nur einfaches CSS, 25 KB |
 
-| Original | Dieser Fork |
-|---|---|
-| Benötigt NGINX/Docker | Läuft auf uhttpd (OpenWrt built-in) |
-| Statische Download-Dateien | `downloading.cgi` streamt aus `/dev/zero` (kein Flash-Verschleiß) |
-| Upload via Static-File-POST | `upload.cgi` verwirft Body via `dd` nach exakt `CONTENT_LENGTH` Bytes |
-| Kein ICMP-Ping | `ping.cgi` pingt den Client via `$REMOTE_ADDR` und gibt echte RTT zurück |
-| Frontend in docroot | Frontend in `/www/speedtest/`, Endpoints absolut via `/cgi-bin/` referenziert |
+In jeder Ansicht kann man unten mit **Lite · 2D · 3D** wechseln, die Wahl wird im Browser gemerkt.
+Kann ein Gerät 3D doch nicht darstellen, springt die Seite selbst auf 2D zurück.
+Alle drei zeigen dieselben Messwerte und am Ende dasselbe **Messprotokoll**.
 
----
+Schriften (Saira, Share Tech Mono) sind in 2D und 3D eingebettet, alles läuft ohne Internet.
 
-## Hardware-Anforderungen
+## So funktioniert es
 
-Das läuft nicht auf jedem OpenWrt-Router. Ein GL.iNet AR300M mit 64MB RAM und MIPS-SoC aus 2017 wird an 10 parallelen CGI-Threads und `/dev/zero`-Streaming herzlich wenig Freude haben.
+| Teil | Umsetzung | Warum |
+|---|---|---|
+| Download | statische Datei in `/tmp/speedtest` (RAM), per Bind-Mount unter `/www/speedtest/data/` eingeblendet, uhttpd liefert direkt aus | schnellste Variante, kein Flash |
+| Upload | ucode-Handler `api.uc` in uhttpd, liest und verwirft die Daten | gut doppelt so schnell wie Shell-CGI |
+| Ping/Jitter | kleine Datei `ping.txt`, 20 Abfragen, Median | ohne Script-Overhead |
+| Messkern | `engine.js`, ES5 ohne Abhängigkeiten, gemeinsam für alle Ansichten; ohne Router läuft ein Demo-Modus | ein Messkern, viele Oberflächen |
+| Router-CPU | `/speedtest-api/cpu` liefert `/proc/stat`, gelesen am Anfang und Ende jeder Richtung | zeigt, ob der Router oder das Netz begrenzt |
+| Anschluss | `/speedtest-api/link`: IP → MAC (ARP) → Bridge-Port → Port-Speed, bei WLAN Band/Kanal/Signal/Linkrate über iwinfo | die Platine zeigt den echten Datenweg |
+| Router-Info | `/speedtest-api/info`: Hostname, Modell, Kerne und SoC aus dem Device-Tree (z. B. MediaTek MT7988A, Filogic 880) | Aufdruck auf dem Chip |
+| Verlauf | `/tmp/speedtest-history.json` (RAM), max. 200 Einträge | kein Flash-Verschleiß, nach Neustart leer |
 
-**Getestet auf:** TP-Link BE450 (WiFi 7, ARM-SoC, ausreichend RAM) – funktioniert problemlos.
+Die Download-Datei (64 MB, auf knappen Geräten weniger) legt `api.uc` beim ersten Aufruf der Seite selbst an, auch nach einem Neustart.
 
-**Sollte ebenfalls funktionieren:**
-- Banana Pi R3 / R4 (MediaTek Filogic, ernstzunehmende Hardware)
-- ASUS BT-8 (ähnliche Liga)
-- Generell: alles mit ARM64-SoC, ≥256MB RAM und GbE
+Messwerte auf dem Asus BT8 (3 Kerne, PC per 2,5 GbE, Messkit in `bench/`):
 
-**Wird wahrscheinlich leiden:** Alles mit MIPS, <128MB RAM oder einem SoC der hauptsächlich als Briefbeschwerer taugt.
+| | 1 Verbindung | 4 Verbindungen |
+|---|---|---|
+| Download, Datei im RAM | 1019 Mbit/s | 1842 Mbit/s |
+| Upload, ucode | 599 Mbit/s | 1142 Mbit/s |
+| Upload, Shell-CGI (alt) | 319 Mbit/s | 404 Mbit/s |
+| iperf3 -P4 (Referenz) | | 2320 / 1710 Mbit/s |
 
----
+Im Browser (Chrome, Kabel) erreicht die Seite auf dem BT8 bis 2,39 Gbit/s Download und 1,0 bis 1,4 Gbit/s Upload bei 2 ms Ping.
+
+## Voraussetzungen
+
+- OpenWrt 25.12 (getestet: Asus BT8), ab Dual-Core und 128 MB RAM
+- `uhttpd-mod-ucode` (ist mit LuCI meist schon da, sonst `apk add uhttpd-mod-ucode`)
+- Aufruf über **http://**: HTTPS kostet den Router viel CPU. Ist `redirect_https` aktiv, weist `install.sh` darauf hin.
 
 ## Installation
 
-### Voraussetzungen
+1. Den Ordner `speedtest/` per WinSCP (Protokoll SCP) nach `/www/speedtest` kopieren.
+   Mit Kommandozeilen-`scp` die Option `-O` verwenden, dropbear kann kein SFTP.
+2. Per SSH: `sh /www/speedtest/install.sh`
+3. Im Browser: `http://<router-ip>/speedtest/`
 
-`wget` und `tar` sind auf OpenWrt standardmäßig verfügbar – keine zusätzlichen Pakete nötig.
+`install.sh` trägt den ucode-Handler in `/etc/config/uhttpd` ein (`ucode_prefix /speedtest-api`), setzt `max_requests` auf mindestens 16
+und startet uhttpd neu. Läuft uhttpd danach nicht, stellt das Skript die alte Konfiguration sofort wieder her, damit LuCI erreichbar bleibt.
 
-> `cgi_prefix=/cgi-bin` ist OpenWrt-Default – da muss nichts verbogen werden. LuCI bleibt unangetastet.
-
-### Sicherstellen dass `/www/cgi-bin` existiert
-
-```sh
-[ -d /www/cgi-bin ] || { echo "ERROR: /www/cgi-bin nicht gefunden. uhttpd korrekt konfiguriert?"; exit 1; }
-```
-
-### Deployen
+<details><summary>Dasselbe von Hand (ohne automatischen Rückfall)</summary>
 
 ```sh
-cd /tmp
-wget -O openspeedtest.tar.gz https://github.com/TechnoHoschi/openspeedtest-openwrt/archive/refs/heads/main.tar.gz
-tar -xzf openspeedtest.tar.gz
-mv openspeedtest-openwrt-main /www/speedtest
-
-# CGIs ins richtige Verzeichnis
-cp /www/speedtest/downloading.cgi /www/cgi-bin/
-cp /www/speedtest/upload.cgi      /www/cgi-bin/
-cp /www/speedtest/ping.cgi        /www/cgi-bin/
-chmod +x /www/cgi-bin/downloading.cgi /www/cgi-bin/upload.cgi /www/cgi-bin/ping.cgi
-
-# Aufräumen
-rm /tmp/openspeedtest.tar.gz
+head -c 2 /www/speedtest/api.uc        # muss "{%" ausgeben, sonst startet uhttpd nicht
+cp /etc/config/uhttpd /tmp/uhttpd.bak
+uci add_list uhttpd.main.ucode_prefix='/speedtest-api=/www/speedtest/api.uc'
+uci set uhttpd.main.max_requests=16
+uci commit uhttpd && service uhttpd restart
+pidof uhttpd || { cp /tmp/uhttpd.bak /etc/config/uhttpd; service uhttpd restart; }
 ```
+</details>
 
-### uhttpd Timeouts anpassen
+**Aktualisieren:** neue Dateien nach `/www/speedtest` kopieren. Nach Änderungen an `api.uc` zusätzlich `service uhttpd restart`
+(vorher prüfen: `head -c 2 /www/speedtest/api.uc` muss `{%` ausgeben).
 
-```sh
-uci set uhttpd.main.network_timeout='120'
-uci set uhttpd.main.script_timeout='120'
-uci set uhttpd.main.max_requests='20'
-uci commit uhttpd
-service uhttpd restart
-```
+Für Backups: `/www/speedtest` und `/etc/config/uhttpd` sichern.
 
-### Aufrufen
+## Entfernen
 
-```
-http://<router-ip>/speedtest/
-```
+`sh /www/speedtest/uninstall.sh` nimmt den Eintrag aus uhttpd heraus, gibt den RAM frei und löscht den Ordner.
 
-### Updates
+## Dateien in `speedtest/`
 
-Installation wiederholen – bestehende `/www/speedtest` vorher löschen:
+| Datei | Zweck |
+|---|---|
+| `index.html` | Einstieg, wählt Lite, 2D oder 3D |
+| `silizium-lite.html`, `silizium2d.html`, `silizium3d.html` | die drei Ansichten |
+| `engine.js` | Messkern |
+| `api.uc` | ucode-API für uhttpd (`/up`, `/cpu`, `/info`, `/link`, `/history`) |
+| `install.sh`, `uninstall.sh` | Einrichten und Entfernen |
+| `ping.txt` | Ziel der Ping-Messung |
+| `diag.html` | Diagnose: Browser-Methoden im Vergleich, falls Werte unplausibel wirken |
+| `referenz.html` | schlichte technische Referenzseite |
+| alle übrigen `*.html` | Design-Entwürfe aus der Entstehung (Tacho, Cockpit, Warp, Fusionskern, Beschleuniger, Netzatlas, Datenrelief und viele mehr), funktionsfähig und direkt aufrufbar |
 
-```sh
-rm -rf /www/speedtest
-```
+## Hinweise
 
----
+- **Ping:** uhttpd in OpenWrt 25.12 setzt kein `TCP_NODELAY` und hält dadurch den Rest kleiner Antworten auf einer bestehenden Verbindung ~40 ms zurück
+  (behoben in uhttpd [82b4c79](https://github.com/openwrt/uhttpd/commit/82b4c79), in 25.12 noch nicht enthalten). Die Seite misst deshalb die Zeit bis zum ersten Antwort-Byte.
+  Aus demselben Grund schickt der Upload große 32-MB-Stücke.
+- **Ergebnis:** Groß angezeigt wird die Spitze (bester gleitender 1-s-Wert, derselbe Wert, den die Live-Anzeige zeigt). Darunter steht der Durchschnitt:
+  die 1-s-Werte ohne die langsamsten 30 % und schnellsten 10 %, gemittelt.
+- **Ein CPU-Kern nahe 100 %:** Dann zeigt das Ergebnis eher die Grenze des Routers als die des Netzes. Beim Speedtest ist der Router selbst die Gegenstelle;
+  Verkehr, der durch den Router läuft, nutzt Hardware-Beschleunigung und ist meist schneller.
+- **iperf3** liefert die Referenz fürs Netz, ein Browser kann das Protokoll aber nicht sprechen. Wer es dauerhaft laufen lässt, sollte es mit `-B <lan-ip>` an das LAN binden.
+- Ältere Browser ohne Fetch-Streams messen den Download per XHR in 32-MB-Häppchen, damit der Browser-RAM klein bleibt.
 
-## Bekannte Eigenheiten
+## Danke
 
-- **Ping-Anzeige im Framework (~60ms):** Das OpenSpeedTest-JS misst Ping via XHR-Roundtrip, nicht via ICMP. Der Browser-Stack addiert ~55ms Overhead. Der echte LAN-Ping (unten rechts als ICMP-Overlay) ist deutlich realistischer.
-- **NS_BINDING_ABORTED im Browser-Log:** Normal. Das JS bricht Download/Upload-Requests nach Ablauf der Messdauer absichtlich ab.
-- **LuCI läuft parallel:** Solange `cgi_prefix=/cgi-bin` der Default bleibt und wir keine fremden Dateien anpacken, koexistieren LuCI und der Speedtest ohne Probleme.
+Dieses Projekt hat als Fork von **[OpenSpeedTest™](https://openspeedtest.com)** angefangen
+([github.com/openspeedtest/Speed-Test](https://github.com/openspeedtest/Speed-Test)).
+OpenSpeedTest hat gezeigt, wie gut ein Speedtest nur mit Bordmitteln des Browsers funktionieren kann, und war der Ausgangspunkt für alles hier.
+Herzlichen Dank an Vishnu und das OpenSpeedTest-Team sowie an alle, die dort beigetragen haben!
 
----
+Inzwischen ist der Code komplett neu aufgebaut. Der alte Fork-Stand mit den Shell-CGIs steckt in der Git-Historie.
+
+Danke außerdem an das **OpenWrt**-Projekt für uhttpd, ucode, LuCI und iwinfo, auf denen der Speedtest aufsetzt,
+und an die Gestalter der Schriften **Saira** (Omnibus-Type) und **Share Tech Mono** (Carrois Apostrophe), beide unter der SIL Open Font License.
 
 ## Lizenz
 
-MIT License – Copyright (c) 2013–2024 OpenSpeedTest™
-
-Dieser Fork übernimmt die MIT-Lizenz des Originals. Siehe [License.md](License.md).
+MIT, siehe [LICENSE](LICENSE). Die eingebetteten Schriften stehen unter der SIL Open Font License 1.1.

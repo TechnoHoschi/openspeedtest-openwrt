@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Speedtest Absurd</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;500;700;800&display=swap">
+<style>
+/* Weltraum-Parodie: ein absichtlich übertriebenes Cockpit. Oben die Frontscheibe (Canvas: Sterne,
+   Hyperraum, Schottenkaro, ein absurd langes Schiff), darunter das Armaturenbrett mit Geschwindigkeitshebel,
+   Bildschirm, Kaffeetasse und Bordfunk. Nach der Messung: Bremsmanöver, dann das Ergebnis als
+   Merchandising-Packung, der Verlauf als Sammelkarten. Bewusst nur dunkel. */
+:root {
+  --space: #0c0a24;
+  --space2: #17123d;
+  --panel: #241d55;
+  --panel2: #2f2670;
+  --rim: #4b3fa0;
+  --ink: #fbf7ff;
+  --mute: #b6addf;
+  --down: #39e1ff;      /* Download: Cyan */
+  --up: #ff5fb4;        /* Upload: Pink */
+  --ping: #ffd23f;      /* Ping: Gelb */
+  --lime: #8df25c;
+  --red: #ff4b3a;
+  --orange: #ff9a3c;
+  --f-d: "Bungee", "Arial Black", Impact, "Segoe UI Black", sans-serif;
+  --f-u: "Rubik", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { background: var(--space); }
+body { margin: 0; color: var(--ink); font: 15px/1.45 var(--f-u); overflow-x: hidden;
+  background: radial-gradient(1200px 600px at 50% -10%, #2a1f6e 0%, var(--space) 60%) var(--space); min-height: 100vh; }
+button, select, input { font: inherit; }
+main { max-width: 1180px; margin: 0 auto; padding: 18px 16px 48px; display: grid; gap: 18px; }
+main > * { min-width: 0; }
+:focus-visible { outline: 3px solid var(--ping); outline-offset: 3px; }
+
+/* Kopf */
+header { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 6px 18px; }
+.brand { display: grid; gap: 2px; min-width: 0; }
+h1 { margin: 0; font: 400 clamp(1.45rem, 4.2vw, 2.3rem)/1 var(--f-d); letter-spacing: .02em;
+  background: linear-gradient(90deg, var(--ping), var(--orange) 35%, var(--up) 65%, var(--down)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.brand small { color: var(--mute); font-size: .82rem; letter-spacing: .04em; }
+.who { color: var(--mute); font-size: .84rem; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; justify-content: flex-end; min-width: 0; }
+.who b { color: var(--ink); font-weight: 500; }
+.demo { color: #1a1200; background: var(--ping); border-radius: 999px; padding: 1px 10px; font: 400 .72rem/1.5 var(--f-d); letter-spacing: .06em; transform: rotate(-3deg); display: inline-block; }
+
+/* Cockpit */
+.cockpit { display: grid; gap: 0; position: relative; }
+.cockpit > * { min-width: 0; }
+.shield { position: relative; height: clamp(250px, 44vh, 460px); border-radius: 46px 46px 14px 14px; overflow: hidden;
+  border: 10px solid #3a3184; box-shadow: inset 0 0 0 2px #6a5cd6, 0 0 0 2px #191247, 0 18px 40px rgba(0,0,0,.45);
+  background: #050414; }
+.shield canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.shield::after { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: 36px 36px 4px 4px;
+  background: linear-gradient(115deg, rgba(255,255,255,.08) 0%, rgba(255,255,255,0) 28%, rgba(255,255,255,0) 70%, rgba(255,255,255,.05) 100%); }
+.strut { position: absolute; top: 0; bottom: 0; width: 10px; background: linear-gradient(90deg, #2a2366, #4b40a8, #2a2366); z-index: 2; pointer-events: none; }
+.strut.l { left: 33%; transform: skewX(-8deg); }
+.strut.r { right: 33%; transform: skewX(8deg); }
+.hud { position: absolute; z-index: 3; font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color: var(--mute);
+  background: rgba(8,6,30,.66); border: 1px solid rgba(160,145,255,.25); border-radius: 8px; padding: 4px 9px; max-width: calc(100% - 28px); }
+.hud b { color: var(--ink); font-weight: 500; }
+.hud.tl { left: 14px; top: 14px; }
+.hud.tr { right: 14px; top: 14px; text-align: right; }
+.hud.bc { left: 50%; bottom: 12px; transform: translateX(-50%); text-transform: none; letter-spacing: .01em; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.alarm { position: absolute; z-index: 4; left: 50%; top: 50px; transform: translateX(-50%) rotate(-2deg); display: flex; align-items: center; gap: 12px;
+  background: #2b0909; border: 3px solid var(--red); border-radius: 14px; padding: 8px 16px 8px 10px; max-width: calc(100% - 28px);
+  box-shadow: 0 0 30px rgba(255,75,58,.55); }
+.alarm i { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #fff2a8, #ff4b3a 45%, #6a0b05 80%);
+  animation: blink .5s steps(2) infinite; }
+.alarm span { font: 400 .92rem/1.15 var(--f-d); color: #ffe1dc; }
+@keyframes blink { 0% { opacity: 1; } 100% { opacity: .2; } }
+
+/* Armaturenbrett */
+.dash { position: relative; margin: -6px 18px 0; padding: 18px; border-radius: 0 0 26px 26px;
+  background: linear-gradient(180deg, #3a2f88, #261e5e 30%, #1e184c); border: 2px solid #4f43ae; border-top: 0;
+  box-shadow: 0 20px 40px rgba(0,0,0,.4); display: grid; gap: 16px;
+  grid-template-columns: 170px minmax(0, 1fr) 290px; grid-template-areas: "lever screen radio"; }
+.dash > * { min-width: 0; }
+.dash::before { content: ""; position: absolute; left: 10px; right: 10px; top: 0; height: 8px; border-radius: 0 0 8px 8px;
+  background: repeating-linear-gradient(135deg, #ffd23f 0 14px, #1a1440 14px 28px); opacity: .85; }
+.plate { background: linear-gradient(180deg, var(--panel2), var(--panel)); border: 1px solid #5446b8; border-radius: 16px; padding: 12px 14px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08); position: relative; }
+.plate h2 { margin: 0 0 8px; font: 400 .74rem/1.2 var(--f-d); letter-spacing: .08em; color: var(--mute); }
+
+/* Hebel */
+.lever { grid-area: lever; display: grid; grid-template-rows: auto 1fr auto; }
+.track { position: relative; height: 210px; }
+.slot { position: absolute; left: 22px; top: 6px; bottom: 6px; width: 14px; border-radius: 8px; background: #0d0a28; box-shadow: inset 0 2px 6px #000; }
+.knob { position: absolute; left: 6px; width: 46px; height: 26px; margin-top: -13px; border-radius: 13px; top: 94%;
+  background: radial-gradient(circle at 35% 30%, #fff, #ff7a6b 30%, #c3221a 80%); box-shadow: 0 4px 10px rgba(0,0,0,.6); }
+.knob::after { content: ""; position: absolute; left: 20px; top: 24px; width: 6px; height: 14px; background: #888; border-radius: 0 0 3px 3px; display: none; }
+.notch { position: absolute; left: 62px; right: 0; transform: translateY(-50%); font: 400 .72rem/1 var(--f-d); color: #7c71c4; transition: color .25s, transform .25s; white-space: nowrap; }
+.notch::before { content: ""; position: absolute; left: -26px; top: 50%; width: 18px; height: 2px; background: #5b4fbd; }
+.notch.on { color: var(--ink); transform: translateY(-50%) scale(1.12); transform-origin: left center; }
+.notch.on.s3 { color: var(--ping); text-shadow: 0 0 10px rgba(255,210,63,.6); }
+.stage-now { font-size: .8rem; color: var(--mute); margin-top: 6px; }
+.stage-now b { color: var(--ink); font-weight: 500; }
+
+/* Bildschirm */
+.screen { grid-area: screen; display: grid; justify-items: center; align-content: center; gap: 10px; text-align: center;
+  background: radial-gradient(ellipse at 50% 40%, #1a2e5c, #0b0b29 75%); border: 3px solid #0d0a28; outline: 2px solid #5446b8; border-radius: 22px; padding: 16px 14px 18px; }
+.phase { font: 400 .82rem/1.2 var(--f-d); letter-spacing: .1em; color: var(--down); min-height: 1.2em; }
+.big { font: 800 clamp(3rem, 8.5vw, 5.4rem)/1 var(--f-u); font-variant-numeric: tabular-nums; letter-spacing: -.01em; color: var(--ink);
+  text-shadow: 0 0 24px rgba(57,225,255,.35); }
+.big.up { text-shadow: 0 0 24px rgba(255,95,180,.4); }
+.unit { color: var(--mute); font-size: .95rem; letter-spacing: .08em; }
+.sub { color: var(--mute); font-size: .84rem; min-height: 1.2em; }
+.sub b { color: var(--ink); font-weight: 500; }
+.go { min-width: 220px; padding: 15px 30px; border-radius: 999px; cursor: pointer; color: #fff; font: 400 1.35rem/1 var(--f-d); letter-spacing: .04em;
+  background: linear-gradient(180deg, #ff6a4f, #d8231a); border: 0; box-shadow: 0 0 0 5px #1a1440, 0 0 0 9px #ffd23f, 0 8px 0 9px #8a6a10, 0 14px 26px rgba(0,0,0,.5);
+  margin: 6px 0 12px; transition: transform .1s; }
+.go:hover { filter: brightness(1.08); }
+.go:active { transform: translateY(3px); }
+.go:disabled { opacity: .5; cursor: wait; }
+.go.stop { background: linear-gradient(180deg, #7a6cff, #4a37c9); box-shadow: 0 0 0 5px #1a1440, 0 0 0 9px #b6addf, 0 8px 0 9px #4a4380, 0 14px 26px rgba(0,0,0,.5); }
+
+/* Kaffee und Funk */
+.side { grid-area: radio; display: grid; gap: 12px; grid-template-rows: auto 1fr; }
+.side > * { min-width: 0; }
+.cupbox { display: flex; align-items: center; gap: 12px; }
+.cup { width: 74px; height: 74px; flex: 0 0 auto; transform-origin: 50% 90%; }
+.cup.zit { animation: zit .09s linear infinite; }
+.cup.zit2 { animation: zit2 .07s linear infinite; }
+.cup.tip { animation: tip 1s cubic-bezier(.2,.8,.3,1) both; }
+@keyframes zit { 0% { transform: translate(0,0) rotate(0); } 25% { transform: translate(-1.5px,.5px) rotate(-1.5deg); } 50% { transform: translate(1px,-.5px) rotate(1deg); } 75% { transform: translate(1.5px,.5px) rotate(1.5deg); } 100% { transform: translate(0,0) rotate(0); } }
+@keyframes zit2 { 0% { transform: translate(0,0) rotate(0); } 25% { transform: translate(-3px,1px) rotate(-4deg); } 50% { transform: translate(2px,-2px) rotate(3deg); } 75% { transform: translate(3px,1px) rotate(4deg); } 100% { transform: translate(0,0) rotate(0); } }
+@keyframes tip { 0% { transform: none; } 30% { transform: translate(18px,-22px) rotate(28deg); } 60% { transform: translate(8px,-4px) rotate(-10deg); } 100% { transform: none; } }
+.cuptext { font-size: .82rem; color: var(--mute); }
+.cuptext b { display: block; color: var(--ink); font: 400 .78rem/1.3 var(--f-d); letter-spacing: .04em; margin-bottom: 2px; }
+.radio { display: grid; grid-template-rows: auto 1fr; }
+.radio h2 { display: flex; align-items: center; gap: 8px; }
+.led { width: 11px; height: 11px; border-radius: 50%; background: #3b2f2f; box-shadow: inset 0 0 2px #000; transition: background .05s; }
+.led.on { background: var(--lime); box-shadow: 0 0 10px var(--lime); }
+.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; font-size: .8rem; line-height: 1.3; height: 128px; overflow: hidden; }
+.log li { color: var(--mute); flex: 0 0 auto; }
+.log li:last-child { color: var(--ink); }
+.log li em { font-style: normal; color: var(--ping); font-weight: 500; }
+
+/* Bordcomputer */
+.opts { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 20px; color: var(--mute); font-size: .86rem; margin: 2px 18px 0;
+  padding: 10px 14px; border-radius: 14px; background: rgba(36,29,85,.55); border: 1px dashed #4f43ae; }
+.opts label { display: flex; align-items: center; gap: 7px; }
+select, input { color: var(--ink); background: #120e36; border: 1px solid #5446b8; border-radius: 8px; padding: 6px 9px; }
+input { width: 11em; max-width: 100%; }
+
+/* Messwerte */
+.readouts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.ro { background: linear-gradient(180deg, #221b52, #1a1543); border: 1px solid #3f3592; border-radius: 14px; padding: 10px 14px 12px; min-width: 0; position: relative; overflow: hidden; transition: border-color .3s; }
+.ro::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--c, var(--mute)); }
+.ro .k { font: 400 .72rem/1.2 var(--f-d); letter-spacing: .06em; color: var(--c, var(--mute)); }
+.ro .v { font: 700 1.9rem/1.1 var(--f-u); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ro .v small { font: 400 .85rem var(--f-u); color: var(--mute); margin-left: 4px; }
+.ro .s { color: var(--mute); font-size: .78rem; min-height: 1.2em; }
+.ro.ping { --c: var(--ping); } .ro.jit { --c: #ffe89a; } .ro.dl { --c: var(--down); } .ro.ul { --c: var(--up); }
+.ro.on { border-color: var(--c); box-shadow: 0 0 0 1px var(--c) inset; }
+
+/* Bremsmanöver */
+.brake .cockpit { animation: jolt 1s cubic-bezier(.2,.7,.3,1); }
+@keyframes jolt { 0% { transform: none; } 10% { transform: translateY(16px) rotate(.6deg); } 22% { transform: translateY(-10px) rotate(-.5deg); } 38% { transform: translateY(6px); } 55% { transform: translateY(-3px); } 100% { transform: none; } }
+.brake .log li { animation: flyup .8s ease-in both; }
+@keyframes flyup { 0% { transform: none; opacity: 1; } 100% { transform: translateY(-60px) scale(.6) rotate(-8deg); opacity: 0; } }
+
+/* Ergebnis als Merchandising-Packung */
+.merch { display: grid; justify-items: center; padding: 26px 0 6px; }
+.merch.show .box { animation: unbox .6s cubic-bezier(.2,1.4,.4,1) both; }
+@keyframes unbox { 0% { transform: translateY(40px) scale(.9) rotate(-2deg); opacity: 0; } 100% { transform: none; opacity: 1; } }
+.box { position: relative; width: min(940px, 100%); border-radius: 20px; padding: 0; color: #1d1442;
+  background: linear-gradient(135deg, #ffe066 0%, #ffd23f 40%, #ffb33f 100%); box-shadow: 0 0 0 4px #1d1442, 12px 14px 0 4px #ff5fb4, 0 30px 60px rgba(0,0,0,.5); }
+.box-top { background: repeating-linear-gradient(90deg, #1d1442 0 22px, #ff5fb4 22px 44px, #39e1ff 44px 66px, #8df25c 66px 88px); height: 14px; border-radius: 16px 16px 0 0; }
+.box-in { padding: 22px 26px 22px; display: grid; gap: 16px; }
+.box-head { display: grid; gap: 4px; padding-right: 150px; }
+.kicker { font: 700 .78rem/1 var(--f-u); letter-spacing: .14em; text-transform: uppercase; color: #6b2a8c; }
+.box h2 { margin: 0; font: 400 clamp(1.5rem, 4.4vw, 2.6rem)/1.02 var(--f-d); color: #1d1442; }
+.box .tag { font-size: .92rem; color: #3b2a6b; }
+.burst { position: absolute; right: 18px; top: -26px; width: 150px; height: 150px; display: grid; place-items: center; text-align: center; transform: rotate(12deg);
+  clip-path: polygon(50% 0%, 59% 13%, 75% 6%, 77% 23%, 94% 25%, 87% 41%, 100% 50%, 87% 59%, 94% 75%, 77% 77%, 75% 94%, 59% 87%, 50% 100%, 41% 87%, 25% 94%, 23% 77%, 6% 75%, 13% 59%, 0% 50%, 13% 41%, 6% 25%, 23% 23%, 25% 6%, 41% 13%);
+  background: #ff4b3a; color: #fff; font: 400 .82rem/1.1 var(--f-d); padding: 26px; }
+.window { background: #160f3c; color: var(--ink); border-radius: 16px; padding: 18px; display: grid; gap: 14px; border: 4px solid #1d1442;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.12), inset 0 10px 30px rgba(255,255,255,.05); }
+.vals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.val { background: rgba(255,255,255,.04); border-radius: 12px; padding: 12px 14px; min-width: 0; border: 1px solid rgba(255,255,255,.08); }
+.val .k { font: 400 .78rem/1.2 var(--f-d); letter-spacing: .05em; }
+.val.dl .k { color: var(--down); } .val.ul .k { color: var(--up); }
+.val .v { font: 800 clamp(2.4rem, 7vw, 4rem)/1 var(--f-u); font-variant-numeric: tabular-nums; margin: 4px 0 2px; white-space: nowrap; }
+.val .v small { font: 500 1rem var(--f-u); color: var(--mute); margin-left: 6px; }
+.val .s { color: var(--mute); font-size: .86rem; }
+.val .s b { color: var(--ink); font-weight: 500; }
+.minis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.mini { min-width: 0; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.04); }
+.mini .k { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
+.mini .v { font: 700 1.3rem/1.2 var(--f-u); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mini .v small { font: 400 .8rem var(--f-u); color: var(--mute); margin-left: 3px; }
+.mini.p .v { color: var(--ping); }
+.verdict { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 16px; align-items: center; background: #1d1442; color: var(--ink); border-radius: 14px; padding: 14px 18px; }
+.verdict .seal { grid-row: span 3; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; text-align: center; font: 400 .6rem/1.05 var(--f-d);
+  background: radial-gradient(circle, #8df25c 55%, #4fae2a 56%); color: #12300a; transform: rotate(-10deg); padding: 6px; }
+.verdict b { font: 400 1.2rem/1.15 var(--f-d); color: var(--ping); }
+.verdict .s { color: #ddd6ff; font-size: .92rem; }
+.verdict .w { color: var(--up); font-size: .9rem; font-style: italic; }
+.note { color: #1d1442; background: #ff9a3c; border-radius: 10px; padding: 10px 14px; font-weight: 500; font-size: .9rem; }
+.fine { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: flex-end; justify-content: space-between; font-size: .76rem; color: #4a3a7a; }
+.fine p { margin: 0; max-width: 560px; }
+.barcode { display: grid; justify-items: center; gap: 2px; font: 500 .7rem var(--f-u); letter-spacing: .2em; color: #1d1442; }
+.barcode i { display: block; width: 150px; height: 40px; background: repeating-linear-gradient(90deg, #1d1442 0 2px, transparent 2px 4px, #1d1442 4px 7px, transparent 7px 8px, #1d1442 8px 9px, transparent 9px 12px); }
+.again { justify-self: start; font: 400 .9rem/1 var(--f-d); color: #fff; background: #1d1442; border: 0; border-radius: 999px; padding: 11px 20px; cursor: pointer; }
+.again:hover { background: #3a2a85; }
+
+/* Sammelkarten */
+.hist h2 { font: 400 1.05rem/1.2 var(--f-d); letter-spacing: .04em; margin: 0; }
+.hist-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin-bottom: 12px; }
+.hist-head p { margin: 2px 0 0; color: var(--mute); font-size: .84rem; }
+.btn { font: 500 .86rem var(--f-u); color: var(--ink); background: transparent; border: 1px solid #5446b8; border-radius: 999px; padding: 7px 16px; cursor: pointer; }
+.btn:hover { border-color: var(--mute); background: rgba(255,255,255,.04); }
+.btn.yes { border-color: var(--red); color: #ffb3aa; }
+.confirm { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: .86rem; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(206px, 1fr)); gap: 16px; }
+.card { position: relative; border-radius: 16px; padding: 4px; min-width: 0; background: var(--rar, #7c71c4); box-shadow: 0 10px 22px rgba(0,0,0,.35); }
+.card-in { background: linear-gradient(180deg, #221b52, #15113b); border-radius: 12px; padding: 10px 12px 12px; display: grid; gap: 8px; height: 100%; }
+.card.r3 { background: linear-gradient(115deg, #ff5fb4, #ffd23f, #8df25c, #39e1ff, #b07cff, #ff5fb4); background-size: 300% 300%; animation: holo 6s linear infinite; }
+@keyframes holo { 0% { background-position: 0% 50%; } 100% { background-position: 300% 50%; } }
+.card .top span:first-child { white-space: nowrap; }
+.card .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
+.card .rar { font: 400 .62rem/1 var(--f-d); color: #160f3c; background: var(--rar, #7c71c4); border-radius: 999px; padding: 4px 8px; white-space: nowrap; }
+.card.r3 .rar { background: linear-gradient(90deg, #ffd23f, #ff5fb4); }
+.card .name { font: 700 1.05rem/1.2 var(--f-u); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card .name small { display: block; font: 400 .74rem var(--f-u); color: var(--mute); }
+.card .art { height: 46px; border-radius: 8px; position: relative; overflow: hidden; background: #0b0920; }
+.card .art span { position: absolute; left: 8px; bottom: 6px; background: rgba(12,10,36,.82); border-radius: 6px; padding: 4px 7px; font: 400 .9rem/1 var(--f-d); color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,.6); }
+.card .stats { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 10px; font-size: .84rem; font-variant-numeric: tabular-nums; }
+.card .stats dt { color: var(--mute); }
+.card .stats dd { margin: 0; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .stats dd small { color: var(--mute); }
+.card .stats .d { color: var(--down); font-weight: 500; } .card .stats .u { color: var(--up); font-weight: 500; }
+.card .leg { font-size: .7rem; color: var(--mute); text-align: right; margin-top: -4px; }
+.empty { color: var(--mute); padding: 8px 0; }
+footer { text-align: center; color: #7c71c4; font-size: .76rem; }
+
+@media (max-width: 900px) {
+  .dash { grid-template-columns: 150px minmax(0, 1fr); grid-template-areas: "screen screen" "lever radio"; margin: -6px 8px 0; }
+  .opts { margin: 2px 8px 0; }
+}
+@media (max-width: 640px) {
+  main { padding: 14px 12px 40px; gap: 14px; }
+  .shield { height: 260px; border-width: 7px; border-radius: 34px 34px 10px 10px; }
+  .hud { font-size: .68rem; padding: 3px 7px; }
+  .who { justify-content: flex-start; font-size: .78rem; }
+  .hud.tl { left: 10px; top: 10px; } .hud.tr { right: 10px; top: 10px; }
+  .hud.bc { font-size: .72rem; bottom: 8px; max-width: calc(100% - 20px); }
+  .alarm { top: 44px; padding: 6px 10px 6px 8px; gap: 8px; width: calc(100% - 32px); }
+  .alarm i { width: 22px; height: 22px; }
+  .alarm span { font-size: .74rem; }
+  .strut { width: 6px; }
+  .dash { grid-template-columns: 124px minmax(0, 1fr); padding: 16px 10px 12px; gap: 10px; margin: -4px 4px 0; }
+  .track { height: 180px; }
+  .notch { left: 54px; font-size: .64rem; }
+  .notch::before { left: -20px; width: 14px; }
+  .slot { left: 18px; }
+  .knob { left: 3px; width: 44px; }
+  .plate { padding: 10px 10px; }
+  .side { grid-template-rows: auto auto; }
+  .cup { width: 54px; height: 54px; }
+  .cupbox { gap: 8px; }
+  .cuptext { font-size: .74rem; }
+  .log { height: 112px; font-size: .74rem; }
+  .go { min-width: 0; width: 100%; max-width: 280px; font-size: 1.15rem; }
+  .opts { margin: 0; gap: 8px 14px; font-size: .82rem; }
+  .readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .ro .v { font-size: 1.55rem; }
+  .box-in { padding: 18px 14px 18px; }
+  .box-head { padding-right: 0; padding-top: 70px; }
+  .burst { width: 118px; height: 118px; font-size: .66rem; padding: 20px; right: 8px; top: -30px; }
+  .vals { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .minis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .window { padding: 12px; }
+  .verdict { padding: 12px; gap: 4px 12px; }
+  .verdict .seal { width: 54px; height: 54px; }
+  .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .card-in { padding: 8px 9px 10px; }
+  .card .stats { font-size: .76rem; gap: 2px 6px; }
+  .card .name { font-size: .92rem; }
+}
+@media (max-width: 360px) { .cards { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) {
+  .cup.zit, .cup.zit2, .cup.tip, .brake .cockpit, .brake .log li, .card.r3, .alarm i, .merch.show .box { animation: none !important; }
+  * { transition: none !important; }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="brand">
+      <h1>Speedtest Absurd</h1>
+      <small>Bordgeschwindigkeitsmessung für Heimnetze mit Größenwahn</small>
+    </div>
+    <div class="who" id="who">Funkverbindung zum Router wird aufgebaut …</div>
+  </header>
+
+  <section class="cockpit" id="cockpit" aria-label="Cockpit">
+    <div class="shield" id="shield">
+      <canvas id="sky" aria-hidden="true"></canvas>
+      <div class="strut l" aria-hidden="true"></div><div class="strut r" aria-hidden="true"></div>
+      <div class="hud tl">Kurs: <b id="course">Parkposition</b></div>
+      <div class="hud tr">Übertragen: <b id="moved">0 MB</b></div>
+      <div class="alarm" id="alarm" role="status" hidden><i></i><span>Zu schnell! Wir sind an uns selbst vorbeigeflogen</span></div>
+      <div class="hud bc" id="shipcap">Funkstille. Kein Schiff in Sicht.</div>
+    </div>
+
+    <div class="dash" id="dash">
+      <div class="plate lever">
+        <h2>Schubhebel</h2>
+        <div class="track" id="track" aria-hidden="true">
+          <div class="slot"></div>
+          <div class="notch s3" style="top:17%">Absurd</div>
+          <div class="notch s2" style="top:39%">Wahnwitzig</div>
+          <div class="notch s1" style="top:61%">Überlicht</div>
+          <div class="notch s0" style="top:83%">Licht</div>
+          <div class="knob" id="knob"></div>
+        </div>
+        <div class="stage-now">Stufe: <b id="stage">Parken</b></div>
+      </div>
+
+      <div class="screen">
+        <div class="phase" id="phase">Startklar</div>
+        <div class="big" id="big" aria-live="off">0</div>
+        <div class="unit" id="unit">Mbit/s</div>
+        <div class="sub" id="sub">Hebel nach vorn, Kaffee festhalten.</div>
+        <button class="go" id="go" disabled>Abheben</button>
+      </div>
+
+      <div class="side">
+        <div class="plate cupbox">
+          <svg class="cup" id="cup" viewBox="0 0 80 80" aria-hidden="true">
+            <path d="M28 14 q-5 -6 0 -10 M40 14 q-5 -6 0 -10 M52 14 q-5 -6 0 -10" fill="none" stroke="#b6addf" stroke-width="2.5" stroke-linecap="round" opacity=".7"/>
+            <path d="M58 32 h6 a10 10 0 0 1 0 22 h-7" fill="none" stroke="#ff5fb4" stroke-width="6"/>
+            <path d="M16 24 h46 l-5 46 a6 6 0 0 1 -6 5 h-24 a6 6 0 0 1 -6 -5 z" fill="#ff5fb4"/>
+            <ellipse id="coffee" cx="39" cy="26" rx="21" ry="4" fill="#6b3b1d"/>
+            <path d="M22 44 h34" stroke="#fff" stroke-width="3" opacity=".7"/>
+            <text x="39" y="60" text-anchor="middle" font-size="9" font-family="Arial Black, sans-serif" fill="#fff">CHEF</text>
+          </svg>
+          <div class="cuptext" id="cuptext"><b>Kaffeetasse</b>Steht ruhig. Noch.</div>
+        </div>
+        <div class="plate radio">
+          <h2><span class="led" id="led"></span>Bordfunk</h2>
+          <ul class="log" id="log"><li>Funk: Alles ruhig. Jemand hat den Toaster angelassen.</li></ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="opts">
+      <label for="streams">Verbindungen
+        <select id="streams"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select></label>
+      <label for="duration">Dauer
+        <select id="duration"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></label>
+      <label for="label">Gerät <input id="label" maxlength="40" placeholder="z. B. Laptop WLAN"></label>
+    </div>
+  </section>
+
+  <div class="readouts">
+    <div class="ro ping" id="ro-ping"><div class="k">Ping</div><div class="v">–<small>ms</small></div><div class="s">Antwortzeit des Routers</div></div>
+    <div class="ro jit" id="ro-jit"><div class="k">Jitter</div><div class="v">–<small>ms</small></div><div class="s">Wackeln der Antwortzeit</div></div>
+    <div class="ro dl" id="ro-dl"><div class="k">Download · Spitze</div><div class="v">–<small>Mbit/s</small></div><div class="s"></div></div>
+    <div class="ro ul" id="ro-ul"><div class="k">Upload · Spitze</div><div class="v">–<small>Mbit/s</small></div><div class="s"></div></div>
+  </div>
+
+  <section class="merch" id="result" hidden aria-label="Ergebnis">
+    <div class="box">
+      <div class="box-top"></div>
+      <div class="burst" aria-hidden="true">Jetzt auch als Brotdose!</div>
+      <div class="box-in">
+        <div class="box-head">
+          <div class="kicker">Sammleredition · <span id="r-who"></span></div>
+          <h2>Das offizielle Messergebnis!</h2>
+          <div class="tag" id="r-tag"></div>
+        </div>
+        <div class="window">
+          <div class="vals">
+            <div class="val dl"><div class="k">Download · Spitze</div><div class="v" id="r-dl">–</div><div class="s" id="r-dl-s"></div></div>
+            <div class="val ul"><div class="k">Upload · Spitze</div><div class="v" id="r-ul">–</div><div class="s" id="r-ul-s"></div></div>
+          </div>
+          <div class="minis">
+            <div class="mini p"><div class="k">Ping</div><div class="v" id="r-ping">–</div></div>
+            <div class="mini p"><div class="k">Jitter</div><div class="v" id="r-jit">–</div></div>
+            <div class="mini"><div class="k">Höchste Stufe</div><div class="v" id="r-stage">–</div></div>
+            <div class="mini"><div class="k">Schifflänge</div><div class="v" id="r-bytes">–</div></div>
+          </div>
+        </div>
+        <div class="verdict">
+          <div class="seal" aria-hidden="true">Geprüft im Heimnetz</div>
+          <b id="verdict">–</b>
+          <div class="s" id="verdict-s"></div>
+          <div class="w" id="verdict-w"></div>
+        </div>
+        <div class="note" id="note" hidden></div>
+        <div class="fine">
+          <p>Inhalt: 1 Messergebnis, 0 Batterien. Nicht geeignet für Netze unter 3 Millisekunden Geduld. Spitze ist der beste Sekundenwert, Ø der bereinigte Durchschnitt nach dem Anlauf.</p>
+          <div class="barcode" aria-hidden="true"><i></i><span id="r-code">4 006 123 000 000</span></div>
+        </div>
+        <button class="again" id="again">Noch eine Packung messen</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="hist" aria-label="Verlauf">
+    <div class="hist-head">
+      <div><h2>Sammelkarten</h2><p>Jede Messung eine Karte. Neueste zuerst.</p></div>
+      <span id="clear-wrap"><button class="btn" id="clear">Sammlung wegwerfen</button></span>
+    </div>
+    <div id="history"><div class="empty">Noch keine Karten. Das Album ist traurig.</div></div>
+  </section>
+  <footer>Alle Werte echt gemessen zwischen diesem Gerät und dem Router. Alle Witze frei erfunden.</footer>
+</main>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.SpeedEngine, $ = function (id) { return document.getElementById(id); };
+  var reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  var STAGES = ['Licht', 'Überlicht', 'Wahnwitzig', 'Absurd'];
+
+  // ---------- Stufen des Schubhebels ----------
+  function stageOf(m) { return m < 100 ? 0 : m < 1000 ? 1 : m < 2000 ? 2 : 3; }
+  function leverPos(m) {
+    if (m <= 0) return 0;
+    if (m < 100) return 0.25 * m / 100;
+    if (m < 1000) return 0.25 + 0.25 * (m - 100) / 900;
+    if (m < 2000) return 0.5 + 0.25 * (m - 1000) / 1000;
+    return Math.min(1, 0.75 + 0.25 * Math.log(m / 2000) / Math.log(5));
+  }
+  function fmtMB(mb) {
+    if (mb >= 1000) return E.fmt(mb / 1000, 2) + ' GB';
+    return E.fmt(mb, 0) + ' MB';
+  }
+
+  // ---------- Zustand ----------
+  var S = {
+    running: false, phase: null, kind: 'download',
+    target: 0, shown: 0, peakSoFar: 0,
+    mb: 0, maxStage: -1, stage: -1,
+    ship: null, brake: 0, debris: []
+  };
+
+  // ---------- Frontscheibe (Canvas) ----------
+  var cv = $('sky'), ctx = cv.getContext('2d'), W = 0, H = 0, DPR = 1, stars = [], tartan = null;
+  function makeTartan() {
+    var c = document.createElement('canvas'); c.width = c.height = 64;
+    var g = c.getContext('2d');
+    g.fillStyle = '#b3172b'; g.fillRect(0, 0, 64, 64);
+    function band(pos, w, col, a) {
+      g.globalAlpha = a; g.fillStyle = col;
+      g.fillRect(pos, 0, w, 64); g.fillRect(0, pos, 64, w);
+    }
+    band(6, 14, '#14306b', 0.75); band(26, 4, '#ffd23f', 0.9); band(38, 12, '#1d6b33', 0.7);
+    band(54, 2, '#ffffff', 0.8); band(0, 3, '#0c0a24', 0.6);
+    g.globalAlpha = 1;
+    tartan = ctx.createPattern(c, 'repeat');
+  }
+  function resize() {
+    var r = cv.getBoundingClientRect();
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = Math.max(1, r.width); H = Math.max(1, r.height);
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    makeTartan();
+    var n = W < 600 ? 90 : 150;
+    if (stars.length !== n) { stars = []; for (var i = 0; i < n; i++) stars.push(newStar(true)); }
+  }
+  function newStar(any) {
+    return { x: Math.random() * 2 - 1, y: Math.random() * 2 - 1, z: any ? Math.random() : 1, h: Math.floor(Math.random() * 360) };
+  }
+  window.addEventListener('resize', resize);
+
+  // Das absurd lange Schiff: Länge wächst mit der übertragenen Datenmenge
+  var SIGNS = ['Bitte nicht hupen', 'Noch nicht das Ende', 'Kantine in 3 km', 'Hier könnte Werbung stehen',
+    'Abstand halten', 'Wird gleich vorbei sein', 'Langweilig? Wir auch', 'Wohnbereich 12 b', 'Lieferantenzugang', 'Fast geschafft (gelogen)'];
+  function hash(i) { var x = Math.sin(i * 127.1 + 31.7) * 43758.5453; return x - Math.floor(x); }
+  function newShip(now) { return { born: now, len: 0, done: false, x0: 0, jolt: 0 }; }
+  function shipScale() { return W / 1000; }
+  function shipNose(sh, now) {
+    var dt = (now - sh.born) / 1000, enter = W * 0.62 * (1 - Math.exp(-dt / 1.4)), crawl = W * 0.008 * dt;
+    return W + 10 - enter - crawl + sh.jolt;
+  }
+  function drawShip(now) {
+    var sh = S.ship; if (!sh) return;
+    var nose = shipNose(sh, now), sc = shipScale();
+    var len = Math.max(W * 0.5, S.mb * 0.6 * sc + W * 0.4);
+    sh.len = len;
+    var hh = Math.max(46, Math.min(110, H * 0.22)), cy = H * 0.66, top = cy - hh / 2, bot = cy + hh / 2;
+    var hullStart = nose + hh * 1.3, tail = nose + len;
+    if (sh.done && tail < -60) { S.ship = null; updateShipCap(now); return; }
+    ctx.save();
+    // Bug
+    ctx.fillStyle = '#d8d0ff';
+    ctx.beginPath(); ctx.moveTo(nose, cy + hh * 0.08); ctx.lineTo(hullStart + 1, top); ctx.lineTo(hullStart + 1, bot); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#39e1ff'; ctx.globalAlpha = 0.85;
+    ctx.beginPath(); ctx.moveTo(nose + hh * 0.55, cy - hh * 0.05); ctx.lineTo(hullStart, top + hh * 0.18); ctx.lineTo(hullStart, cy); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1;
+    // Rumpf (nur sichtbarer Teil)
+    var x1 = Math.max(hullStart, -20), x2 = Math.min(tail, W + 20);
+    if (x2 > x1) {
+      var gr = ctx.createLinearGradient(0, top, 0, bot);
+      gr.addColorStop(0, '#e9e3ff'); gr.addColorStop(0.5, '#a99de6'); gr.addColorStop(1, '#5c4fa8');
+      ctx.fillStyle = gr; ctx.fillRect(x1, top, x2 - x1, hh);
+      ctx.fillStyle = '#ff5fb4'; ctx.fillRect(x1, cy + hh * 0.12, x2 - x1, hh * 0.1);
+      ctx.fillStyle = '#ffd23f'; ctx.fillRect(x1, cy + hh * 0.24, x2 - x1, hh * 0.035);
+      var seg = 150, i0 = Math.floor((x1 - hullStart) / seg), i1 = Math.ceil((x2 - hullStart) / seg);
+      ctx.font = '600 ' + Math.max(9, Math.round(hh * 0.13)) + 'px Rubik, Arial, sans-serif';
+      ctx.textBaseline = 'middle';
+      for (var i = Math.max(0, i0); i <= i1; i++) {
+        var sx = hullStart + i * seg, r = hash(i);
+        if (sx > tail) break;
+        ctx.fillStyle = 'rgba(30,20,80,.45)'; ctx.fillRect(sx, top, 2, hh);
+        // Fensterreihe
+        for (var k = 0; k < 9; k++) {
+          var wx = sx + 10 + k * 15; if (wx > tail - 8) break;
+          ctx.fillStyle = hash(i * 13 + k) > 0.3 ? '#fff3a6' : '#3b2f7a';
+          ctx.fillRect(wx, top + hh * 0.16, 7, hh * 0.13);
+        }
+        var m = Math.floor(r * 5), seg2 = Math.min(seg, tail - sx);
+        if (seg2 < 40) continue;
+        if (m === 0) {         // Container
+          var cols = ['#ff9a3c', '#39e1ff', '#8df25c', '#ff5fb4'];
+          for (var c = 0; c < 4; c++) { ctx.fillStyle = cols[(c + i) % 4]; ctx.fillRect(sx + 12 + c * 32, top - hh * 0.26, 28, hh * 0.26); }
+        } else if (m === 1) {  // Kuppel mit Garten
+          ctx.fillStyle = 'rgba(141,242,92,.35)';
+          ctx.beginPath(); ctx.arc(sx + seg / 2, top, hh * 0.34, Math.PI, 0); ctx.fill();
+          ctx.fillStyle = '#4fae2a'; ctx.fillRect(sx + seg / 2 - hh * 0.3, top - 4, hh * 0.6, 4);
+        } else if (m === 2) {  // Schild
+          var txt = SIGNS[Math.floor(hash(i * 7) * SIGNS.length)], tw = Math.min(seg - 16, ctx.measureText(txt).width + 14);
+          ctx.fillStyle = '#1d1442'; ctx.fillRect(sx + 8, cy - hh * 0.12, tw, hh * 0.22);
+          ctx.fillStyle = '#ffd23f'; ctx.fillText(txt, sx + 15, cy - hh * 0.01, tw - 14);
+        } else if (m === 3) {  // Antenne
+          ctx.strokeStyle = '#d8d0ff'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(sx + 60, top); ctx.lineTo(sx + 60, top - hh * 0.5); ctx.stroke();
+          ctx.fillStyle = (now / 400 | 0) % 2 ? '#ff4b3a' : '#5a1a14';
+          ctx.beginPath(); ctx.arc(sx + 60, top - hh * 0.5, 4, 0, 6.3); ctx.fill();
+        } else {               // Abschnittsnummer
+          ctx.fillStyle = '#1d1442'; ctx.fillText('Abschnitt ' + (i + 1), sx + 12, cy - hh * 0.01, seg - 20);
+        }
+      }
+      // Heck
+      if (tail < W + 80) {
+        var fl = 0.7 + Math.random() * 0.3;
+        ctx.fillStyle = '#5c4fa8'; ctx.fillRect(tail - 6, top - 6, 18, hh + 12);
+        ctx.fillStyle = '#ff9a3c'; ctx.beginPath(); ctx.moveTo(tail + 12, top + 4); ctx.lineTo(tail + 12 + hh * 0.9 * fl, cy); ctx.lineTo(tail + 12, bot - 4); ctx.fill();
+        ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.moveTo(tail + 12, top + hh * 0.25); ctx.lineTo(tail + 12 + hh * 0.5 * fl, cy); ctx.lineTo(tail + 12, bot - hh * 0.25); ctx.fill();
+        if (sh.done) { ctx.fillStyle = '#1d1442'; ctx.fillText('Ende. Wirklich.', Math.max(hullStart + 6, tail - 110), cy - hh * 0.01); }
+      }
+    }
+    ctx.restore();
+  }
+
+  var lastCap = 0;
+  function updateShipCap(now) {
+    var cap = $('shipcap'), sh = S.ship;
+    if (!sh) { cap.textContent = S.maxStage >= 0 ? 'Das Schiff ist durch. Endlich. Freie Sicht.' : 'Funkstille. Kein Schiff in Sicht.'; return; }
+    if (!sh.done) { cap.textContent = W < 600 ? 'MS Nimmerende · ' + fmtMB(S.mb) + ' lang, wächst noch' : 'Überholt uns gerade: die MS Nimmerende · Länge ' + fmtMB(S.mb) + ' und sie wächst noch'; return; }
+    var tail = shipNose(sh, now) + sh.len, rest = Math.max(0, (tail + 60) / (W * 0.008));
+    cap.textContent = (W < 600 ? 'MS Nimmerende · ' + fmtMB(S.mb) + ' · Heck in ca. ' : 'MS Nimmerende · Länge ' + fmtMB(S.mb) + ' · Heck in Sicht in ca. ') + (rest > 90 ? Math.round(rest / 60) + ' min' : Math.round(rest) + ' s');
+  }
+
+  // Herumfliegende Gegenstände beim Bremsen
+  function spawnDebris(now) {
+    if (reduced) return;
+    var kinds = ['donut', 'socke', 'zettel', 'schraube', 'zettel', 'donut'];
+    S.debris = [];
+    for (var i = 0; i < kinds.length; i++) {
+      S.debris.push({ k: kinds[i], x: W * (0.12 + 0.76 * (i / (kinds.length - 1))), t0: now + i * 60, rot: Math.random() * 6 - 3, s: 26 + Math.random() * 14 });
+    }
+  }
+  function drawDebris(now) {
+    var alive = [];
+    for (var i = 0; i < S.debris.length; i++) {
+      var d = S.debris[i], p = (now - d.t0) / 900;
+      if (p < 0) { alive.push(d); continue; }
+      if (p > 1) continue;
+      alive.push(d);
+      var e = 1 - Math.pow(1 - p, 2), x = d.x + (W / 2 - d.x) * e * 0.8, y = H + 20 - (H * 0.62) * e - Math.sin(p * Math.PI) * H * 0.12;
+      var s = d.s * (1 - 0.6 * e);
+      ctx.save(); ctx.translate(x, y); ctx.rotate(d.rot * p * 3); ctx.globalAlpha = p > 0.8 ? (1 - p) * 5 : 1;
+      if (d.k === 'donut') {
+        ctx.fillStyle = '#e0a060'; ctx.beginPath(); ctx.arc(0, 0, s / 2, 0, 6.3); ctx.fill();
+        ctx.fillStyle = '#ff5fb4'; ctx.beginPath(); ctx.arc(0, 0, s / 2.4, 0, 6.3); ctx.fill();
+        ctx.fillStyle = '#050414'; ctx.beginPath(); ctx.arc(0, 0, s / 6, 0, 6.3); ctx.fill();
+      } else if (d.k === 'socke') {
+        ctx.fillStyle = '#8df25c'; ctx.fillRect(-s / 5, -s / 2, s / 2.5, s * 0.7); ctx.fillRect(-s / 5, s * 0.1, s * 0.6, s / 3);
+        ctx.fillStyle = '#ff4b3a'; ctx.fillRect(-s / 5, -s / 2, s / 2.5, s / 8);
+      } else if (d.k === 'zettel') {
+        ctx.fillStyle = '#fff8d0'; ctx.fillRect(-s / 2, -s / 2.6, s, s / 1.3);
+        ctx.fillStyle = '#9b90d4'; for (var l = 0; l < 3; l++) ctx.fillRect(-s / 2.6, -s / 4 + l * s / 6, s * 0.7, 1.5);
+      } else {
+        ctx.fillStyle = '#c9c4e6'; ctx.fillRect(-s / 2, -s / 10, s, s / 5); ctx.fillRect(s / 3, -s / 4, s / 6, s / 2);
+      }
+      ctx.restore();
+    }
+    S.debris = alive;
+  }
+
+  var lastT = 0, lastDraw = 0, lastUi = 0;
+  function frame(now) {
+    requestAnimationFrame(frame);
+    if (document.hidden) { lastT = now; return; }
+    var busy = S.running || S.brake > now || S.debris.length;
+    var minGap = reduced ? 250 : (busy ? 0 : 40);
+    if (now - lastDraw < minGap) return;
+    lastDraw = now;
+    var dt = Math.min(0.1, (now - (lastT || now)) / 1000); lastT = now;
+
+    // weiche Nachführung des Live-Werts zwischen den 200-ms-Meldungen
+    S.shown += (S.target - S.shown) * (1 - Math.exp(-dt * 5));
+    if (Math.abs(S.target - S.shown) < 0.05) S.shown = S.target;
+    var transfer = S.running && (S.phase === 'download' || S.phase === 'upload');
+    var pos = transfer ? leverPos(S.shown) : 0, st = transfer ? stageOf(S.shown) : -1;
+    var braking = S.brake > now;
+
+    // Sterne / Hyperraum / Schottenkaro
+    var absurd = st === 3 && !reduced;
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = absurd ? '#1a0610' : '#050414';
+    ctx.fillRect(0, 0, W, H);
+    if (absurd) { ctx.globalAlpha = 0.18; ctx.fillStyle = tartan; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+    var speed = braking ? -0.15 : (transfer ? 0.06 + Math.pow(pos, 1.6) * 1.5 : 0.025);
+    if (reduced) speed = 0.01;
+    var cx = W / 2, cy = H * 0.45, f = Math.max(W, H) * 0.6;
+    ctx.lineCap = 'round';
+    for (var i = 0; i < stars.length; i++) {
+      var s = stars[i], zp = s.z;
+      s.z -= speed * dt;
+      if (s.z <= 0.02 || s.z > 1.05) { stars[i] = s = newStar(false); if (speed < 0) s.z = 0.05; zp = s.z; continue; }
+      var x = cx + s.x / s.z * f * 0.5, y = cy + s.y / s.z * f * 0.5;
+      if (x < -50 || x > W + 50 || y < -50 || y > H + 50) { stars[i] = newStar(false); continue; }
+      var trail = Math.min(0.5, speed * (transfer ? 0.9 : 1.8) * (braking ? 0.1 : 1));
+      var zt = s.z + trail, px = cx + s.x / zt * f * 0.5, py = cy + s.y / zt * f * 0.5;
+      var b = Math.min(1, (1 - s.z) * 1.4);
+      if (absurd) {
+        ctx.strokeStyle = tartan; ctx.lineWidth = 3 + (1 - s.z) * 9; ctx.globalAlpha = 0.95;
+      } else if (st === 2) {
+        ctx.strokeStyle = 'hsl(' + ((s.h + now / 10) % 360) + ',95%,65%)'; ctx.lineWidth = 1 + (1 - s.z) * 3; ctx.globalAlpha = b;
+      } else if (st === 1) {
+        ctx.strokeStyle = '#9fe9ff'; ctx.lineWidth = 1 + (1 - s.z) * 2.2; ctx.globalAlpha = b;
+      } else {
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 0.8 + (1 - s.z) * 2; ctx.globalAlpha = b * 0.9;
+      }
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(x + 0.01, y); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    drawShip(now);
+    if (S.debris.length) drawDebris(now);
+
+    // DOM-Anzeigen höchstens 10-mal pro Sekunde
+    if (now - lastUi > 100) {
+      lastUi = now;
+      $('knob').style.top = (94 - pos * 88) + '%';
+      if (st !== S.stage) setStage(st);
+      if (transfer && S.target > 0) setBig(S.shown);
+      if (now - lastCap > 1000 || !S.ship || !S.ship.done) { if (now - lastCap > 500) { lastCap = now; updateShipCap(now); } }
+    }
+  }
+
+  // ---------- Anzeige ----------
+  var CUP_TXT = ['Steht ruhig. Noch.', 'Leichter Wellengang.', 'Schwappt bedenklich.', 'Kaffee im Orbit.', 'Kaffee hat uns überholt.'];
+  function setStage(st) {
+    S.stage = st;
+    var notches = document.querySelectorAll('.notch');
+    for (var i = 0; i < notches.length; i++) notches[i].classList.toggle('on', notches[i].classList.contains('s' + st));
+    $('stage').textContent = st < 0 ? (S.running ? 'Warmlaufen' : 'Parken') : STAGES[st];
+    $('alarm').hidden = st !== 3;
+    var cup = $('cup');
+    if (S.phase !== 'ping') { cup.classList.toggle('zit', st === 1 || st === 2); cup.classList.toggle('zit2', st === 3); }
+    if (st >= 0) $('cuptext').innerHTML = '<b>Kaffeetasse</b>' + CUP_TXT[st + 1];
+    if (st > S.maxStage) {
+      S.maxStage = st;
+      if (st >= 1) radio(['', 'Stufe Überlicht. Bitte die Sitzlehnen senkrecht stellen.', 'Stufe Wahnwitzig. Die Sterne werden bunt, das ist normal.',
+        'Stufe Absurd! Der Hyperraum ist jetzt kariert. Niemand weiß warum.'][st]);
+    }
+  }
+  function setBig(m) {
+    var s = E.fmtSpeed(m); $('big').textContent = s.v; $('unit').textContent = s.u;
+  }
+  var logN = 0;
+  function radio(html) {
+    var log = $('log'), li = document.createElement('li');
+    li.innerHTML = html; log.appendChild(li);
+    while (log.children.length > 6) log.removeChild(log.firstChild);
+  }
+  function blink() { var l = $('led'); l.classList.add('on'); setTimeout(function () { l.classList.remove('on'); }, 70); }
+  function readout(id, val, unit, sub) {
+    var r = $(id);
+    r.querySelector('.v').innerHTML = val + '<small>' + unit + '</small>';
+    if (sub !== undefined) r.querySelector('.s').textContent = sub;
+  }
+  function coreText(r) { return r.core === null || r.core === undefined ? 'Router-CPU: keine Angabe' : 'Router-CPU stärkster Kern ' + Math.round(r.core) + ' %'; }
+
+  var PIEPS = ['Hier Bordküche: Der Toaster meldet Überlicht.', 'Bitte nicht den roten Knopf drücken. Den anderen roten.',
+    'Hat jemand die Handbremse gesehen? Fragt für ein Raumschiff.', 'Router bestätigt: Paket kam an, nur leicht verbeult.',
+    'Der Flugschreiber schreibt mit. Mit Füller.', 'Wir haben Kontakt! Es ist der Router. Er ist nett.',
+    'Bordcomputer bittet um Pause. Abgelehnt.', 'Die Rettungskapsel ist schon wieder vermietet.'];
+
+  // Einordnung nach Netzwerkklassen (Nettodurchsatz liegt ~6 % unter der Leitungsrate), mit Augenzwinkern
+  function verdict(dl) {
+    if (dl >= 4700) return ['Über 5 Gbit/s', 'Das schafft nur eine 10-GbE-Strecke.', 'Die Versicherung hat angerufen. Sie möchte nicht mehr.'];
+    if (dl >= 2000) return ['2,5 Gbit/s ausgeschöpft', 'Die 2,5-GbE-Verbindung läuft nahe am Maximum.', 'Stufe Absurd erreicht. Bitte die Frisur nach dem Flug neu sortieren.'];
+    if (dl >= 940) return ['Mehr als Gigabit', 'Schneller als 1 GbE, also 2,5 GbE oder schnelles WLAN.', 'Wahnwitzig schnell, und die Kaffeetasse hat trotzdem überlebt.'];
+    if (dl >= 600) return ['Gigabit-Klasse', 'Typisch für 1-GbE-Kabel oder gutes WLAN 6/7.', 'Solide Überlichtfahrt. Der Bordtoaster ist zufrieden.'];
+    if (dl >= 90) return ['Ordentlich', 'Typisch für WLAN mit Abstand oder 100-Mbit-Kabel.', 'Reisegeschwindigkeit. Genug Zeit für einen zweiten Kaffee.'];
+    return ['Langsam', 'Kabel, Port oder WLAN-Empfang prüfen.', 'Wir fliegen mit Lichtgeschwindigkeit. Die ist erstaunlich gemütlich.'];
+  }
+
+  // ---------- Ablauf ----------
+  var phaseName = { ping: 'Funkprobe läuft', download: 'Download · Schub vorwärts', upload: 'Upload · Schub rückwärts' };
+  var courseName = { ping: 'Funkkontakt', download: 'Download', upload: 'Upload' };
+  var who = '', info = null;
+  function setGo(state) {
+    var g = $('go');
+    g.classList.toggle('stop', state === 'stop');
+    g.textContent = state === 'stop' ? 'Stopp' : state === 'again' ? 'Neu messen' : 'Abheben';
+    g.setAttribute('aria-label', state === 'stop' ? 'Messung abbrechen' : 'Messung starten');
+  }
+  function onGo() { if (S.running) abort(); else start(); }
+
+  function start() {
+    var streams = +$('streams').value, duration = +$('duration').value, label = $('label').value.replace(/^\s+|\s+$/g, '');
+    try { localStorage.setItem('st-label', label); localStorage.setItem('st-streams', streams); localStorage.setItem('st-duration', duration); } catch (e) { }
+    $('result').hidden = true; $('result').classList.remove('show'); $('note').hidden = true;
+    readout('ro-ping', '–', 'ms'); readout('ro-jit', '–', 'ms');
+    readout('ro-dl', '–', 'Mbit/s', ''); readout('ro-ul', '–', 'Mbit/s', '');
+    S.running = true; S.target = 0; S.shown = 0; S.mb = 0; S.maxStage = -1; S.stage = -2; S.ship = null; S.debris = [];
+    who = label || (info && info.client_host) || '';
+    setGo('stop');
+    $('big').textContent = '…'; $('unit').textContent = 'ms'; $('big').className = 'big';
+    $('sub').textContent = 'Kaffee festhalten.';
+    $('log').innerHTML = ''; logN = 0;
+    radio('Funk: Hier Brücke. Wir rufen den Router.');
+    var res = {};
+    E.run({ streams: streams, duration: duration, label: label }, {
+      phase: function (p) {
+        S.phase = p; S.kind = p;
+        $('phase').textContent = phaseName[p];
+        $('course').textContent = courseName[p];
+        ['ro-ping', 'ro-dl', 'ro-ul'].forEach(function (id) { $(id).classList.remove('on'); });
+        $({ ping: 'ro-ping', download: 'ro-dl', upload: 'ro-ul' }[p]).classList.add('on');
+        var cup = $('cup');
+        cup.classList.remove('zit', 'zit2');
+        if (p === 'ping') { cup.classList.add('zit'); $('cuptext').innerHTML = '<b>Kaffeetasse</b>Zittert bei jedem Piep.'; }
+        else {
+          S.target = 0; S.shown = 0; S.peakSoFar = 0;
+          $('big').textContent = '…'; $('unit').textContent = 'Mbit/s';
+          $('big').className = p === 'upload' ? 'big up' : 'big';
+          $('sub').textContent = 'Triebwerke laufen an …';
+          if (p === 'download') { S.ship = newShip(performance.now()); radio('Funk: Achtung, ein sehr langes Schiff überholt uns. Sehr. Lang.'); }
+          else radio('Funk: Wende! Jetzt schieben wir Daten zum Router.');
+        }
+      },
+      pingSample: function (ms, i, count) {
+        blink();
+        $('big').textContent = E.fmt(ms, 1); $('unit').textContent = 'ms';
+        $('sub').innerHTML = 'Funkprobe <b>' + (i + 1) + '</b> von ' + count;
+        var c = $('coffee'); c.setAttribute('ry', 2 + Math.random() * 4);
+        if (i % 5 === 0) radio('<em>Piep ' + E.fmt(ms, 1) + ' ms</em> · ' + PIEPS[(logN++) % PIEPS.length]);
+      },
+      ping: function (p, j) {
+        readout('ro-ping', E.fmt(p, p < 10 ? 1 : 0), 'ms');
+        readout('ro-jit', E.fmt(j, 1), 'ms');
+        $('cup').classList.remove('zit'); $('coffee').setAttribute('ry', 4);
+        radio('Funk: Ping <em>' + E.fmt(p, 1) + ' ms</em>, Jitter <em>' + E.fmt(j, 1) + ' ms</em>. ' + (j < 2 ? 'Kaffee bleibt in der Tasse.' : 'Kaffee schwappt etwas.'));
+      },
+      live: function (kind, m) {
+        if (m === null) return;
+        S.target = m;
+        S.mb += m * 0.2 / 8;
+        $('moved').textContent = fmtMB(S.mb);
+        if (m > S.peakSoFar) S.peakSoFar = m;
+        var pk = E.fmtSpeed(S.peakSoFar);
+        $('sub').innerHTML = 'Spitze bisher <b>' + pk.v + ' ' + pk.u + '</b>';
+      },
+      result: function (kind, r) {
+        res[kind] = r;
+        var s = E.fmtSpeed(r.peak), a = E.fmtSpeed(r.avg);
+        readout(kind === 'download' ? 'ro-dl' : 'ro-ul', s.v, s.u, 'Ø ' + a.v + ' ' + a.u + ' · Kern ' + (r.core === null ? '–' : Math.round(r.core) + ' %'));
+      },
+      done: function () { S.running = false; finish(res); },
+      error: function (msg) { stopUi(); $('phase').textContent = msg; radio('Funk: ' + msg); }
+    });
+  }
+  function stopUi() {
+    S.running = false; S.phase = null; S.target = 0; S.shown = 0;
+    if (S.ship) S.ship.done = true;
+    setGo('again');
+    $('cup').classList.remove('zit', 'zit2');
+    $('alarm').hidden = true; $('course').textContent = 'Parkposition';
+    ['ro-ping', 'ro-dl', 'ro-ul'].forEach(function (id) { $(id).classList.remove('on'); });
+  }
+  function abort() {
+    E.stop(); stopUi();
+    $('phase').textContent = 'Abgebrochen';
+    $('big').textContent = '0'; $('unit').textContent = 'Mbit/s';
+    $('sub').textContent = 'Abgebrochen. Nichts gespeichert.';
+    radio('Funk: Abgebrochen. Wir parken in zweiter Reihe.');
+  }
+  // Bremsmanöver, dann die Packung
+  function finish(res) {
+    var now = performance.now();
+    stopUi();
+    $('phase').textContent = 'Bremsmanöver!';
+    $('sub').textContent = 'Alles festhalten!';
+    if (S.ship) S.ship.jolt = -W * 0.05;
+    S.brake = now + 900;
+    spawnDebris(now);
+    document.body.classList.add('brake');
+    var cup = $('cup'); cup.classList.add('tip');
+    radio('Funk: Vollbremsung! Wer hat die Donuts nicht festgeschnallt?');
+    setTimeout(function () {
+      document.body.classList.remove('brake'); cup.classList.remove('tip');
+      $('phase').textContent = 'Gelandet';
+      $('big').textContent = E.fmtSpeed(res.download.peak).v; $('unit').textContent = E.fmtSpeed(res.download.peak).u + ' Download-Spitze';
+      $('big').className = 'big';
+      $('sub').textContent = 'Ergebnis liegt verpackt bereit.';
+      $('cuptext').innerHTML = '<b>Kaffeetasse</b>Steht wieder. Leicht verschüttet.';
+      showResult(res);
+      E.history(renderHistory);
+    }, 950);
+  }
+  function showResult(res) {
+    var d = res.download, u = res.upload, sd = E.fmtSpeed(d.peak), su = E.fmtSpeed(u.peak), ad = E.fmtSpeed(d.avg), au = E.fmtSpeed(u.avg);
+    $('r-dl').innerHTML = sd.v + '<small>' + sd.u + '</small>';
+    $('r-ul').innerHTML = su.v + '<small>' + su.u + '</small>';
+    $('r-dl-s').innerHTML = 'Ø <b>' + ad.v + ' ' + ad.u + '</b> · ' + coreText(d);
+    $('r-ul-s').innerHTML = 'Ø <b>' + au.v + ' ' + au.u + '</b> · ' + coreText(u);
+    var pv = $('ro-ping').querySelector('.v').innerHTML, jv = $('ro-jit').querySelector('.v').innerHTML;
+    $('r-ping').innerHTML = pv; $('r-jit').innerHTML = jv;
+    $('r-stage').textContent = S.maxStage >= 0 ? STAGES[S.maxStage] : '–';
+    $('r-bytes').textContent = fmtMB(S.mb);
+    $('r-who').textContent = (who ? who + ' · ' : '') + (info ? info.hostname : '');
+    $('r-tag').textContent = 'Gemessen mit ' + $('streams').value + ' Verbindungen und ' + $('duration').value + ' s Schub pro Richtung.';
+    var v = verdict(d.peak);
+    $('verdict').textContent = v[0]; $('verdict-s').textContent = v[1]; $('verdict-w').textContent = v[2];
+    var core = Math.max(d.core || 0, u.core || 0);
+    if (core >= 90) {
+      $('note').textContent = 'Achtung, Bremsklotz an Bord: Ein Prozessorkern des Routers lief bei ' + Math.round(core) + ' %. Das Ergebnis zeigt eher die Grenze des Routers als die des Netzes.';
+      $('note').hidden = false;
+    }
+    var code = String(Math.round(d.peak)) + String(Math.round(u.peak));
+    $('r-code').textContent = '4 006 ' + (code + '000000').slice(0, 3) + ' ' + (code + '000000').slice(3, 6);
+    $('result').hidden = false;
+    $('result').classList.add('show');
+    try { $('result').scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' }); } catch (e) { $('result').scrollIntoView(); }
+  }
+
+  // ---------- Sammelkarten ----------
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function n0(v) { return v === null || v === undefined ? '–' : E.fmt(v, 0); }
+  var RAR = [['Gewöhnlich', '#9b90d4', 'Licht'], ['Selten', '#39e1ff', 'Überlicht'], ['Episch', '#ff5fb4', 'Wahnwitzig'], ['Holo-Absurd', '#ffd23f', 'Absurd']];
+  var ART = ['linear-gradient(90deg,#0b0920,#2a2366)', 'linear-gradient(90deg,#0b2040,#2a8fbf)', 'linear-gradient(90deg,#ff5fb4,#ffd23f,#8df25c,#39e1ff)',
+    'repeating-linear-gradient(0deg,rgba(20,48,107,.7) 0 8px,transparent 8px 14px,rgba(255,210,63,.8) 14px 16px,transparent 16px 24px),repeating-linear-gradient(90deg,rgba(20,48,107,.7) 0 8px,transparent 8px 14px,rgba(255,210,63,.8) 14px 16px,transparent 16px 24px),#b3172b'];
+  function renderHistory(h) {
+    if (!h.length) { $('history').innerHTML = '<div class="empty">Noch keine Karten. Das Album ist traurig.</div>'; return; }
+    var html = '<div class="cards">';
+    for (var i = h.length - 1; i >= 0; i--) {
+      var e = h[i], d = new Date(e.ts * 1000);
+      var when = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '. ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+      var pk = e.dl_peak !== null && e.dl_peak !== undefined ? e.dl_peak : (e.dl || 0), st = stageOf(pk), r = RAR[st];
+      var name = esc(e.label || e.host || e.ip || 'Unbekannt'), sub = e.label && e.host ? esc(e.host) : esc(e.ip || '');
+      html += '<article class="card r' + st + '" style="--rar:' + r[1] + '"><div class="card-in">' +
+        '<div class="top"><span>Nr. ' + ('00' + (i + 1)).slice(-3) + '</span><span class="rar">' + r[0] + '</span></div>' +
+        '<div class="name" title="' + name + '">' + name + '<small>' + (sub ? sub + ' · ' : '') + when + '</small></div>' +
+        '<div class="art" style="background:' + ART[st] + '"><span>' + r[2] + '</span></div>' +
+        '<dl class="stats"><dt>Ping</dt><dd>' + (e.ping === null || e.ping === undefined ? '–' : E.fmt(e.ping, 1)) + ' <small>ms</small></dd>' +
+        '<dt>Down</dt><dd class="d">' + n0(pk) + ' <small>/ Ø ' + n0(e.dl) + '</small></dd>' +
+        '<dt>Up</dt><dd class="u">' + n0(e.ul_peak !== null && e.ul_peak !== undefined ? e.ul_peak : e.ul) + ' <small>/ Ø ' + n0(e.ul) + '</small></dd>' +
+        '<dt>Verb.</dt><dd>' + (e.streams || '–') + '</dd></dl><div class="leg">Mbit/s · Spitze / Ø</div>' +
+        '</div></article>';
+    }
+    $('history').innerHTML = html + '</div>';
+  }
+  function loadHistory() { E.history(renderHistory); }
+  function clearAsk() {
+    $('clear-wrap').innerHTML = '<span class="confirm">Wirklich alle Karten wegwerfen? <button class="btn yes" id="yes">Ja, weg damit</button><button class="btn" id="no">Nein</button></span>';
+    $('no').focus();
+    $('yes').onclick = function () { E.clearHistory(function () { loadHistory(); clearReset(); }); };
+    $('no').onclick = clearReset;
+  }
+  function clearReset() { $('clear-wrap').innerHTML = '<button class="btn" id="clear">Sammlung wegwerfen</button>'; $('clear').onclick = clearAsk; }
+  $('clear').onclick = clearAsk;
+
+  $('go').onclick = onGo;
+  $('again').onclick = function () {
+    try { window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
+    if (!S.running) start();
+  };
+
+  try {
+    var l = localStorage.getItem('st-label'), s = localStorage.getItem('st-streams'), d = localStorage.getItem('st-duration');
+    if (l) $('label').value = l; if (s) $('streams').value = s; if (d) $('duration').value = d;
+  } catch (e) { }
+
+  resize();
+  setStage(-1);
+  requestAnimationFrame(frame);
+
+  E.init(function (i) {
+    info = i;
+    $('who').innerHTML = 'Router <b>' + esc(i.hostname) + '</b>' + (i.model ? ' · ' + esc(i.model) : '') + ' · ' + i.cores + ' Kerne · Du: ' +
+      esc(i.client_host ? i.client_host + ' (' + i.client_ip + ')' : i.client_ip) + (i.demo ? ' <span class="demo">Demo</span>' : '');
+    $('go').disabled = false;
+    loadHistory();
+  });
+})();
+</script>
+</body>
+</html>

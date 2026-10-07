@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Speedtest Statusseite</title>
+<style>
+/* Layout: wie eine Seite der Router-Oberfläche LuCI (Theme Bootstrap). Dunkle Kopfleiste mit Logo und Menü,
+   darunter Abschnitte mit Formularzeilen, Echtzeit-Diagramm, Ergebnistabelle, CPU-Balken und Verlauf.
+   Das OpenWrt-Logo wird zur Laufzeit von LuCI auf dem Router geladen und liegt nicht im Repo.
+   Hell und dunkel wie LuCI. Nur Systemschriften wie LuCI selbst. */
+:root {
+  --bg: #ffffff;
+  --bg-low: #f5f5f5;        /* Tabellenkopf, Zebra */
+  --text: #404040;
+  --text-high: #000000;
+  --text-low: #808080;
+  --border: #dddddd;
+  --primary: #1976d2;       /* LuCI Primärblau */
+  --primary-low: #0d46a1;
+  --success: #00ac59;
+  --success-low: #007936;
+  --error: #e8210d;
+  --warn: #efbd0b;
+  --rx: #1564c0;            /* Eingehend (Download) */
+  --tx: #00a050;            /* Ausgehend (Upload) */
+  --head-a: #333333; --head-b: #222222; --head-text: #bfbfbf;
+  --f-sans: "Helvetica Neue", Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
+  --f-mono: Monaco, "Andale Mono", "Courier New", ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #222222; --bg-low: #2b2b2b; --text: #d9d9d9; --text-high: #ffffff; --text-low: #9a9a9a; --border: #3d3d3d;
+  --primary: #4da1c0; --primary-low: #3c7a8d; --success: #2fae6b; --success-low: #23874f; --error: #d15653; --warn: #e2b53a;
+  --rx: #4da1c0; --tx: #3fc27c; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #222222; --bg-low: #2b2b2b; --text: #d9d9d9; --text-high: #ffffff; --text-low: #9a9a9a; --border: #3d3d3d;
+  --primary: #4da1c0; --primary-low: #3c7a8d; --success: #2fae6b; --success-low: #23874f; --error: #d15653; --warn: #e2b53a;
+  --rx: #4da1c0; --tx: #3fc27c; color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { background: var(--bg); color: var(--text); }
+body { margin: 0; font: 13px/18px var(--f-sans); }
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+header { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; background: linear-gradient(var(--head-a), var(--head-b)); color: var(--head-text);
+  box-shadow: 0 1px 3px rgba(0,0,0,.25); display: flex; align-items: stretch; flex-wrap: wrap; padding: 0 16px; }
+.brand { display: flex; align-items: center; gap: 10px; color: #fff; font-size: 20px; font-weight: 200; padding: 6px 18px 6px 0; }
+.brand img { width: 28px; height: 28px; border-radius: 3px; display: block; }
+.brand:hover { text-decoration: none; }
+nav { display: flex; flex-wrap: wrap; }
+nav a { color: var(--head-text); padding: 11px 12px; display: block; }
+nav a:hover, nav a.active { background: rgba(255,255,255,.07); color: #fff; text-decoration: none; }
+.ind { margin-left: auto; align-self: center; display: flex; gap: 6px; padding: 6px 0; }
+.ind span { font-size: 11px; line-height: 16px; padding: 1px 7px; border-radius: 3px; background: #555; color: #fff; }
+.ind span.active { background: var(--success); }
+.ind span.demo { background: #7e57c2; }
+
+#maincontent { max-width: 1180px; margin: 0 auto; padding: 18px 16px 30px; display: grid; gap: 22px; }
+#maincontent > * { min-width: 0; }
+h2 { margin: 0; font-size: 24px; line-height: 36px; font-weight: bold; color: var(--text-high); }
+.descr { margin: -14px 0 0; color: var(--text); }
+.cbi-section { display: grid; gap: 10px; }
+.cbi-section h3 { margin: 0; font-size: 18px; line-height: 27px; font-weight: bold; color: var(--text-high); border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+
+/* Formularzeilen wie cbi-value */
+.cbi-value { display: grid; grid-template-columns: minmax(120px, 180px) minmax(0, 1fr); gap: 4px 20px; align-items: center; padding: 4px 0; }
+.cbi-value label { text-align: right; color: var(--text-high); }
+.cbi-value .help { grid-column: 2; color: var(--text-low); font-size: 12px; }
+select, input { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 3px; padding: 5px 6px; height: 30px; }
+input { width: 16em; max-width: 100%; }
+select:focus-visible, input:focus-visible, .cbi-button:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; padding: 10px; background: var(--bg-low); border: 1px solid var(--border); border-radius: 3px; }
+.cbi-button { font: 13px/18px var(--f-sans); padding: 5px 14px; border-radius: 3px; border: 1px solid var(--border); background: linear-gradient(var(--bg), var(--bg-low)); color: var(--text-high); cursor: pointer; }
+.cbi-button:disabled { opacity: .7; cursor: default; }
+.cbi-button-positive.important { color: #fff; background: linear-gradient(var(--success), var(--success-low)); border-color: var(--success); }
+.cbi-button-negative { color: var(--error); border-color: var(--error); }
+.cbi-button-action { color: var(--primary); border-color: var(--primary); }
+
+/* Tabellen wie LuCI */
+.tbl { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 8px; border-top: 1px solid var(--border); text-align: left; vertical-align: top; }
+th { color: var(--text-high); font-weight: bold; background: var(--bg-low); }
+table.kv td:first-child { width: 33%; color: var(--text-high); }
+tr:nth-child(even) td { background: color-mix(in srgb, var(--bg-low) 60%, transparent); }
+td.num, th.num { text-align: right; white-space: nowrap; }
+td small { color: var(--text-low); }
+.rx { color: var(--rx); } .tx { color: var(--tx); }
+.nowrap { white-space: nowrap; }
+
+/* Echtzeit-Diagramm */
+.graph { position: relative; border: 1px solid var(--border); border-radius: 3px; background: var(--bg); }
+.graph svg { display: block; width: 100%; height: 300px; }
+.graph .lbl { position: absolute; left: 4px; font-size: 11px; line-height: 13px; color: var(--text-low); pointer-events: none; }
+.graph .res { position: absolute; right: 6px; bottom: 4px; font-size: 11px; color: var(--text-low); }
+
+/* CPU-Balken wie cbi-progressbar */
+.cores { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 6px 20px; }
+.cbi-progressbar { border: 1px solid var(--border); border-radius: 3px; position: relative; height: 8px; margin: 1.5em 0 4px; }
+.cbi-progressbar > div { height: 100%; width: 0; border-radius: 2px; background: var(--primary); transition: width .25s ease-in; }
+.cbi-progressbar.hot > div { background: var(--error); }
+.cbi-progressbar::before { position: absolute; top: -1.5em; left: 0; content: attr(title); white-space: pre; color: var(--text); }
+.alert { border: 1px solid var(--warn); background: color-mix(in srgb, var(--warn) 15%, transparent); border-radius: 3px; padding: 8px 12px; color: var(--text-high); }
+.spinning::before { content: ""; display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px; border: 2px solid var(--text-low); border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinning::before { animation: none; } }
+footer { max-width: 1180px; margin: 0 auto; padding: 0 16px 24px; color: var(--text-low); font-size: 12px; text-align: right; }
+
+@media (max-width: 640px) {
+  .cbi-value { grid-template-columns: minmax(0, 1fr); }
+  .cbi-value label { text-align: left; }
+  .cbi-value .help { grid-column: 1; }
+  .graph svg { height: 220px; }
+  nav a { padding: 8px 10px; }
+  .ind { margin-left: 0; width: 100%; padding-bottom: 8px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="/cgi-bin/luci/" id="brand"><img id="logo" alt="" hidden><span id="host">OpenWrt</span></a>
+  <nav>
+    <a href="/cgi-bin/luci/admin/status/overview">Status</a>
+    <a href="/cgi-bin/luci/admin/system/system">System</a>
+    <a href="/cgi-bin/luci/admin/network/network">Netzwerk</a>
+    <a href="#" class="active">Speedtest</a>
+  </nav>
+  <div class="ind"><span id="ind">Verbinde …</span><span class="demo" id="ind-demo" hidden>Demo</span></div>
+</header>
+
+<div id="maincontent">
+  <h2>Speedtest</h2>
+  <p class="descr">Misst die Strecke zwischen diesem Gerät und dem Router im lokalen Netz. Die Internetleitung ist nicht beteiligt.</p>
+
+  <div class="cbi-section">
+    <h3>Messung</h3>
+    <div class="cbi-value"><label for="streams">Verbindungen</label>
+      <div><select id="streams"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select></div>
+      <div class="help">Parallele TCP-Verbindungen. 4 reicht meist für die volle Leistung.</div></div>
+    <div class="cbi-value"><label for="duration">Dauer je Richtung</label>
+      <div><select id="duration"><option value="5">5 Sekunden</option><option value="10" selected>10 Sekunden</option><option value="20">20 Sekunden</option></select></div></div>
+    <div class="cbi-value"><label for="label">Gerätename</label>
+      <div><input id="label" maxlength="40" placeholder="z. B. Laptop WLAN"></div>
+      <div class="help">Erscheint im Verlauf neben dem Hostnamen aus der DHCP-Liste.</div></div>
+    <div class="actions">
+      <span id="state" style="margin-right:auto;align-self:center"></span>
+      <button class="cbi-button cbi-button-negative" id="stop" hidden>Stopp</button>
+      <button class="cbi-button cbi-button-positive important" id="go" disabled>Messung starten</button>
+    </div>
+  </div>
+
+  <div class="cbi-section">
+    <h3>Echtzeit-Diagramm</h3>
+    <div class="graph"><svg id="graph" viewBox="0 0 800 300" preserveAspectRatio="none" aria-label="Durchsatz über die Zeit"></svg><div id="lbls"></div><span class="res">Auflösung 0,2 s, gleitende 1-s-Mittel</span></div>
+    <div class="tbl"><table>
+      <tr><th></th><th class="num">Aktuell</th><th class="num">Durchschnitt</th><th class="num">Spitze</th></tr>
+      <tr><td class="nowrap"><b class="rx">Download</b> <small>(Router → Gerät)</small></td><td class="num" id="rx-cur">–</td><td class="num" id="rx-avg">–</td><td class="num" id="rx-peak">–</td></tr>
+      <tr><td class="nowrap"><b class="tx">Upload</b> <small>(Gerät → Router)</small></td><td class="num" id="tx-cur">–</td><td class="num" id="tx-avg">–</td><td class="num" id="tx-peak">–</td></tr>
+    </table></div>
+  </div>
+
+  <div class="cbi-section">
+    <h3>Übersicht</h3>
+    <div class="tbl"><table class="kv">
+      <tr><td>Router</td><td id="o-router">–</td></tr>
+      <tr><td>Gerät</td><td id="o-dev">–</td></tr>
+      <tr><td>Verbindung</td><td id="o-link">–</td></tr>
+      <tr><td>Ping / Jitter</td><td id="o-ping">–</td></tr>
+      <tr><td>Download (Spitze / Ø)</td><td id="o-dl">–</td></tr>
+      <tr><td>Upload (Spitze / Ø)</td><td id="o-ul">–</td></tr>
+    </table></div>
+    <div class="alert" id="alert" hidden></div>
+  </div>
+
+  <div class="cbi-section">
+    <h3>Prozessorlast während der Messung</h3>
+    <div class="cores" id="cores"><div class="help" style="color:var(--text-low)">Wird nach Download und Upload aus /proc/stat gelesen.</div></div>
+  </div>
+
+  <div class="cbi-section">
+    <h3>Verlauf</h3>
+    <div class="tbl" id="history"><p style="color:var(--text-low)">Noch keine Messungen.</p></div>
+    <div class="actions" id="clear-wrap"><button class="cbi-button cbi-button-negative" id="clear">Verlauf löschen</button></div>
+  </div>
+</div>
+<footer>Speedtest für OpenWrt · Testdaten und Verlauf liegen nur im RAM des Routers</footer>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.SpeedEngine, $ = function (id) { return document.getElementById(id); };
+  var NS = 'http://www.w3.org/2000/svg';
+  var info = null, link = null, series = { download: [], upload: [] }, phase = null, cores = {};
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function spd(m) { var s = E.fmtSpeed(m); return s.v + ' ' + s.u; }
+
+  // ---------- Logo: kommt aus LuCI auf dem Router, je nach installiertem Theme ----------
+  (function logo() {
+    var paths = ['/luci-static/bootstrap/logo.svg', '/luci-static/material/logo.svg', '/luci-static/openwrt2020/logo.svg', '/luci-static/bootstrap/logo_48.png'];
+    var img = $('logo'), i = 0;
+    img.onload = function () { img.hidden = false; };
+    img.onerror = function () { if (++i < paths.length) img.src = paths[i]; };
+    img.src = paths[0];
+  })();
+
+  // ---------- Echtzeit-Diagramm wie unter Status → Echtzeit-Diagramme ----------
+  var G = $('graph'), GW = 800, GH = 300;
+  function el(tag, a, parent) { var e = document.createElementNS(NS, tag); for (var k in a) e.setAttribute(k, a[k]); (parent || G).appendChild(e); return e; }
+  function niceMax(v) { var p = Math.pow(10, Math.floor(Math.log(v) / Math.LN10)), m = v / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p; }
+  function draw() {
+    while (G.firstChild) G.removeChild(G.firstChild);
+    var all = series.download.concat(series.upload), max = 100;
+    all.forEach(function (v) { if (v > max) max = v; });
+    max = niceMax(max * 1.1);
+    var n = Math.max(series.download.length, series.upload.length, 50), lbl = '';
+    for (var g = 1; g <= 4; g++) {
+      var y = GH - GH * g / 4;
+      el('line', { x1: 0, x2: GW, y1: y, y2: y, stroke: 'var(--border)', 'stroke-width': 1, 'vector-effect': 'non-scaling-stroke' });
+      lbl += '<span class="lbl" style="top:calc(' + (100 - 25 * g) + '% + 2px)">' + spd(max * g / 4) + '</span>';
+    }
+    $('lbls').innerHTML = lbl;
+    [['download', 'var(--rx)'], ['upload', 'var(--tx)']].forEach(function (k) {
+      var s = series[k[0]]; if (!s.length) return;
+      var pts = s.map(function (v, i) { return (GW * i / (n - 1)).toFixed(1) + ',' + (GH - GH * v / max).toFixed(1); });
+      el('path', { d: 'M0,' + GH + ' L' + pts.join(' L') + ' L' + (GW * (s.length - 1) / (n - 1)).toFixed(1) + ',' + GH + ' Z', fill: k[1], 'fill-opacity': .15 });
+      el('path', { d: 'M' + pts.join(' L'), fill: 'none', stroke: k[1], 'stroke-width': 2, 'vector-effect': 'non-scaling-stroke' });
+    });
+  }
+  function stats(kind) {
+    var s = series[kind], pre = kind === 'download' ? 'rx' : 'tx';
+    if (!s.length) { ['cur', 'avg', 'peak'].forEach(function (k) { $(pre + '-' + k).textContent = '–'; }); return; }
+    var sum = 0, peak = 0; s.forEach(function (v) { sum += v; if (v > peak) peak = v; });
+    $(pre + '-cur').textContent = spd(s[s.length - 1]); $(pre + '-avg').textContent = spd(sum / s.length); $(pre + '-peak').textContent = spd(peak);
+  }
+
+  // ---------- Übersicht und CPU ----------
+  function linkText() {
+    if (!link) return 'unbekannt';
+    if (link.type === 'wired') return 'Kabel, Port ' + (link.port || '?') + (link.speed ? ', ' + link.speed + ' Mbit/s' : '') + (link.duplex ? ', ' + (link.duplex === 'full' ? 'Vollduplex' : link.duplex) : '');
+    var w = link.wifi || {};
+    return 'WLAN ' + (link.port || '') + [w.ssid ? '„' + w.ssid + '“' : '', w.band ? w.band.replace('.', ',') + ' GHz' : '', w.channel ? 'Kanal ' + w.channel : '', w.width ? w.width + ' MHz' : '',
+      w.standard ? 'Wi-Fi ' + w.standard : '', w.signal ? w.signal + ' dBm' : '', w.tx_rate ? 'Linkrate ' + Math.round(w.tx_rate) + ' Mbit/s' : ''].filter(Boolean).map(function (x) { return ', ' + x; }).join('');
+  }
+  function showCores() {
+    var d = cores.download && cores.download.cores, u = cores.upload && cores.upload.cores;
+    if (!d && !u) return;
+    var n = Math.max(d ? d.length : 0, u ? u.length : 0), html = '';
+    for (var i = 0; i < n; i++) {
+      var a = d ? d[i] : null, b = u ? u[i] : null, m = Math.max(a || 0, b || 0);
+      html += '<div class="cbi-progressbar' + (m >= 90 ? ' hot' : '') + '" title="Kern ' + (i + 1) + ': ↓ ' + (a === null ? '–' : Math.round(a) + ' %') + '   ↑ ' + (b === null || b === undefined ? '–' : Math.round(b) + ' %') + '"><div style="width:' + Math.round(m) + '%"></div></div>';
+    }
+    $('cores').innerHTML = html;
+  }
+
+  // ---------- Ablauf ----------
+  function mode(on) {
+    $('go').hidden = on; $('stop').hidden = !on;
+    $('ind').className = on ? 'active' : ''; $('ind').textContent = on ? 'Messung läuft' : 'Bereit';
+    if (!on) phase = null;
+  }
+  function state(text, spin) { $('state').textContent = text; $('state').className = spin ? 'spinning' : ''; }
+  function start() {
+    var streams = +$('streams').value, duration = +$('duration').value, label = $('label').value.replace(/^\s+|\s+$/g, '');
+    try { localStorage.setItem('st-label', label); localStorage.setItem('st-streams', streams); localStorage.setItem('st-duration', duration); } catch (e) { }
+    series = { download: [], upload: [] }; cores = {}; draw(); stats('download'); stats('upload');
+    ['o-ping', 'o-dl', 'o-ul'].forEach(function (id) { $(id).textContent = '–'; });
+    $('o-dev').textContent = (label ? label + ' · ' : '') + (info.client_host ? info.client_host + ' · ' : '') + info.client_ip;
+    $('alert').hidden = true;
+    $('cores').innerHTML = '<div style="color:var(--text-low)">Wird nach Download und Upload aus /proc/stat gelesen.</div>';
+    mode(true);
+    E.run({ streams: streams, duration: duration, label: label }, {
+      phase: function (p) { phase = p; state({ ping: 'Ping wird gemessen …', download: 'Download läuft …', upload: 'Upload läuft …' }[p], true); },
+      pingSample: function (ms, i, n) { state('Ping ' + (i + 1) + ' von ' + n + ': ' + E.fmt(ms, 1) + ' ms', true); },
+      ping: function (p, j) { $('o-ping').textContent = E.fmt(p, 1) + ' ms / ' + E.fmt(j, 1) + ' ms'; },
+      live: function (kind, m) { if (m === null) return; series[kind].push(m); draw(); stats(kind); },
+      result: function (kind, r) {
+        cores[kind] = r; showCores();
+        $(kind === 'download' ? 'o-dl' : 'o-ul').innerHTML = '<b class="' + (kind === 'download' ? 'rx' : 'tx') + '">' + spd(r.peak) + '</b> / ' + spd(r.avg);
+      },
+      done: function () {
+        mode(false); state('Messung abgeschlossen und im Verlauf gespeichert.');
+        var mc = Math.max(cores.download.core || 0, cores.upload.core || 0);
+        if (mc >= 90) { $('alert').textContent = 'Ein Prozessorkern war zu ' + Math.round(mc) + ' % ausgelastet. Das Ergebnis zeigt eher die Grenze des Routers als die des Netzes.'; $('alert').hidden = false; }
+        loadHistory();
+      },
+      error: function (msg) { mode(false); state(msg); }
+    });
+  }
+
+  // ---------- Verlauf ----------
+  function n0(v) { return v === null || v === undefined ? '–' : E.fmt(v, 0); }
+  function sp(peak, avg) { return peak === null || peak === undefined ? n0(avg) : n0(peak) + ' <small>/ ' + n0(avg) + '</small>'; }
+  function loadHistory() {
+    E.history(function (h) {
+      if (!h.length) { $('history').innerHTML = '<p style="color:var(--text-low)">Noch keine Messungen.</p>'; return; }
+      var rows = '';
+      for (var i = h.length - 1; i >= 0; i--) {
+        var e = h[i], d = new Date(e.ts * 1000);
+        var when = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '.' + d.getFullYear() + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        rows += '<tr><td class="nowrap">' + when + '</td><td>' + esc(e.label || '–') + '</td><td>' + esc(e.host || '?') + '</td><td>' + esc(e.ip || '') + '</td><td class="num">' + (e.ping === null ? '–' : E.fmt(e.ping, 1)) +
+          '</td><td class="num rx">' + sp(e.dl_peak, e.dl) + '</td><td class="num tx">' + sp(e.ul_peak, e.ul) + '</td><td class="num">' + (e.core_dl === null || e.core_dl === undefined ? '–' : e.core_dl + ' / ' + e.core_ul) + '</td><td class="num">' + (e.streams || '–') + '</td></tr>';
+      }
+      $('history').innerHTML = '<table><tr><th>Zeitpunkt</th><th>Name</th><th>Hostname</th><th>IPv4-Adresse</th><th class="num">Ping (ms)</th><th class="num">Download (Mbit/s)<br><small>Spitze / Ø</small></th><th class="num">Upload (Mbit/s)<br><small>Spitze / Ø</small></th><th class="num">Kern max (%)<br><small>↓ / ↑</small></th><th class="num">Verb.</th></tr>' + rows + '</table>';
+    });
+  }
+  function clearAsk() {
+    $('clear-wrap').innerHTML = '<span style="margin-right:auto;align-self:center">Wirklich alle Einträge löschen?</span><button class="cbi-button" id="no">Abbrechen</button><button class="cbi-button cbi-button-negative" id="yes">Löschen</button>';
+    $('yes').onclick = function () { E.clearHistory(function () { loadHistory(); clearReset(); }); };
+    $('no').onclick = clearReset;
+  }
+  function clearReset() { $('clear-wrap').innerHTML = '<button class="cbi-button cbi-button-negative" id="clear">Verlauf löschen</button>'; $('clear').onclick = clearAsk; }
+  $('clear').onclick = clearAsk;
+
+  $('go').onclick = start;
+  $('stop').onclick = function () { E.stop(); mode(false); state('Abgebrochen, nicht gespeichert.'); };
+
+  try {
+    var l = localStorage.getItem('st-label'), s = localStorage.getItem('st-streams'), d = localStorage.getItem('st-duration');
+    if (l) $('label').value = l; if (s) $('streams').value = s; if (d) $('duration').value = d;
+  } catch (e) { }
+
+  draw();
+  E.init(function (i) {
+    info = i;
+    $('host').textContent = i.hostname; document.title = i.hostname + ' - Speedtest';
+    $('ind-demo').hidden = !i.demo;
+    $('o-router').textContent = i.hostname + (i.model ? ' · ' + i.model : '') + ' · ' + i.cores + ' Kerne';
+    $('o-dev').textContent = (i.client_host ? i.client_host + ' · ' : '') + i.client_ip;
+    E.link(function (l) { link = l; $('o-link').textContent = linkText(); $('go').disabled = false; mode(false); });
+    loadHistory();
+  });
+})();
+</script>
+</body>
+</html>

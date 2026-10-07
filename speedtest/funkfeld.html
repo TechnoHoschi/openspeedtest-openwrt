@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Speedtest Funkfeld</title>
+<style>
+/* Layout: Ausbreitungsbild. Links das Funkfeld (Router sendet Wellen, das Gerät steht im Abstand nach Signalstärke),
+   rechts die Funkdaten, die der Router zum Gerät meldet. Nach der Messung ein Funkzeugnis mit Einordnung
+   in WLAN-Klassen, darunter der Verlauf. Nur Systemschriften. */
+:root {
+  --bg: #f1f5f7;           /* helles Himmelgrau */
+  --card: #ffffff;
+  --ink: #15232d;
+  --mute: #5a6b77;
+  --line: #d4dde3;
+  --b24: #c46a05;          /* 2,4 GHz: Bernstein */
+  --b5: #0b7f99;           /* 5 GHz: Petrol */
+  --b6: #6d3fd8;           /* 6 GHz: Violett */
+  --wire: #3b4a55;
+  --good: #2b8a3e; --ok: #b08900; --bad: #c62828;
+  --f-head: "Bahnschrift", "Segoe UI Variable Display", "Roboto Condensed", "Arial Narrow", sans-serif;
+  --f-body: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --f-mono: ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0c141a; --card: #121c23; --ink: #e1eaf0; --mute: #8fa2b0; --line: #22313b;
+  --b24: #f2a541; --b5: #3cc6e0; --b6: #a98bff; --wire: #9fb0bc; --good: #5cc879; --ok: #e6c14a; --bad: #ff6b6b; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0c141a; --card: #121c23; --ink: #e1eaf0; --mute: #8fa2b0; --line: #22313b;
+  --b24: #f2a541; --b5: #3cc6e0; --b6: #a98bff; --wire: #9fb0bc; --good: #5cc879; --ok: #e6c14a; --bad: #ff6b6b; color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { background: var(--bg); color: var(--ink); }
+body { margin: 0; font: 15px/1.5 var(--f-body); }
+main { max-width: 1080px; margin: 0 auto; padding: 20px 16px 40px; display: grid; gap: 18px; }
+main > * { min-width: 0; }
+header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 4px 16px; }
+h1 { margin: 0; font: 600 clamp(1.5rem, 4.5vw, 2.2rem)/1.05 var(--f-head); letter-spacing: -.01em; }
+h1 span { color: var(--accent, var(--b5)); }
+.meta { color: var(--mute); font: .82rem var(--f-mono); }
+.demo { color: var(--card); background: var(--b6); border-radius: 3px; padding: 0 6px; font: 600 .72rem var(--f-body); margin-left: 6px; }
+
+.top { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
+.field { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-height: 340px; }
+canvas { display: block; width: 100%; height: 100%; position: absolute; inset: 0; }
+.readout { position: absolute; left: 16px; bottom: 12px; display: grid; pointer-events: none; }
+.big { font: 600 clamp(2rem, 6vw, 3.2rem)/1 var(--f-head); font-variant-numeric: tabular-nums; }
+.big small { font: 500 .9rem var(--f-body); color: var(--mute); margin-left: 6px; }
+.phase { font: .76rem var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--mute); }
+
+.radio { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.radio h2 { margin: 0; font: 600 .82rem var(--f-head); letter-spacing: .12em; text-transform: uppercase; color: var(--mute); display: flex; justify-content: space-between; gap: 8px; }
+.radio h2 em { font-style: normal; font-family: var(--f-mono); letter-spacing: 0; text-transform: none; }
+.sig { display: flex; align-items: flex-end; gap: 12px; }
+.bars { display: flex; align-items: flex-end; gap: 3px; height: 34px; }
+.bars i { width: 7px; background: var(--line); border-radius: 1px; }
+.bars i.on { background: var(--accent, var(--b5)); }
+.sig b { font: 600 1.9rem/1 var(--f-head); font-variant-numeric: tabular-nums; }
+.sig b small { font: 500 .85rem var(--f-body); color: var(--mute); margin-left: 3px; }
+.sig span { color: var(--mute); font-size: .85rem; }
+dl.kv { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; font-size: .9rem; }
+dl.kv dt { color: var(--mute); }
+dl.kv dd { margin: 0; font: 600 .9rem var(--f-mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.src { font-size: .78rem; color: var(--mute); }
+
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+.go { font: 600 1rem var(--f-head); letter-spacing: .04em; color: #fff; background: var(--accent, var(--b5)); border: 0; border-radius: 999px; padding: 10px 26px; cursor: pointer; }
+.go:hover { filter: brightness(1.08); }
+.go:disabled { opacity: .5; cursor: default; }
+.btn { font: 600 .85rem var(--f-body); color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 6px 16px; cursor: pointer; }
+.btn:hover { border-color: var(--mute); }
+.btn.stop { color: var(--bad); border-color: var(--bad); }
+.go:focus-visible, .btn:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent, var(--b5)); outline-offset: 2px; }
+.opts { display: flex; flex-wrap: wrap; gap: 8px 16px; color: var(--mute); font-size: .85rem; }
+.opts label { display: flex; align-items: center; gap: 6px; }
+select, input { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+input { width: 10.5em; }
+
+/* Funkzeugnis */
+.report { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; display: grid; gap: 14px; }
+.report h2 { margin: 0; font: 600 1.35rem/1.15 var(--f-head); text-wrap: balance; }
+.grades { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.grade { border-top: 3px solid var(--line); padding-top: 6px; display: grid; gap: 1px; min-width: 0; }
+.grade small { color: var(--mute); font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; }
+.grade b { font: 600 1.45rem/1.15 var(--f-head); font-variant-numeric: tabular-nums; }
+.grade span { color: var(--mute); font-size: .82rem; }
+.grade.good { border-color: var(--good); } .grade.ok { border-color: var(--ok); } .grade.bad { border-color: var(--bad); }
+.classes { overflow-x: auto; }
+.classes table { width: 100%; border-collapse: collapse; font-size: .86rem; font-variant-numeric: tabular-nums; }
+.classes th, .classes td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.classes th { color: var(--mute); font-weight: 500; font-size: .74rem; letter-spacing: .06em; text-transform: uppercase; }
+.classes td:last-child, .classes th:last-child { text-align: right; }
+.classes tr.hit td { background: color-mix(in srgb, var(--accent, var(--b5)) 14%, transparent); font-weight: 600; }
+.classes tr.hit td:first-child::before { content: "▸ "; color: var(--accent, var(--b5)); }
+.tips { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; max-width: 75ch; }
+.fine { color: var(--mute); font-size: .8rem; margin: 0; }
+
+.hist h2 { font: 600 .9rem var(--f-head); letter-spacing: .1em; text-transform: uppercase; color: var(--mute); margin: 0 0 6px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.tbl { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+.tbl table { width: 100%; border-collapse: collapse; font-size: .86rem; font-variant-numeric: tabular-nums; }
+.tbl th, .tbl td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.tbl th { color: var(--mute); font-weight: 500; font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; }
+.tbl th:nth-child(-n+2), .tbl td:nth-child(-n+2) { text-align: left; }
+.tbl td small { color: var(--mute); }
+.tbl td.v { color: var(--accent, var(--b5)); }
+.empty { color: var(--mute); padding: 10px 12px; }
+.confirm { display: inline-flex; gap: 8px; align-items: center; font: 400 .8rem var(--f-body); letter-spacing: 0; text-transform: none; }
+
+@media (max-width: 760px) {
+  .top { grid-template-columns: minmax(0, 1fr); }
+  .field { min-height: 300px; }
+  .grades { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Funkfeld <span id="host">…</span></h1>
+    <div class="meta" id="meta">Verbinde mit dem Router …</div>
+  </header>
+
+  <div class="top">
+    <div class="field">
+      <canvas id="cv" aria-label="Funkfeld zwischen Router und Gerät"></canvas>
+      <div class="readout"><div class="big" id="big">–</div><div class="phase" id="phase">Bereit</div></div>
+    </div>
+    <aside class="radio" id="radio">
+      <h2>Funkdaten <em id="r-src">–</em></h2>
+      <div class="sig"><div class="bars" id="bars"><i style="height:20%"></i><i style="height:40%"></i><i style="height:60%"></i><i style="height:80%"></i><i style="height:100%"></i></div>
+        <div><b id="r-sig">–</b><br><span id="r-q">Signal</span></div></div>
+      <dl class="kv" id="kv"></dl>
+      <div class="src" id="r-note">Daten liefert der Router selbst (iwinfo), der Browser kennt sie nicht.</div>
+    </aside>
+  </div>
+
+  <div class="controls">
+    <button class="go" id="go" disabled>Funkstrecke messen</button>
+    <button class="btn stop" id="stop" hidden>Stopp</button>
+    <div class="opts">
+      <label for="streams">Verbindungen
+        <select id="streams"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select></label>
+      <label for="duration">Dauer
+        <select id="duration"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></label>
+      <label for="label">Gerät <input id="label" maxlength="40" placeholder="z. B. Handy Wohnzimmer"></label>
+    </div>
+  </div>
+
+  <section class="report" id="report" hidden>
+    <h2 id="rep-head">–</h2>
+    <div class="grades" id="grades"></div>
+    <div class="classes"><table id="classes"></table></div>
+    <ul class="tips" id="tips"></ul>
+    <p class="fine" id="rep-fine"></p>
+    <div><button class="btn" id="again">Neu messen</button></div>
+  </section>
+
+  <section class="hist">
+    <h2>Verlauf <span id="clear-wrap"><button class="btn" id="clear">Löschen</button></span></h2>
+    <div class="tbl" id="history"><div class="empty">Noch keine Messungen.</div></div>
+  </section>
+</main>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.SpeedEngine, $ = function (id) { return document.getElementById(id); };
+  var info = null, link = null, phase = null, live = 0, shown = 0, result = null, pingMs = null;
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function css(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function wifi() { return link && link.type === 'wifi' ? (link.wifi || {}) : null; }
+  function bandVar() { var w = wifi(); return !w ? '--b5' : (w.band === '2.4' ? '--b24' : (w.band === '6' ? '--b6' : '--b5')); }
+  function spd(m) { var s = E.fmtSpeed(m); return s.v + ' ' + s.u; }
+
+  // Signalqualität in Stufen, wie sie in der Praxis gelten
+  function quality(dbm) {
+    if (dbm === null || dbm === undefined) return [0, 'unbekannt', ''];
+    if (dbm >= -55) return [5, 'sehr gut', 'good'];
+    if (dbm >= -62) return [4, 'gut', 'good'];
+    if (dbm >= -68) return [3, 'ausreichend', 'ok'];
+    if (dbm >= -75) return [2, 'schwach', 'bad'];
+    return [1, 'sehr schwach', 'bad'];
+  }
+
+  // ---------- Funkdaten-Kasten ----------
+  function radioBox() {
+    document.documentElement.style.setProperty('--accent', 'var(' + bandVar() + ')');
+    var w = wifi(), kv = [];
+    if (w) {
+      var q = quality(w.signal);
+      $('r-src').textContent = link.port || 'WLAN';
+      $('r-sig').innerHTML = w.signal ? w.signal + '<small>dBm</small>' : '–';
+      $('r-q').textContent = 'Signal ' + q[1];
+      var bars = $('bars').querySelectorAll('i'); for (var i = 0; i < 5; i++) bars[i].className = i < q[0] ? 'on' : '';
+      if (w.ssid) kv.push(['Netz', w.ssid]);
+      kv.push(['Band', w.band ? w.band.replace('.', ',') + ' GHz' + (w.channel ? ', Kanal ' + w.channel : '') : '–']);
+      kv.push(['Standard', w.standard ? 'Wi-Fi ' + w.standard : '–']);
+      kv.push(['Kanalbreite', w.width ? w.width + ' MHz' : '–']);
+      kv.push(['Antennen-Streams', w.nss ? w.nss + ' × ' + w.nss : '–']);
+      kv.push(['Linkrate ↓ / ↑', (w.tx_rate ? Math.round(w.tx_rate) : '–') + ' / ' + (w.rx_rate ? Math.round(w.rx_rate) : '–') + ' Mbit/s']);
+      if (w.signal && w.noise) kv.push(['Störabstand', (w.signal - w.noise) + ' dB']);
+      $('r-note').textContent = 'Daten liefert der Router selbst (iwinfo), der Browser kennt sie nicht.';
+    } else {
+      $('r-sig').textContent = '–'; $('r-q').textContent = link && link.type === 'wired' ? 'kein Funk' : 'Signal unbekannt';
+      if (link && link.type === 'wired') {
+        $('r-src').textContent = link.port || 'Kabel';
+        kv.push(['Anschluss', 'Kabel ' + (link.port || '')]);
+        kv.push(['Port', link.speed ? (link.speed >= 1000 ? (link.speed / 1000 + '').replace('.', ',') + ' GbE' : link.speed + ' Mbit/s') : '–']);
+        $('r-note').textContent = 'Dieses Gerät hängt am Kabel. Für das Funkfeld die Seite auf einem Gerät im WLAN öffnen. Messen geht trotzdem.';
+      } else {
+        $('r-src').textContent = 'geschätzt';
+        $('r-note').textContent = 'Der Router meldet keine Funkdaten (ältere api.uc oder kein iwinfo). Die Einordnung wird aus den Messwerten geschätzt.';
+      }
+    }
+    $('kv').innerHTML = kv.map(function (p) { return '<dt>' + esc(p[0]) + '</dt><dd>' + esc(p[1]) + '</dd>'; }).join('');
+  }
+
+  // ---------- Funkfeld ----------
+  var cv = $('cv'), ctx = cv.getContext('2d'), W = 0, H = 0, waves = [], acc = 0, lastT = 0;
+  function size() { var d = window.devicePixelRatio || 1; W = cv.clientWidth; H = cv.clientHeight; cv.width = W * d; cv.height = H * d; ctx.setTransform(d, 0, 0, d, 0, 0); }
+  function pos() {
+    // Abstand des Geräts nach Signal: -35 dBm ganz nah, -85 dBm am Rand
+    var w = wifi(), f = w && w.signal ? Math.max(0, Math.min(1, (-w.signal - 35) / 50)) : 0.55;
+    var narrow = W < 520, r = narrow ? [W * 0.5, H * 0.26] : [W * 0.2, H * 0.48];
+    var d = narrow ? [W * 0.5, r[1] + 70 + f * (H * 0.62 - 70)] : [r[0] + 110 + f * (W * 0.72 - 110), H * 0.48];
+    return { r: r, d: d, narrow: narrow };
+  }
+  function drawRouter(p, col) {
+    var x = p[0], y = p[1];
+    ctx.strokeStyle = css('--ink'); ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    ctx.beginPath(); [-22, -8, 8, 22].forEach(function (o) { ctx.moveTo(x + o, y - 12); ctx.lineTo(x + o * 1.25, y - 40); }); ctx.stroke();
+    ctx.fillStyle = css('--card'); ctx.lineWidth = 2; ctx.beginPath(); ctx.rect(x - 34, y - 12, 68, 22); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x + 22, y - 1, 3, 0, 7); ctx.fill();
+    label(info ? info.hostname : 'Router', x, y + 30);
+  }
+  function drawDevice(p) {
+    var x = p[0], y = p[1];
+    ctx.strokeStyle = css('--ink'); ctx.fillStyle = css('--card'); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.rect(x - 13, y - 24, 26, 46); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y + 15, 2, 0, 7); ctx.stroke();
+    label($('label').value || (info && info.client_host) || 'Dein Gerät', x, y + 42);
+  }
+  function label(s, x, y) { ctx.font = '600 13px ' + css('--f-body'); ctx.fillStyle = css('--ink'); ctx.textAlign = 'center'; ctx.fillText(s, x, y); }
+  function frame(ts) {
+    var dt = Math.min(64, ts - (lastT || ts)); lastT = ts;
+    shown += (live - shown) * Math.min(1, dt / 250);
+    ctx.clearRect(0, 0, W, H);
+    var P = pos(), col = css(bandVar()), wired = link && link.type === 'wired';
+    var dist = Math.sqrt(Math.pow(P.d[0] - P.r[0], 2) + Math.pow(P.d[1] - P.r[1], 2));
+    // Entfernungsringe als feine Orientierung
+    ctx.strokeStyle = css('--line'); ctx.lineWidth = 1; ctx.setLineDash([3, 5]);
+    for (var k = 1; k <= 4; k++) { ctx.beginPath(); ctx.arc(P.r[0], P.r[1], k * Math.max(W, H) / 4.5, 0, 7); ctx.stroke(); }
+    ctx.setLineDash([]);
+    if (wired) {
+      ctx.strokeStyle = css('--wire'); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(P.r[0], P.r[1] + 10);
+      ctx.bezierCurveTo(P.r[0], P.d[1] + 40, P.d[0], P.r[1] + 60, P.d[0], P.d[1] + 22); ctx.stroke();
+    } else {
+      // neue Wellen: Rate wächst mit dem Durchsatz
+      var active = phase === 'download' || phase === 'upload';
+      if (active && !reduce) {
+        acc += dt / 1000 * (1.5 + 14 * Math.log(1 + shown / 20) / Math.log(1 + 3000 / 20));
+        while (acc >= 1) { acc--; waves.push({ r: 0, up: phase === 'upload' }); }
+      } else if (!active && !reduce && Math.random() < dt / 1400) waves.push({ r: 0, up: false, idle: true });
+      for (var i = waves.length - 1; i >= 0; i--) {
+        var w = waves[i]; w.r += dt * (w.idle ? 0.06 : 0.16);
+        var max = w.up ? dist : Math.max(W, H);
+        if (w.r > max) { waves.splice(i, 1); continue; }
+        var src = w.up ? P.d : P.r, fade = 1 - w.r / max;
+        ctx.strokeStyle = col; ctx.globalAlpha = (w.idle ? 0.25 : 0.75) * fade; ctx.lineWidth = w.idle ? 1 : 2;
+        ctx.beginPath(); ctx.arc(src[0], src[1], w.r, 0, 7); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      // Sichtlinie mit Abstandsangabe
+      ctx.strokeStyle = col; ctx.globalAlpha = .5; ctx.setLineDash([2, 6]); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(P.r[0], P.r[1]); ctx.lineTo(P.d[0], P.d[1]); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+      var ww = wifi();
+      if (ww && ww.signal) {
+        ctx.font = '12px ' + css('--f-mono'); ctx.fillStyle = css('--mute'); ctx.textAlign = 'center';
+        var mx = (P.r[0] + P.d[0]) / 2, my = (P.r[1] + P.d[1]) / 2;
+        ctx.fillText(ww.signal + ' dBm', P.narrow ? mx + 40 : mx, P.narrow ? my : my - 10);
+      }
+    }
+    drawRouter(P.r, col); drawDevice(P.d);
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Funkzeugnis ----------
+  var CLASSES = [
+    ['Wi\u2011Fi 4', '2,4 GHz', '2 × 2', '40 MHz', 80, 200],
+    ['Wi\u2011Fi 5', '5 GHz', '2 × 2', '80 MHz', 350, 650],
+    ['Wi\u2011Fi 6', '5 GHz', '2 × 2', '80 MHz', 500, 900],
+    ['Wi\u2011Fi 6/6E', '5/6 GHz', '2 × 2', '160 MHz', 900, 1600],
+    ['Wi\u2011Fi 7', '6 GHz', '2 × 2', '320 MHz', 1700, 3500]
+  ];
+  function report(d, u) {
+    var w = wifi(), net = d.peak, q = w ? quality(w.signal) : null, grades = [], tips = [];
+    var eff = w && w.tx_rate ? net / w.tx_rate : null;
+    if (w) grades.push(['Signal', w.signal ? w.signal + ' dBm' : '–', q[1], q[2]]);
+    else grades.push(['Anschluss', link && link.type === 'wired' ? 'Kabel' : 'unbekannt', link && link.type === 'wired' ? (link.port || '') : 'ohne Funkdaten', '']);
+    grades.push(['Download', spd(d.peak), 'Ø ' + spd(d.avg), '']);
+    grades.push(['Upload', spd(u.peak), 'Ø ' + spd(u.avg), '']);
+    grades.push(eff !== null ? ['Netto-Anteil', Math.round(eff * 100) + ' %', 'der Linkrate ' + Math.round(w.tx_rate) + ' Mbit/s', eff >= .5 ? 'good' : (eff >= .4 ? 'ok' : 'bad')]
+                             : ['Ping', pingMs === null ? '–' : E.fmt(pingMs, 1) + ' ms', 'Gerät ↔ Router', pingMs !== null && pingMs > 5 ? 'ok' : 'good']);
+    $('grades').innerHTML = grades.map(function (g) { return '<div class="grade ' + g[3] + '"><small>' + esc(g[0]) + '</small><b>' + esc(g[1]) + '</b><span>' + esc(g[2]) + '</span></div>'; }).join('');
+    // Einordnung: mit Funkdaten die Klasse des Geräts, sonst die Klasse, die zum gemessenen Download passt
+    var hit = -1;
+    if (w && w.standard) hit = w.standard >= 7 ? 4 : (w.width >= 160 ? 3 : (w.standard >= 6 ? 2 : (w.standard === 5 ? 1 : 0)));
+    else for (var i = 0; i < CLASSES.length; i++) if (net >= CLASSES[i][4] * 0.85) hit = i;
+    $('classes').innerHTML = '<tr><th>Klasse</th><th>Band</th><th>Antennen</th><th>Breite</th><th>Typisch netto</th></tr>' + CLASSES.map(function (c, i) {
+      return '<tr' + (i === hit ? ' class="hit"' : '') + '><td>' + c[0] + '</td><td>' + c[1] + '</td><td>' + c[2] + '</td><td>' + c[3] + '</td><td>' + c[4] + '–' + c[5] + ' Mbit/s</td></tr>';
+    }).join('');
+    var head;
+    if (link && link.type === 'wired') head = 'Kabelverbindung: ' + spd(net) + ' im Download';
+    else if (hit >= 0 && w && w.standard) head = CLASSES[hit][0] + ' mit ' + (w.width || '?') + ' MHz: ' + (net >= CLASSES[hit][4] * 0.85 ? 'im üblichen Bereich' : 'unter dem, was möglich ist');
+    else if (hit >= 0) head = 'Typisch für ' + CLASSES[hit][0] + ' mit ' + CLASSES[hit][3] + ' (geschätzt)';
+    else head = 'Langsamer als typisches WLAN';
+    $('rep-head').textContent = head;
+    if (w) {
+      if (w.signal && w.signal < -67) tips.push('Signal ' + w.signal + ' dBm: Näher an den Router, Hindernisse wie Wände, Spiegel und Aquarien meiden, oder einen Access Point dazwischen setzen.');
+      if (w.band === '2.4') tips.push('Das Gerät nutzt 2,4 GHz. Im 5- oder 6-GHz-Band ist meist das Mehrfache drin, sofern das Gerät es kann.');
+      if (w.width && w.width < 80 && w.band !== '2.4') tips.push('Nur ' + w.width + ' MHz Kanalbreite. 80 oder 160 MHz bringen deutlich mehr Linkrate.');
+      if (eff !== null && eff < 0.45) tips.push('Netto nur ' + Math.round(eff * 100) + ' % der Linkrate. Das deutet auf Störungen oder Nachbarnetze auf demselben Kanal hin. Ein anderer Kanal kann helfen.');
+      if (w.nss === 1) tips.push('Das Gerät funkt mit nur einem Stream. Das ist bei Handys im Energiesparmodus und bei kleinen Geräten normal.');
+      if (!tips.length) tips.push('Die Funkstrecke ist in gutem Zustand. Mehr bringen nur ein neuerer Standard oder breitere Kanäle.');
+    } else if (!link || link.type !== 'wired') tips.push('Für echte Funkdaten api.uc auf dem Router aktualisieren und uhttpd neu starten.');
+    if (Math.max(d.core || 0, u.core || 0) >= 90) tips.push('Ein Router-Kern lag bei ' + Math.round(Math.max(d.core || 0, u.core || 0)) + ' %. Ein Teil der Grenze liegt im Router, nicht im Funk.');
+    $('tips').innerHTML = tips.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('');
+    $('rep-fine').textContent = 'Netto-Anteil: Download-Spitze geteilt durch die Linkrate des Routers. Bei WLAN sind 55 bis 75 % üblich, der Rest geht für Protokoll, Bestätigungen und Funkpausen drauf.';
+    $('report').hidden = false;
+  }
+
+  // ---------- Ablauf ----------
+  function mode(on) { $('go').hidden = on; $('stop').hidden = !on; if (!on) { phase = null; live = 0; } }
+  function start() {
+    var streams = +$('streams').value, duration = +$('duration').value, label = $('label').value.replace(/^\s+|\s+$/g, '');
+    try { localStorage.setItem('st-label', label); localStorage.setItem('st-streams', streams); localStorage.setItem('st-duration', duration); } catch (e) { }
+    $('report').hidden = true; mode(true); pingMs = null;
+    // Funkdaten vor jeder Messung frisch holen
+    E.link(function (l) { if (l) { link = l; radioBox(); } }, 'wifi');
+    var res = {};
+    E.run({ streams: streams, duration: duration, label: label }, {
+      phase: function (p) { phase = p; live = 0; $('phase').textContent = { ping: 'Ping', download: 'Download · Router sendet', upload: 'Upload · Gerät sendet' }[p]; $('big').innerHTML = '…'; },
+      pingSample: function (ms) { $('big').innerHTML = E.fmt(ms, 1) + '<small>ms</small>'; },
+      ping: function (p) { pingMs = p; },
+      live: function (kind, m) { if (m !== null) { live = m; var s = E.fmtSpeed(m); $('big').innerHTML = s.v + '<small>' + s.u + '</small>'; } },
+      result: function (kind, r) { res[kind] = r; },
+      done: function () {
+        mode(false); $('phase').textContent = 'Fertig · Spitze Download';
+        var s = E.fmtSpeed(res.download.peak); $('big').innerHTML = s.v + '<small>' + s.u + '</small>';
+        report(res.download, res.upload);
+        loadHistory();
+      },
+      error: function (msg) { mode(false); $('phase').textContent = msg; }
+    });
+  }
+
+  // ---------- Verlauf ----------
+  function n0(v) { return v === null || v === undefined ? '–' : E.fmt(v, 0); }
+  function sp(peak, avg) { return peak === null || peak === undefined ? n0(avg) : n0(peak) + ' <small>/ ' + n0(avg) + '</small>'; }
+  function loadHistory() {
+    E.history(function (h) {
+      if (!h.length) { $('history').innerHTML = '<div class="empty">Noch keine Messungen.</div>'; return; }
+      var rows = '';
+      for (var i = h.length - 1; i >= 0; i--) {
+        var e = h[i], d = new Date(e.ts * 1000);
+        var when = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '. ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        var who = e.label || e.host || e.ip; if (e.label && e.host) who = esc(e.label) + ' <small>' + esc(e.host) + '</small>'; else who = esc(who);
+        rows += '<tr><td>' + when + '</td><td>' + who + '</td><td>' + (e.ping === null ? '–' : E.fmt(e.ping, 1)) + '</td><td>' + (e.jitter === null || e.jitter === undefined ? '–' : E.fmt(e.jitter, 1)) +
+          '</td><td class="v">' + sp(e.dl_peak, e.dl) + '</td><td class="v">' + sp(e.ul_peak, e.ul) + '</td><td>' + (e.streams || '–') + '</td></tr>';
+      }
+      $('history').innerHTML = '<table><tr><th>Zeit</th><th>Gerät</th><th>Ping ms</th><th>Jitter ms</th><th>Down Mbit/s<br>Spitze / Ø</th><th>Up Mbit/s<br>Spitze / Ø</th><th>Verb.</th></tr>' + rows + '</table>';
+    });
+  }
+  function clearAsk() {
+    $('clear-wrap').innerHTML = '<span class="confirm">Alles löschen? <button class="btn" id="yes">Ja</button><button class="btn" id="no">Nein</button></span>';
+    $('yes').onclick = function () { E.clearHistory(function () { loadHistory(); clearReset(); }); };
+    $('no').onclick = clearReset;
+  }
+  function clearReset() { $('clear-wrap').innerHTML = '<button class="btn" id="clear">Löschen</button>'; $('clear').onclick = clearAsk; }
+  $('clear').onclick = clearAsk;
+
+  $('go').onclick = start;
+  $('again').onclick = function () { window.scrollTo({ top: 0, behavior: 'smooth' }); start(); };
+  $('stop').onclick = function () { E.stop(); mode(false); $('phase').textContent = 'Abgebrochen'; };
+
+  try {
+    var l = localStorage.getItem('st-label'), s = localStorage.getItem('st-streams'), d = localStorage.getItem('st-duration');
+    if (l) $('label').value = l; if (s) $('streams').value = s; if (d) $('duration').value = d;
+  } catch (e) { }
+
+  size(); window.addEventListener('resize', size);
+  requestAnimationFrame(frame);
+
+  E.init(function (i) {
+    info = i;
+    $('host').textContent = i.hostname;
+    $('meta').innerHTML = esc((i.model ? i.model + ' · ' : '') + 'Du: ' + (i.client_host ? i.client_host + ' (' + i.client_ip + ')' : i.client_ip)) + (i.demo ? '<span class="demo">Demo</span>' : '');
+    E.link(function (l) { link = l; radioBox(); $('go').disabled = false; }, 'wifi');
+    loadHistory();
+  });
+})();
+</script>
+</body>
+</html>

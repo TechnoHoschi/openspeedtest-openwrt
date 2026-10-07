@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#04050b">
+<title>Speedtest Warp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap">
+<style>
+/* Konzept "Warp": Die Messung ist ein Flug durch einen Datentunnel. Ein fest stehendes Canvas zeigt
+   Sterne, die mit dem Durchsatz zu Lichtstreifen werden; nach der Messung frieren sie ein und ordnen
+   sich zum Sternbild dieser Messung. Alle Zahlen stehen zusaetzlich als echter Text im DOM. Nur dunkel. */
+:root {
+  --void: #04050b;
+  --ink: #eef1ff;
+  --mute: #959dbd;
+  --faint: #5d6587;
+  --line: rgba(150, 165, 220, .18);
+  --glass: rgba(9, 12, 26, .66);
+  --down: #35d0ba;
+  --up: #b98cff;
+  --ping: #f2c14e;
+  --warn: #ff8a65;
+  --acc: #9fb0e8;
+  --f-d: "Syne", "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --f-u: "Space Grotesk", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color-scheme: dark;
+}
+body.p-ping { --acc: var(--ping); }
+body.p-download { --acc: var(--down); }
+body.p-upload { --acc: var(--up); }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { background: var(--void); }
+body {
+  margin: 0; color: var(--ink); font: 15px/1.5 var(--f-u); overflow-x: hidden; min-height: 100vh;
+  background: radial-gradient(ellipse 70% 55% at 78% 12%, rgba(98, 60, 170, .20), rgba(4, 5, 11, 0) 70%),
+              radial-gradient(ellipse 60% 50% at 12% 88%, rgba(24, 120, 128, .16), rgba(4, 5, 11, 0) 70%),
+              var(--void);
+  background-attachment: fixed;
+}
+#sky { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 0; display: block; pointer-events: none; }
+main { position: relative; z-index: 1; }
+main *, .stage > *, .result > *, .entry > * { min-width: 0; }
+button, select, input { font: inherit; }
+:focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; }
+
+/* ---------- Buehne ---------- */
+.stage { min-height: 100vh; min-height: 100svh; max-width: 1240px; margin: 0 auto; padding: 18px 24px 22px; display: flex; flex-direction: column; gap: 18px; }
+.top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 20px; }
+.brand { display: flex; align-items: baseline; gap: 12px; }
+.mark { font: 800 1.2rem/1 var(--f-d); letter-spacing: .38em; text-transform: uppercase; padding-left: .1em; }
+.mark i { font-style: normal; color: var(--acc); transition: color .6s; }
+.brand small { color: var(--mute); font-size: .78rem; letter-spacing: .16em; text-transform: uppercase; }
+.who { color: var(--mute); font-size: .84rem; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; justify-content: flex-end; }
+.who b { color: var(--ink); font-weight: 600; }
+.demo { color: #120d00; background: var(--ping); border-radius: 999px; padding: 1px 9px; font-weight: 700; font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; }
+
+.flight { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 26px; padding: 8px 0; }
+.core { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; width: 100%; }
+.tag { margin: 0; max-width: 36ch; color: var(--mute); font-size: .95rem; }
+.tag b { color: var(--ink); font-weight: 500; }
+.status { margin: 0; min-height: 1.4em; color: var(--warn); font-weight: 500; letter-spacing: .04em; }
+
+.readout { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
+.phase { font: 700 .82rem/1 var(--f-d); letter-spacing: .34em; text-transform: uppercase; color: var(--acc); padding-left: .34em; transition: color .5s; }
+.big {
+  font: 300 clamp(5rem, 21vw, 13.5rem)/.92 var(--f-u); letter-spacing: -.045em; font-variant-numeric: tabular-nums;
+  white-space: nowrap; margin: 4px 0 2px; padding-right: .04em; transition: text-shadow .6s;
+}
+body.p-ping .big { text-shadow: 0 0 46px rgba(242, 193, 78, .40); }
+body.p-download .big { text-shadow: 0 0 52px rgba(53, 208, 186, .45); }
+body.p-upload .big { text-shadow: 0 0 52px rgba(185, 140, 255, .48); }
+.unitrow { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; }
+.unit { font-size: 1.15rem; letter-spacing: .12em; color: var(--ink); opacity: .85; }
+.warp { font: 700 .78rem/1 var(--f-d); letter-spacing: .22em; text-transform: uppercase; color: var(--acc); border: 1px solid currentColor; border-radius: 999px; padding: 6px 12px 6px 14px; transition: color .5s; white-space: nowrap; }
+.prog { width: min(320px, 70vw); height: 2px; background: rgba(150, 165, 220, .16); border-radius: 2px; overflow: hidden; margin-top: 14px; }
+.prog i { display: block; height: 100%; width: 0; background: var(--acc); box-shadow: 0 0 12px var(--acc); }
+
+/* Startknopf: Portal im Leerlauf, Pille als Stopp, Pille als Neu messen */
+.go { position: relative; cursor: pointer; color: var(--ink); background: none; border: 0; }
+.go:disabled { opacity: .45; cursor: default; }
+.go.is-big {
+  width: 172px; height: 172px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  background: radial-gradient(circle at 50% 42%, rgba(53, 208, 186, .26), rgba(16, 22, 46, .82) 62%, rgba(4, 5, 11, .9));
+  border: 1px solid rgba(53, 208, 186, .55); box-shadow: 0 0 0 10px rgba(53, 208, 186, .05), 0 0 60px rgba(53, 208, 186, .22);
+  transition: transform .25s, box-shadow .25s;
+}
+.go.is-big::before { content: ""; position: absolute; inset: -14px; border-radius: 50%; border: 1px dashed rgba(185, 140, 255, .45); animation: orbit 22s linear infinite; }
+.go.is-big:hover:not(:disabled) { transform: scale(1.04); box-shadow: 0 0 0 10px rgba(53, 208, 186, .08), 0 0 80px rgba(53, 208, 186, .35); }
+.go .gl { font: 800 1.55rem/1 var(--f-d); letter-spacing: .26em; text-transform: uppercase; padding-left: .26em; }
+.go .gs { font-size: .72rem; letter-spacing: .18em; text-transform: uppercase; color: var(--mute); }
+.go.is-stop, .go.is-again { border-radius: 999px; padding: 10px 28px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; font-size: .82rem; }
+.go.is-stop { border: 1px solid rgba(255, 138, 101, .7); color: var(--warn); background: rgba(40, 14, 8, .45); margin-top: 18px; }
+.go.is-stop:hover { background: rgba(70, 22, 12, .6); }
+.go.is-again { border: 1px solid var(--down); color: #021614; background: var(--down); }
+.go.is-again:hover { background: #5fe3d0; }
+@keyframes orbit { to { transform: rotate(360deg); } }
+
+/* Messwerte am unteren Rand waehrend des Flugs */
+.strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 26px; width: 100%; max-width: 820px; margin: 0; }
+.strip > div { border-top: 1px solid var(--line); padding-top: 9px; transition: border-color .4s; }
+.strip dt { font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; color: var(--mute); display: flex; align-items: center; gap: 7px; }
+.strip dt i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.strip dd { margin: 2px 0 0; font-size: 1.45rem; font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.strip dd small { font-size: .78rem; color: var(--mute); margin-left: 4px; }
+.strip .s { display: block; font-size: .76rem; color: var(--mute); min-height: 1.2em; }
+.strip .k-ping dt { color: var(--ping); } .strip .k-dl dt { color: var(--down); } .strip .k-ul dt { color: var(--up); }
+.strip .on.k-ping { border-color: var(--ping); } .strip .on.k-dl { border-color: var(--down); } .strip .on.k-ul { border-color: var(--up); }
+
+/* Einstellungen */
+.opts { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px 22px; color: var(--mute); font-size: .84rem;
+  background: var(--glass); border: 1px solid var(--line); border-radius: 18px; padding: 10px 18px; align-self: center; max-width: 100%; }
+.opts label { display: flex; align-items: center; gap: 8px; letter-spacing: .04em; }
+select, input { color: var(--ink); background: rgba(16, 21, 42, .9); border: 1px solid rgba(150, 165, 220, .28); border-radius: 8px; padding: 6px 9px; }
+input { width: 11em; max-width: 46vw; }
+input::placeholder { color: var(--faint); }
+
+/* ---------- Ergebnis: Sternbild + Logbuch ---------- */
+.result { flex: 1; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); align-items: center; gap: 24px 40px; animation: rise .9s ease both; }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.chart { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.slot { position: relative; width: 100%; max-width: 560px; }
+.slot::before { content: ""; display: block; padding-top: 100%; }
+.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 18px; color: var(--mute); font-size: .78rem; }
+.legend li { display: flex; align-items: center; gap: 7px; }
+.legend i { width: 7px; height: 7px; border-radius: 50%; }
+.legend .c-cap { width: 100%; justify-content: center; font: 700 .72rem/1.4 var(--f-d); letter-spacing: .28em; text-transform: uppercase; color: var(--ink); }
+
+.log { background: var(--glass); border: 1px solid var(--line); border-radius: 22px; padding: 26px 28px 24px; display: grid; gap: 18px;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.log-h { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; font-size: .74rem; letter-spacing: .2em; text-transform: uppercase; color: var(--mute); }
+.log-h b { font: 700 .74rem var(--f-d); letter-spacing: .3em; color: var(--ink); }
+.verdict h2 { margin: 0; font: 700 clamp(1.45rem, 3.2vw, 2rem)/1.15 var(--f-d); letter-spacing: .01em; }
+.verdict p { margin: 4px 0 0; color: var(--mute); }
+.vals { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px 22px; }
+.val { border-left: 2px solid currentColor; padding-left: 14px; }
+.val.dl { color: var(--down); } .val.ul { color: var(--up); }
+.val .k { font-size: .72rem; letter-spacing: .2em; text-transform: uppercase; }
+.val .v { color: var(--ink); font: 300 clamp(2.5rem, 5.4vw, 3.6rem)/1 var(--f-u); letter-spacing: -.03em; font-variant-numeric: tabular-nums; margin: 6px 0 4px; white-space: nowrap; }
+.val .v small { font-size: .95rem; letter-spacing: .06em; color: var(--mute); margin-left: 6px; font-weight: 400; }
+.val .s { color: var(--mute); font-size: .84rem; }
+.val .s b { color: var(--ink); font-weight: 500; }
+.val .wf { display: block; margin-top: 3px; font: 700 .68rem/1.4 var(--f-d); letter-spacing: .22em; text-transform: uppercase; }
+.minor { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+.minor .k { display: block; font-size: .7rem; letter-spacing: .16em; text-transform: uppercase; color: var(--mute); }
+.minor b { font-weight: 500; font-size: 1.12rem; font-variant-numeric: tabular-nums; }
+.minor .k-ping { color: var(--ping); }
+.note { margin: 0; color: var(--warn); font-size: .88rem; border: 1px solid rgba(255, 138, 101, .35); border-radius: 12px; padding: 10px 14px; background: rgba(60, 20, 10, .3); }
+.acts { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 16px; }
+.acts .fine { color: var(--faint); font-size: .76rem; letter-spacing: .06em; }
+
+/* ---------- Verlauf ---------- */
+.hist { max-width: 1240px; margin: 0 auto; padding: 18px 24px 64px; }
+.hist-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 12px; margin-bottom: 6px; }
+.hist-h h2 { margin: 0; font: 700 .9rem/1 var(--f-d); letter-spacing: .32em; text-transform: uppercase; }
+.hist-h h2 small { font: 400 .78rem var(--f-u); letter-spacing: .06em; text-transform: none; color: var(--mute); margin-left: 10px; }
+.btn { color: var(--ink); background: rgba(12, 16, 34, .7); border: 1px solid rgba(150, 165, 220, .3); border-radius: 999px; padding: 6px 16px; cursor: pointer; font-size: .82rem; }
+.btn:hover { border-color: var(--mute); }
+.btn.danger { border-color: rgba(255, 138, 101, .7); color: var(--warn); }
+.confirm { display: inline-flex; align-items: center; gap: 8px; color: var(--mute); font-size: .84rem; flex-wrap: wrap; }
+.entries { display: grid; }
+.entry { display: grid; grid-template-columns: 68px minmax(0, 1fr) minmax(0, 1.9fr); gap: 6px 20px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.entry svg { width: 68px; height: 68px; display: block; }
+.e-who { font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+.e-who small, .e-when { display: block; color: var(--mute); font-size: .78rem; font-weight: 400; }
+.nums { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1fr) minmax(0, 1fr); gap: 4px 16px; font-variant-numeric: tabular-nums; }
+.nums .k { display: block; font-size: .66rem; letter-spacing: .18em; text-transform: uppercase; color: var(--mute); }
+.nums b { font-weight: 500; font-size: 1.02rem; white-space: nowrap; }
+.nums em { font-style: normal; color: var(--mute); font-size: .8rem; display: block; white-space: nowrap; }
+.nums .n-d .k { color: var(--down); } .nums .n-u .k { color: var(--up); } .nums .n-p .k { color: var(--ping); }
+.empty { color: var(--mute); padding: 14px 0; }
+
+/* ---------- schmale Bildschirme ---------- */
+@media (max-width: 860px) {
+  .result { grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .slot { max-width: 420px; }
+}
+@media (max-width: 640px) {
+  .stage { padding: 14px 16px 18px; gap: 14px; }
+  .hist { padding: 14px 16px 48px; }
+  .brand small { display: none; }
+  .who { justify-content: flex-start; font-size: .78rem; }
+  .strip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 18px; }
+  .strip dd { font-size: 1.25rem; }
+  .go.is-big { width: 148px; height: 148px; }
+  .go .gl { font-size: 1.35rem; }
+  .log { padding: 20px 18px; border-radius: 18px; gap: 16px; }
+  .vals { gap: 14px 14px; }
+  .val { padding-left: 10px; }
+  .val .v { font-size: 2.3rem; }
+  .val .v small { display: block; margin: 4px 0 0; font-size: .8rem; }
+  .minor { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .minor .cpu { grid-column: 1 / -1; }
+  .opts { gap: 10px 14px; padding: 10px 14px; }
+  .entry { grid-template-columns: 56px minmax(0, 1fr); gap: 6px 14px; }
+  .entry svg { width: 56px; height: 56px; grid-row: span 2; align-self: start; }
+  .nums { grid-column: 2; }
+  .nums b { font-size: .92rem; }
+  .nums .k { letter-spacing: .1em; }
+  .nums .hm { display: none; }
+  .hist-h h2 small { display: block; margin: 8px 0 0; }
+  .val .k { letter-spacing: .08em; font-size: .64rem; }
+}
+@media (min-width: 1600px) {
+  body { font-size: 17px; }
+  .stage, .hist { max-width: 1480px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .go.is-big::before { animation: none; }
+  .result { animation: none; }
+  * { transition: none !important; }
+}
+</style>
+</head>
+<body class="p-idle">
+<canvas id="sky" aria-hidden="true"></canvas>
+<main>
+  <section class="stage" id="stage">
+    <header class="top">
+      <div class="brand"><span class="mark">W<i>a</i>rp</span><small>LAN-Speedtest</small></div>
+      <div class="who"><span>Router <b id="host">…</b></span><span id="meta">Verbinde mit dem Router …</span><span class="demo" id="demo" hidden>Demo</span></div>
+    </header>
+
+    <div class="flight" id="flight">
+      <div class="core">
+        <div class="readout" id="readout" hidden>
+          <div class="phase" id="phase" aria-live="polite">Bereit</div>
+          <div class="big" id="big">0</div>
+          <div class="unitrow"><span class="unit" id="unit">Mbit/s</span><span class="warp" id="warp">Warp 0,0</span></div>
+          <div class="prog" aria-hidden="true"><i id="prog"></i></div>
+        </div>
+        <div id="gohome"><button class="go is-big" id="go" disabled><span class="gl">Start</span><span class="gs">Warp einleiten</span></button></div>
+        <p class="tag" id="tag">Ein Flug durch den Datentunnel zu deinem Router. Gemessen werden <b>Ping</b>, <b>Download</b> und <b>Upload</b>; je schneller die Leitung, desto höher der Warp.</p>
+        <p class="status" id="status" role="status"></p>
+      </div>
+      <dl class="strip" id="strip" hidden>
+        <div class="k-ping" id="ro-ping"><dt><i></i>Ping</dt><dd>–<small>ms</small></dd><span class="s"></span></div>
+        <div class="k-jit" id="ro-jit"><dt>Jitter</dt><dd>–<small>ms</small></dd><span class="s"></span></div>
+        <div class="k-dl" id="ro-dl"><dt><i></i>Download</dt><dd>–</dd><span class="s"></span></div>
+        <div class="k-ul" id="ro-ul"><dt><i></i>Upload</dt><dd>–</dd><span class="s"></span></div>
+      </dl>
+    </div>
+
+    <div class="result" id="result" hidden>
+      <div class="chart">
+        <div class="slot" id="slot" role="img" aria-label="Sternbild der Messung aus den Sekundenwerten von Download, Upload und Ping"></div>
+        <ul class="legend">
+          <li class="c-cap">Sternbild dieser Messung</li>
+          <li><i style="background:var(--down)"></i>Außenring Download</li>
+          <li><i style="background:var(--up)"></i>Innenring Upload</li>
+          <li><i style="background:var(--ping)"></i>Kern Ping</li>
+        </ul>
+      </div>
+      <article class="log" aria-labelledby="verdict">
+        <div class="log-h"><b>Logbuch-Eintrag</b><span id="stardate">Sternzeit</span></div>
+        <div class="verdict"><h2 id="verdict">–</h2><p id="verdict-s"></p></div>
+        <div class="vals">
+          <div class="val dl"><div class="k">Download · Spitze</div><div class="v" id="r-dl">–</div><div class="s" id="r-dl-s"></div></div>
+          <div class="val ul"><div class="k">Upload · Spitze</div><div class="v" id="r-ul">–</div><div class="s" id="r-ul-s"></div></div>
+        </div>
+        <div class="minor">
+          <div><span class="k k-ping">Ping</span><b id="r-ping">–</b></div>
+          <div><span class="k">Jitter</span><b id="r-jit">–</b></div>
+          <div class="cpu"><span class="k">Router-CPU, stärkster Kern</span><b id="r-cpu">–</b></div>
+        </div>
+        <p class="note" id="note" hidden></p>
+        <div class="acts" id="acts"><span class="fine" id="r-fine"></span></div>
+      </article>
+    </div>
+
+    <form class="opts" id="opts" onsubmit="return false">
+      <label for="streams">Verbindungen
+        <select id="streams"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select></label>
+      <label for="duration">Dauer
+        <select id="duration"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></label>
+      <label for="label">Gerät <input id="label" maxlength="40" placeholder="z. B. Laptop WLAN" autocomplete="off"></label>
+    </form>
+  </section>
+
+  <section class="hist" aria-labelledby="hist-h">
+    <div class="hist-h"><h2 id="hist-h">Verlauf<small>Jede Messung hinterlässt ihr eigenes Sternbild</small></h2><span id="clear-wrap"><button class="btn" id="clear">Löschen</button></span></div>
+    <div class="entries" id="history"><div class="empty">Noch keine Messungen.</div></div>
+  </section>
+</main>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.SpeedEngine;
+  function $(id) { return document.getElementById(id); }
+  var RM = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  function now() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
+  var raf = window.requestAnimationFrame || function (f) { return setTimeout(function () { f(now()); }, 33); };
+
+  // ---------- Farben ----------
+  var COL = { idle: [150, 168, 230], ping: [242, 193, 78], download: [53, 208, 186], upload: [185, 140, 255] };
+  var SHIFT = { download: [196, 232, 255], upload: [255, 150, 214] };  // Blau- bzw. Rotverschiebung bei hohem Warp
+  function mix(a, b, k) { return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k]; }
+  function rgba(c, a) { return 'rgba(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ',' + a.toFixed(3) + ')'; }
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function smooth(a, b, x) { var t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }
+  function easeIO(t) { return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+
+  // Warp-Faktor: Warp 1 = 10 Mbit/s, Warp 9,9 = 10 Gbit/s, logarithmisch dazwischen
+  function warpOf(m) {
+    if (!m || m <= 0) return 0;
+    if (m < 10) return m / 10;
+    return Math.min(9.9, 1 + 8.9 * Math.log(m / 10) / Math.log(1000));
+  }
+
+  // ---------- Canvas ----------
+  var cv = $('sky'), ctx = cv.getContext('2d');
+  var W = 0, H = 0, DPR = 1, F = 400, N = 200, MAXN = 360;
+  var stars = [], frozen = [], buf = [new Float32Array(MAXN * 4), new Float32Array(MAXN * 4), new Float32Array(MAXN * 4)];
+  function resize() {
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    F = Math.min(W, H) * 0.42 + 90;
+    N = clamp(Math.round(W * H / 3400), 150, MAXN);
+    if (RM) N = Math.min(N, 160);
+    dirty = true;
+  }
+  function spawn(s, zmin, zmax) {
+    var a = Math.random() * Math.PI * 2, r = 0.12 + Math.pow(Math.random(), 0.7) * 1.7;
+    s.x = Math.cos(a) * r; s.y = Math.sin(a) * r;
+    s.z = zmin + Math.random() * (zmax - zmin);
+    s.tw = Math.random() * 6.28; s.sz = 0.6 + Math.random() * 0.8;
+  }
+  for (var si = 0; si < MAXN; si++) { var st0 = {}; spawn(st0, 0.05, 1.05); stars.push(st0); }
+
+  // ---------- Zustand der Animation ----------
+  var S = 'idle';            // idle | ping | download | upload | brake | result
+  var dirty = true, lastT = now(), lastDraw = 0, pending = false;
+  var targetM = null, dispM = 0, vel = 0.03, cur = COL.idle.slice(), ringPh = 0, flash = 0, jumped = false;
+  var vx = 0, vy = 0, vtx = 0, vty = 0, vpCheck = 0;
+  var pulses = [];
+  var glyphG = null, cpts = [], morphT0 = 0;
+
+  function schedule() { if (!pending) { pending = true; raf(loop); } }
+  function loop(t) {
+    pending = false;
+    if (document.hidden) return;                 // im Hintergrund nichts zeichnen
+    t = t || now();
+    var busy = S === 'ping' || S === 'download' || S === 'upload' || S === 'brake' || pulses.length || flash > 0.01 ||
+               (S === 'result' && t - morphT0 < 2600);
+    var cap = busy ? (RM ? 12 : 60) : (S === 'result' ? 10 : (RM ? 6 : 30));
+    if (!dirty && t - lastDraw < 1000 / cap - 3) { schedule(); return; }
+    dirty = false; lastDraw = t;
+    frame(t);
+    schedule();
+  }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { lastT = now(); dirty = true; schedule(); } });
+  window.addEventListener('resize', function () { resize(); schedule(); });
+  window.addEventListener('scroll', function () { if (S === 'result') { dirty = true; schedule(); } }, { passive: true });
+
+  function vpAnchor() {
+    var el = S === 'idle' ? $('go') : $('big');
+    if (!el || !el.offsetParent) return;
+    var r = el.getBoundingClientRect();
+    vtx = r.left + r.width / 2; vty = r.top + r.height / 2;
+  }
+
+  function frame(t) {
+    var dt = Math.min(0.05, Math.max(0, (t - lastT) / 1000)); lastT = t;
+    ctx.clearRect(0, 0, W, H);
+    if (S === 'result') { drawResult(t); return; }
+
+    if (t - vpCheck > 250) { vpCheck = t; vpAnchor(); if (!vx) { vx = vtx || W / 2; vy = vty || H / 2; } }
+    vx += (vtx - vx) * (1 - Math.exp(-dt * 4)); vy += (vty - vy) * (1 - Math.exp(-dt * 4));
+
+    // Durchsatz weich nachfuehren (nie ueber den zuletzt gemeldeten Wert hinaus)
+    var tm = targetM === null ? 0 : targetM;
+    dispM += (tm - dispM) * (1 - Math.exp(-dt * 5));
+    var w = warpOf(dispM), s = w / 10, s3 = s * s * s;
+    var tv = S === 'download' ? 0.05 + 1.55 * s3 : S === 'upload' ? -(0.05 + 1.55 * s3) : S === 'ping' ? 0.012 : S === 'brake' ? 0 : 0.03;
+    if (RM) tv *= 0.06;
+    vel += (tv - vel) * (1 - Math.exp(-dt * (S === 'brake' ? 5 : 2.2)));
+    var av = Math.abs(vel);
+
+    var base = COL[S] || COL.idle, tgt = base;
+    if (SHIFT[S]) tgt = mix(base, SHIFT[S], smooth(0.55, 0.95, s) * 0.75);
+    if (S === 'brake') tgt = cur;
+    cur = mix(cur, tgt, 1 - Math.exp(-dt * 3));
+
+    // Warp-Sprung: kurzer Lichtblitz beim ersten Ueberschreiten von Warp 7 pro Phase
+    if (!jumped && w >= 7 && (S === 'download' || S === 'upload') && !RM) { jumped = true; flash = 1; }
+    flash *= Math.exp(-dt * 3.2);
+
+    // Leuchten im Fluchtpunkt
+    var gr = F * (0.35 + s * 0.9);
+    var g = ctx.createRadialGradient(vx, vy, 0, vx, vy, gr);
+    g.addColorStop(0, rgba(mix(cur, [255, 255, 255], .4), 0.05 + 0.32 * s * s));
+    g.addColorStop(1, rgba(cur, 0));
+    ctx.fillStyle = g; ctx.fillRect(vx - gr, vy - gr, gr * 2, gr * 2);
+
+    // Tunnelringe
+    ringPh += vel * dt * 1.6;
+    var K = 9, diag = Math.sqrt(W * W + H * H);
+    if (ctx.setLineDash) { ctx.setLineDash([2, 12]); ctx.lineDashOffset = -t * 0.01 * (1 + av * 30); }
+    for (var k = 0; k < K; k++) {
+      var zr = k / K - ringPh; zr -= Math.floor(zr); zr = 0.07 + zr * 0.95;
+      var rr = 1.25 * F / zr;
+      if (rr > diag) continue;
+      var fa = Math.min(1, (1.02 - zr) * 3) * Math.min(1, (zr - 0.07) * 10);
+      var ra = (S === 'idle' ? 0.06 : 0.07 + 0.26 * s) * fa;
+      if (ra < 0.01) continue;
+      ctx.strokeStyle = rgba(cur, ra); ctx.lineWidth = 1 + (1 - zr) * 1.6 * s;
+      ctx.beginPath(); ctx.arc(vx, vy, rr, 0, Math.PI * 2); ctx.stroke();
+    }
+    if (ctx.setLineDash) ctx.setLineDash([]);
+
+    // Sterne und Lichtstreifen, in drei Tiefenschichten gebuendelt gezeichnet
+    var trail = av * 0.11 + 0.0015, cnt = [0, 0, 0];
+    for (var i = 0; i < N; i++) {
+      var p = stars[i];
+      p.z -= vel * dt;
+      if (vel >= 0 && p.z < 0.016) spawn(p, 0.85, 1.05);
+      else if (vel < 0 && p.z > 1.08) spawn(p, 0.03, 0.25);
+      var x0 = vx + p.x * F / p.z, y0 = vy + p.y * F / p.z;
+      if (x0 < -40 || x0 > W + 40 || y0 < -40 || y0 > H + 40) {
+        if (vel > 0 && p.z < 0.5) spawn(p, 0.85, 1.05);
+        continue;
+      }
+      var zt = vel >= 0 ? p.z + trail : Math.max(0.015, p.z - trail);
+      var x1 = vx + p.x * F / zt, y1 = vy + p.y * F / zt;
+      var dx = x1 - x0, dy = y1 - y0;
+      if (dx * dx + dy * dy < 1) { x1 = x0 + 0.7; y1 = y0; }
+      var b = p.z < 0.3 ? 0 : p.z < 0.62 ? 1 : 2, o = cnt[b] * 4, bb = buf[b];
+      bb[o] = x0; bb[o + 1] = y0; bb[o + 2] = x1; bb[o + 3] = y1; cnt[b]++;
+    }
+    ctx.lineCap = 'round';
+    var LW = [2.1, 1.45, 1], LA = [0.95, 0.75, 0.45], LM = [0.55, 0.25, 0];
+    for (var bi = 2; bi >= 0; bi--) {
+      if (!cnt[bi]) continue;
+      ctx.strokeStyle = rgba(mix(cur, [255, 255, 255], LM[bi]), LA[bi]);
+      ctx.lineWidth = LW[bi] * (1 + s * 0.35);
+      ctx.beginPath();
+      var arr = buf[bi];
+      for (var j = 0; j < cnt[bi]; j++) { var q = j * 4; ctx.moveTo(arr[q], arr[q + 1]); ctx.lineTo(arr[q + 2], arr[q + 3]); }
+      ctx.stroke();
+    }
+
+    // Sonar: ein Ring pro Ping-Probe, der auslaeuft und als Echo zurueckkommt
+    if (pulses.length) {
+      var Rm = Math.min(W, H) * 0.44;
+      for (var pi = pulses.length - 1; pi >= 0; pi--) {
+        var age = (t - pulses[pi].t0) / 1000;
+        if (age > 1.6) { pulses.splice(pi, 1); continue; }
+        var pr, pa, dash = false;
+        if (age < 0.85) { var u = age / 0.85; pr = Rm * (1 - Math.pow(1 - u, 3)); pa = 0.85 * (1 - u * 0.7); }
+        else { var e2 = (age - 0.85) / 0.75; pr = Rm * (1 - e2 * e2); pa = 0.38 * (1 - e2); dash = true; }
+        ctx.strokeStyle = rgba(COL.ping, pa); ctx.lineWidth = dash ? 1 : 1.6 + pulses[pi].w;
+        if (dash && ctx.setLineDash) ctx.setLineDash([3, 7]);
+        ctx.beginPath(); ctx.arc(vx, vy, Math.max(1, pr), 0, Math.PI * 2); ctx.stroke();
+        if (dash && ctx.setLineDash) ctx.setLineDash([]);
+      }
+    }
+    if (flash > 0.01) { ctx.fillStyle = rgba(mix(cur, [255, 255, 255], .7), flash * 0.22); ctx.fillRect(0, 0, W, H); }
+
+    // grosse Zahl im DOM (gedrosselt)
+    if ((S === 'download' || S === 'upload') && t - lastTxt > 90) { lastTxt = t; showNumber(targetM === null ? null : dispM, w); }
+  }
+  var lastTxt = 0, lastBig = '';
+  function showNumber(m, w) {
+    var txt, unit, wt;
+    if (m === null) { txt = '…'; unit = lastUnit; wt = 'Warp –'; }
+    else { var f = E.fmtSpeed(m); txt = f.v; unit = f.u; wt = 'Warp ' + E.fmt(w, 1); }
+    if (txt !== lastBig) { $('big').textContent = txt; lastBig = txt; }
+    if (unit !== lastUnit) { $('unit').textContent = unit; lastUnit = unit; }
+    $('warp').textContent = wt;
+  }
+  var lastUnit = 'Mbit/s';
+
+  // ---------- Sternbild aus den Messwerten ----------
+  function hash(str) { var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul ? Math.imul(h, 16777619) : (h * 16777619) | 0; } return h >>> 0; }
+  function rng(seed) { var a = seed || 1; return function () { a = (a + 0x6D2B79F5) | 0; var t = a; t = Math.imul ? Math.imul(t ^ (t >>> 15), t | 1) : t * 7; t ^= t + (Math.imul ? Math.imul(t ^ (t >>> 7), t | 61) : t * 13); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function ds(arr, n) {
+    if (!arr || !arr.length) return [];
+    if (arr.length <= n) return arr.slice();
+    var out = [];
+    for (var i = 0; i < n; i++) {
+      var a = Math.floor(i * arr.length / n), b = Math.max(a + 1, Math.floor((i + 1) * arr.length / n)), sum = 0;
+      for (var j = a; j < b; j++) sum += arr[j];
+      out.push(sum / (b - a));
+    }
+    return out;
+  }
+  function synth(avg, peak, n, r) {
+    var out = [], mx = 0, mi = 0;
+    for (var i = 0; i < n; i++) {
+      var v = avg * (1 - Math.exp(-(i + 0.7) * 0.5)) * (0.95 + r() * 0.09);
+      out.push(Math.min(v, peak)); if (out[i] > mx) { mx = out[i]; mi = i; }
+    }
+    if (peak) out[mi] = peak;
+    return out;
+  }
+  // Liefert normierte Polarkoordinaten: aeusserer Ring Download, innerer Ring Upload, Kern Ping
+  function glyph(data) {
+    var seed = hash([data.ts, data.dp, data.up, data.ping].join('|'));
+    var R = rng(seed), rot = R() * Math.PI * 2;
+    function ring(vals, r0, r1, off) {
+      var mx = 0, pk = 0, out = [];
+      for (var i = 0; i < vals.length; i++) if (vals[i] > mx) { mx = vals[i]; pk = i; }
+      for (var k = 0; k < vals.length; k++) {
+        // Werte nahe der Spitze werden gespreizt, damit jedes Sternbild eine eigene Kontur bekommt
+        var f = mx ? vals[k] / mx : 0.5, g = f < 0.8 ? f / 0.8 * 0.35 : 0.35 + (f - 0.8) / 0.2 * 0.65;
+        out.push({ a: off + k / vals.length * Math.PI * 2 - Math.PI / 2, r: r0 + (r1 - r0) * g, v: vals[k], peak: k === pk });
+      }
+      return out;
+    }
+    var pmin = 1e9, pmax = 0, pv = data.p, pr = [];
+    for (var i = 0; i < pv.length; i++) { if (pv[i] < pmin) pmin = pv[i]; if (pv[i] > pmax) pmax = pv[i]; }
+    for (var k = 0; k < pv.length; k++) {
+      pr.push({ a: rot * 1.7 + k / pv.length * Math.PI * 2, r: 0.06 + 0.1 * (pmax > pmin ? (pv[k] - pmin) / (pmax - pmin) : 0.5), v: pv[k], peak: false });
+    }
+    return { outer: ring(data.d, 0.5, 1, rot), inner: ring(data.u, 0.2, 0.42, rot + 0.4), ping: pr, seed: seed };
+  }
+  // Datenquelle fuer ein Sternbild: echte Sekundenwerte, falls auf diesem Geraet gespeichert, sonst deterministisch erzeugt
+  var SKEY = 'warp-series';
+  function loadSeries() { try { return JSON.parse(localStorage.getItem(SKEY) || '{}') || {}; } catch (e) { return {}; } }
+  function saveSeries(ts, d) {
+    try {
+      var all = loadSeries(), keys = []; all[ts] = d;
+      for (var k in all) keys.push(k);
+      keys.sort(); while (keys.length > 40) delete all[keys.shift()];
+      localStorage.setItem(SKEY, JSON.stringify(all));
+    } catch (e) { }
+  }
+  function glyphData(e, real) {
+    var rec = real || loadSeries()[e.ts];
+    var dp = e.dl_peak || e.dl || 0, up = e.ul_peak || e.ul || 0;
+    var base = { ts: e.ts, dp: dp, up: up, ping: e.ping };
+    if (rec && rec.d && rec.d.length > 2) { base.d = rec.d; base.u = rec.u.length > 2 ? rec.u : [1, 1, 1]; base.p = rec.p.length ? rec.p : [1]; return base; }
+    var r = rng(hash('s' + e.ts + '|' + dp + '|' + up));
+    base.d = synth(e.dl || dp, dp, 24, r); base.u = synth(e.ul || up, up, 18, r);
+    base.p = []; for (var i = 0; i < 20; i++) base.p.push(Math.max(0.1, (e.ping || 2) + (r() - 0.5) * 2 * (e.jitter || 0.5)));
+    return base;
+  }
+  function polar(p, cx, cy, R) { return [cx + Math.cos(p.a) * p.r * R, cy + Math.sin(p.a) * p.r * R]; }
+
+  // kleines SVG-Sternbild fuer den Verlauf
+  function miniSvg(G) {
+    function poly(list, close) {
+      var s = '';
+      for (var i = 0; i < list.length; i++) { var q = polar(list[i], 0, 0, 44); s += (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1); }
+      return s + (close ? 'Z' : '');
+    }
+    function dots(list, col) {
+      var s = '';
+      for (var i = 0; i < list.length; i++) {
+        var q = polar(list[i], 0, 0, 44), pk = list[i].peak;
+        s += '<circle cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="' + (pk ? 2.8 : 1.3) + '" fill="' + (pk ? '#ffffff' : col) + '"/>';
+      }
+      return s;
+    }
+    return '<svg viewBox="-50 -50 100 100" aria-hidden="true">' +
+      '<circle r="47" fill="none" stroke="rgba(150,165,220,.16)" stroke-dasharray="1 3"/>' +
+      '<path d="' + poly(G.outer, true) + '" fill="rgba(53,208,186,.07)" stroke="#35d0ba" stroke-opacity=".7" stroke-width=".9"/>' +
+      '<path d="' + poly(G.inner, true) + '" fill="rgba(185,140,255,.08)" stroke="#b98cff" stroke-opacity=".75" stroke-width=".9"/>' +
+      '<path d="' + poly(G.ping, false) + '" fill="none" stroke="#f2c14e" stroke-opacity=".7" stroke-width=".7"/>' +
+      dots(G.outer, '#35d0ba') + dots(G.inner, '#b98cff') + dots(G.ping, '#f2c14e') + '</svg>';
+  }
+
+  // ---------- Uebergang: Tunnel stoppt, Sterne frieren ein und bilden das Sternbild ----------
+  function freezeAndForm(G) {
+    frozen = [];
+    for (var i = 0; i < N; i++) {
+      var p = stars[i], x = vx + p.x * F / p.z, y = vy + p.y * F / p.z;
+      if (x < 0 || x > W || y < 0 || y > H) continue;
+      frozen.push({ x: x, y: y, a: clamp(1.15 - p.z, 0.2, 1), tw: p.tw, sz: p.sz * (p.z < 0.4 ? 1.6 : 1), sp: 0.6 + Math.random() });
+    }
+    for (var d = 0; d < 70; d++) frozen.push({ x: Math.random() * W, y: Math.random() * H, a: 0.15 + Math.random() * 0.35, tw: Math.random() * 6.3, sz: 0.7, sp: 0.4 + Math.random(), fade: true });
+    var list = [], k;
+    for (k = 0; k < G.outer.length; k++) list.push({ g: G.outer[k], c: COL.download, set: 0 });
+    for (k = 0; k < G.inner.length; k++) list.push({ g: G.inner[k], c: COL.upload, set: 1 });
+    for (k = 0; k < G.ping.length; k++) list.push({ g: G.ping[k], c: COL.ping, set: 2 });
+    // Quellen: eingefrorene Sterne nach Winkel sortiert, damit die Bahnen sich kaum kreuzen
+    var src = frozen.slice(0, Math.min(frozen.length - 70, list.length + 30)).filter(function (f) { return !f.fade; });
+    src.sort(function (a, b) { return Math.atan2(a.y - vy, a.x - vx) - Math.atan2(b.y - vy, b.x - vx); });
+    var order = list.slice().sort(function (a, b) { return norm(a.g.a) - norm(b.g.a); });
+    for (k = 0; k < order.length; k++) {
+      var sidx = src.length ? Math.floor(k * src.length / order.length) : -1, f = sidx >= 0 ? src[sidx] : null;
+      order[k].sx = f ? f.x : Math.random() * W; order[k].sy = f ? f.y : Math.random() * H;
+      if (f) f.used = true;
+      order[k].delay = (k / order.length) * 0.55 + (order[k].set === 2 ? 0.25 : 0);
+    }
+    frozen = frozen.filter(function (f) { return !f.used; });
+    cpts = list; glyphG = G; morphT0 = now(); dirty = true;
+  }
+  function norm(a) { a = a % (Math.PI * 2); return a < 0 ? a + Math.PI * 2 : a; }
+
+  function drawResult(t) {
+    var el = (t - morphT0) / 1000;
+    if (RM) el = Math.max(el, 3);
+    // eingefrorene Sterne, sanftes Funkeln
+    var dim = 1 - smooth(0, 1.2, el) * 0.35;
+    ctx.fillStyle = '#dfe6ff';
+    for (var i = 0; i < frozen.length; i++) {
+      var f = frozen[i], a = f.a * dim * (RM ? 0.8 : 0.62 + 0.38 * Math.sin(t * 0.0011 * f.sp + f.tw));
+      if (f.fade) a *= smooth(0.2, 1.4, el);
+      ctx.globalAlpha = a; ctx.fillRect(f.x - f.sz / 2, f.y - f.sz / 2, f.sz * 1.2, f.sz * 1.2);
+    }
+    ctx.globalAlpha = 1;
+    if (!glyphG) return;
+    var r = $('slot').getBoundingClientRect();
+    if (r.bottom < -80 || r.top > H + 80 || !r.width) return;
+    var cx = r.left + r.width / 2, cy = r.top + r.height / 2, R = r.width * 0.43;
+
+    // Sternkarten-Gitter
+    var ga = smooth(0.2, 1.3, el);
+    if (ga > 0) {
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(150,165,220,' + (0.16 * ga).toFixed(3) + ')';
+      if (ctx.setLineDash) ctx.setLineDash([1, 5]);
+      ctx.beginPath(); ctx.arc(cx, cy, R * 1.06, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy, R * 0.52, 0, Math.PI * 2); ctx.stroke();
+      if (ctx.setLineDash) ctx.setLineDash([]);
+      ctx.beginPath();
+      for (var tk = 0; tk < 72; tk++) {
+        var ta = tk / 72 * Math.PI * 2, tl = tk % 6 === 0 ? 0.07 : 0.03;
+        ctx.moveTo(cx + Math.cos(ta) * R * 1.06, cy + Math.sin(ta) * R * 1.06);
+        ctx.lineTo(cx + Math.cos(ta) * R * (1.06 + tl), cy + Math.sin(ta) * R * (1.06 + tl));
+      }
+      ctx.stroke();
+    }
+    // Sternpositionen (waehrend des Morphs zwischen Quelle und Ziel)
+    var pos = [];
+    for (var k = 0; k < cpts.length; k++) {
+      var c = cpts[k], q = polar(c.g, cx, cy, R), pr = easeIO(clamp((el - c.delay) / 1.15, 0, 1));
+      pos.push([c.sx + (q[0] - c.sx) * pr, c.sy + (q[1] - c.sy) * pr, pr]);
+    }
+    // Linien wachsen nach dem Eintreffen der Sterne entlang der Ringe
+    var lp = smooth(1.2, 2.3, el);
+    if (lp > 0) {
+      var nO = glyphG.outer.length, nI = glyphG.inner.length, nP = glyphG.ping.length;
+      ctx.lineWidth = 1.1;
+      polyline(pos, 0, nO, true, lp, rgba(COL.download, 0.6));
+      polyline(pos, nO, nI, true, lp, rgba(COL.upload, 0.65));
+      polyline(pos, nO + nI, nP, false, lp, rgba(COL.ping, 0.55));
+      ctx.strokeStyle = 'rgba(220,228,255,' + (0.14 * lp).toFixed(3) + ')';
+      ctx.beginPath();
+      for (var sp = 0; sp < nO; sp += 3) {
+        var ii = nO + Math.round(sp * nI / nO) % nI;
+        ctx.moveTo(pos[sp][0], pos[sp][1]); ctx.lineTo(pos[ii][0], pos[ii][1]);
+      }
+      ctx.stroke();
+    }
+    // Sterne
+    for (var m = 0; m < cpts.length; m++) {
+      var cp = cpts[m], P = pos[m], pk = cp.g.peak, rad = pk ? 3.6 : (cp.set === 2 ? 1.5 : 1.9);
+      var tw = RM ? 1 : 0.8 + 0.2 * Math.sin(t * 0.002 + m);
+      ctx.fillStyle = rgba(mix(cp.c, [255, 255, 255], pk ? 0.6 : 0.15 + 0.3 * (1 - P[2])), 0.95 * tw);
+      ctx.beginPath(); ctx.arc(P[0], P[1], rad * (0.7 + 0.3 * P[2]), 0, Math.PI * 2); ctx.fill();
+      if (pk && P[2] > 0.95) {
+        var fl = 11 + 3 * tw;
+        ctx.strokeStyle = rgba(mix(cp.c, [255, 255, 255], .5), 0.75); ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(P[0] - fl, P[1]); ctx.lineTo(P[0] + fl, P[1]); ctx.moveTo(P[0], P[1] - fl); ctx.lineTo(P[0], P[1] + fl); ctx.stroke();
+        var gg = ctx.createRadialGradient(P[0], P[1], 0, P[0], P[1], 22);
+        gg.addColorStop(0, rgba(cp.c, 0.45)); gg.addColorStop(1, rgba(cp.c, 0));
+        ctx.fillStyle = gg; ctx.fillRect(P[0] - 22, P[1] - 22, 44, 44);
+      }
+    }
+    // Beschriftung der Spitzen
+    var la = smooth(1.9, 2.5, el);
+    if (la > 0 && peakTxt) {
+      ctx.globalAlpha = la;
+      ctx.font = '600 12px "Space Grotesk", "Segoe UI", sans-serif';
+      label(glyphG.outer, cx, cy, R, 1.2, peakTxt[0], COL.download);
+      ctx.globalAlpha = 1;
+    }
+  }
+  function polyline(pos, off, n, close, lp, col) {
+    if (n < 2) return;
+    var segs = close ? n : n - 1, upto = lp * segs;
+    ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(pos[off][0], pos[off][1]);
+    for (var s = 0; s < segs; s++) {
+      if (s >= upto) break;
+      var a = pos[off + s], b = pos[off + (s + 1) % n], f = Math.min(1, upto - s);
+      ctx.lineTo(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f);
+    }
+    ctx.stroke();
+  }
+  function label(list, cx, cy, R, rf, txt, col) {
+    for (var i = 0; i < list.length; i++) {
+      if (!list[i].peak) continue;
+      var a = list[i].a, x = cx + Math.cos(a) * R * rf, y = cy + Math.sin(a) * R * rf, tw = ctx.measureText(txt).width;
+      var al = Math.cos(a) > 0.3 ? 'left' : Math.cos(a) < -0.3 ? 'right' : 'center';
+      var lx = al === 'left' ? x : al === 'right' ? x - tw : x - tw / 2;
+      if (lx < 8) lx = 8; if (lx + tw > W - 8) lx = W - 8 - tw;
+      ctx.textAlign = 'left'; x = lx;
+      ctx.textBaseline = Math.sin(a) > 0.3 ? 'top' : Math.sin(a) < -0.3 ? 'bottom' : 'middle';
+      ctx.fillStyle = rgba(mix(col, [255, 255, 255], .35), 1);
+      ctx.fillText(txt, x, y);
+    }
+  }
+  var peakTxt = null;
+
+  // ---------- Oberflaeche ----------
+  function setPhase(p) {
+    S = p;
+    document.body.className = 'p-' + (p === 'brake' ? 'idle' : p);
+    jumped = false; dirty = true; schedule();
+  }
+  function place(where) {
+    var go = $('go'), had = document.activeElement === go;
+    go.className = 'go ' + (where === 'run' ? 'is-stop' : where === 'done' ? 'is-again' : 'is-big');
+    if (where === 'run') go.innerHTML = 'Stopp';
+    else if (where === 'done') go.innerHTML = 'Neu messen';
+    else go.innerHTML = '<span class="gl">Start</span><span class="gs">Warp einleiten</span>';
+    var home = where === 'run' ? $('readout') : where === 'done' ? $('acts') : $('gohome');
+    if (where === 'done') home.insertBefore(go, home.firstChild); else home.appendChild(go);
+    if (had && go.focus) { try { go.focus({ preventScroll: true }); } catch (e) { go.focus(); } }
+  }
+  function layout(mode) {        // idle | run | done
+    $('flight').hidden = mode === 'done';
+    $('result').hidden = mode !== 'done';
+    $('readout').hidden = mode !== 'run';
+    $('strip').hidden = mode !== 'run';
+    $('tag').hidden = mode !== 'idle';
+    $('opts').hidden = mode === 'run';
+    place(mode);
+    vpCheck = 0;
+  }
+  function ro(id, html, sub) {
+    var r = $(id); r.querySelector('dd').innerHTML = html; r.querySelector('.s').textContent = sub || '';
+  }
+  function roOn(id) { ['ro-ping', 'ro-dl', 'ro-ul'].forEach(function (x) { $(x).classList.toggle('on', x === id); }); }
+  function cpuShort(r) { return r && r.core !== null && r.core !== undefined ? Math.round(r.core) + ' %' : '–'; }
+  function verdict(dl) {
+    if (dl >= 4700) return ['Über 5 Gbit/s', 'Das schafft nur eine 10-GbE-Strecke.'];
+    if (dl >= 2000) return ['2,5 Gbit/s ausgeschöpft', 'Die 2,5-GbE-Verbindung läuft nahe am Maximum.'];
+    if (dl >= 940) return ['Mehr als Gigabit', 'Schneller als 1 GbE, also 2,5 GbE oder schnelles WLAN.'];
+    if (dl >= 600) return ['Gigabit-Klasse', 'Typisch für 1-GbE-Kabel oder gutes WLAN 6/7.'];
+    if (dl >= 90) return ['Ordentlich', 'Typisch für WLAN mit Abstand oder 100-Mbit-Kabel.'];
+    return ['Langsam', 'Kabel, Port oder WLAN-Empfang prüfen.'];
+  }
+  function stardate(d) {
+    var start = new Date(d.getFullYear(), 0, 1), doy = (d - start) / 864e5;
+    return d.getFullYear() + '.' + ('00' + Math.floor(doy / 365.25 * 1000)).slice(-3);
+  }
+  function sp(m) { var f = E.fmtSpeed(m); return f.v + ' ' + f.u; }
+
+  var res = {}, pingSamples = [], running = false;
+  function start() {
+    var streams = +$('streams').value, duration = +$('duration').value, label = $('label').value.replace(/^\s+|\s+$/g, '');
+    try { localStorage.setItem('st-label', label); localStorage.setItem('st-streams', streams); localStorage.setItem('st-duration', duration); } catch (e) { }
+    res = {}; pingSamples = []; glyphG = null; cpts = []; peakTxt = null;
+    for (var i = 0; i < MAXN; i++) spawn(stars[i], 0.05, 1.05);
+    $('status').textContent = ''; $('note').hidden = true;
+    ro('ro-ping', '–<small>ms</small>'); ro('ro-jit', '–<small>ms</small>');
+    ro('ro-dl', '–', 'Spitze folgt'); ro('ro-ul', '–', 'Spitze folgt');
+    $('prog').style.width = '0';
+    layout('run'); running = true;
+    if (window.scrollY > 0) window.scrollTo(0, 0);
+    targetM = null; dispM = 0;
+    E.run({ streams: streams, duration: duration, label: label }, {
+      phase: function (p) {
+        setPhase(p); roOn({ ping: 'ro-ping', download: 'ro-dl', upload: 'ro-ul' }[p]);
+        $('phase').textContent = { ping: 'Ping · Sonar', download: 'Download', upload: 'Upload · Rückflug' }[p];
+        $('prog').style.width = '0';
+        if (p === 'ping') { $('big').textContent = '…'; $('unit').textContent = 'ms'; $('warp').textContent = 'Sonar'; lastBig = ''; lastUnit = 'ms'; }
+        else { targetM = null; showNumber(null, 0); }
+      },
+      pingSample: function (ms, i, n) {
+        pingSamples.push(ms);
+        $('big').textContent = E.fmt(ms, 1); $('warp').textContent = 'Sonar ' + (i + 1) + '/' + n;
+        $('prog').style.width = ((i + 1) / n * 100).toFixed(1) + '%';
+        pulses.push({ t0: now(), w: clamp(ms / 4, 0, 2.5) }); schedule();
+      },
+      ping: function (p, j) {
+        ro('ro-ping', E.fmt(p, p < 10 ? 1 : 0) + '<small>ms</small>'); ro('ro-jit', E.fmt(j, 1) + '<small>ms</small>');
+        res.ping = p; res.jitter = j;
+      },
+      live: function (kind, m, p) {
+        if (m !== null) targetM = m;
+        $('prog').style.width = (p * 100).toFixed(1) + '%';
+      },
+      result: function (kind, r) {
+        res[kind] = r;
+        var f = E.fmtSpeed(r.peak);
+        ro(kind === 'download' ? 'ro-dl' : 'ro-ul', f.v + '<small>' + f.u + '</small>', 'Ø ' + sp(r.avg));
+      },
+      done: function (rec) { running = false; finish(rec); },
+      error: function (msg) { running = false; toIdle(msg); }
+    });
+  }
+  function toIdle(msg) {
+    setPhase('idle'); targetM = null; pulses = [];
+    layout('idle'); $('status').textContent = msg || '';
+  }
+  function finish(rec) {
+    var d = res.download, u = res.upload;
+    // Sekundenwerte fuer Sternbild (gross) und Verlauf (klein) festhalten
+    var series = { d: ds(d.series, 28).map(Math.round), u: ds(u.series, 20).map(Math.round), p: pingSamples.slice(0, 20).map(function (v) { return Math.round(v * 10) / 10; }) };
+    if (!rec.ts) rec.ts = Math.floor(Date.now() / 1000);
+    saveSeries(rec.ts, series);
+    var G = glyph(glyphData(rec, series));
+    $('go').disabled = true;
+    setPhase('brake'); targetM = 0;
+    fillResult(d, u, rec);
+    setTimeout(function () {
+      $('go').disabled = false;
+      setPhase('result'); layout('done');
+      freezeAndForm(G);
+      loadHistory();
+    }, RM ? 0 : 600);
+  }
+  function fillResult(d, u, rec) {
+    var fd = E.fmtSpeed(d.peak), fu = E.fmtSpeed(u.peak);
+    $('r-dl').innerHTML = fd.v + '<small>' + fd.u + '</small>';
+    $('r-ul').innerHTML = fu.v + '<small>' + fu.u + '</small>';
+    $('r-dl-s').innerHTML = 'Ø <b>' + sp(d.avg) + '</b><span class="wf">Warp ' + E.fmt(warpOf(d.peak), 1) + '</span>';
+    $('r-ul-s').innerHTML = 'Ø <b>' + sp(u.avg) + '</b><span class="wf">Warp ' + E.fmt(warpOf(u.peak), 1) + '</span>';
+    $('r-ping').textContent = res.ping === undefined ? '–' : E.fmt(res.ping, res.ping < 10 ? 1 : 0) + ' ms';
+    $('r-jit').textContent = res.jitter === undefined ? '–' : E.fmt(res.jitter, 1) + ' ms';
+    $('r-cpu').textContent = (d.core === null && u.core === null) ? 'nicht verfügbar' : '↓ ' + cpuShort(d) + '  ·  ↑ ' + cpuShort(u);
+    var v = verdict(d.peak); $('verdict').textContent = v[0]; $('verdict-s').textContent = v[1];
+    $('stardate').textContent = 'Sternzeit ' + stardate(new Date(rec.ts * 1000));
+    $('r-fine').textContent = (rec.streams || $('streams').value) + ' Verbindungen · ' + $('duration').value + ' s je Richtung';
+    if (Math.max(d.core || 0, u.core || 0) >= 90) {
+      $('note').textContent = 'Ein Prozessorkern des Routers war voll ausgelastet. Das Ergebnis zeigt eher die Grenze des Routers als die des Netzes.';
+      $('note').hidden = false;
+    }
+    peakTxt = [fd.v + ' ' + fd.u];
+  }
+
+  // ---------- Verlauf ----------
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function sv(v) { return v === null || v === undefined ? '–' : sp(v); }
+  function loadHistory() {
+    E.history(function (h) {
+      if (!h.length) { $('history').innerHTML = '<div class="empty">Noch keine Messungen. Der erste Flug trägt sich hier ein.</div>'; return; }
+      var out = '';
+      for (var i = h.length - 1; i >= 0; i--) {
+        var e = h[i], d = new Date(e.ts * 1000);
+        var when = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '.' + d.getFullYear() + ', ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+        var who = esc(e.label || e.host || e.ip || 'Unbekannt');
+        var sub = e.label && e.host ? esc(e.host) : (e.ip ? esc(e.ip) : '');
+        var svg = '';
+        try { svg = miniSvg(glyph(glyphData(e))); } catch (x) { svg = ''; }
+        out += '<div class="entry">' + svg +
+          '<div class="e-who">' + who + (sub ? '<small>' + sub + '</small>' : '') + '<span class="e-when">' + when + '</span></div>' +
+          '<div class="nums">' +
+            '<div class="n-p"><span class="k">Ping</span><b>' + (e.ping === null || e.ping === undefined ? '–' : E.fmt(e.ping, 1) + ' ms') + '</b><em>Jitter ' + (e.jitter === null || e.jitter === undefined ? '–' : E.fmt(e.jitter, 1)) + '</em></div>' +
+            '<div class="n-d"><span class="k">Down<span class="hm"> Spitze</span></span><b>' + sv(e.dl_peak === undefined ? e.dl : e.dl_peak) + '</b><em>Ø ' + sv(e.dl) + '</em></div>' +
+            '<div class="n-u"><span class="k">Up<span class="hm"> Spitze</span></span><b>' + sv(e.ul_peak === undefined ? e.ul : e.ul_peak) + '</b><em>Ø ' + sv(e.ul) + '</em></div>' +
+          '</div></div>';
+      }
+      $('history').innerHTML = out;
+    });
+  }
+  function clearAsk() {
+    $('clear-wrap').innerHTML = '<span class="confirm">Ganzen Verlauf löschen? <button class="btn danger" id="yes">Ja, löschen</button><button class="btn" id="no">Abbrechen</button></span>';
+    $('yes').onclick = function () { E.clearHistory(function () { try { localStorage.removeItem(SKEY); } catch (e) { } loadHistory(); clearReset(); }); };
+    $('no').onclick = clearReset;
+    $('no').focus();
+  }
+  function clearReset() { $('clear-wrap').innerHTML = '<button class="btn" id="clear">Löschen</button>'; $('clear').onclick = clearAsk; }
+  $('clear').onclick = clearAsk;
+
+  $('go').onclick = function () {
+    if (S === 'brake') return;
+    if (running) { E.stop(); running = false; toIdle('Abgebrochen'); return; }
+    start();
+  };
+
+  try {
+    var l = localStorage.getItem('st-label'), s = localStorage.getItem('st-streams'), d = localStorage.getItem('st-duration');
+    if (l) $('label').value = l; if (s) $('streams').value = s; if (d) $('duration').value = d;
+  } catch (e) { }
+
+  resize(); schedule();
+  E.init(function (info) {
+    $('host').textContent = info.hostname || 'Router';
+    $('meta').textContent = (info.model ? info.model + ' · ' : '') + (info.cores ? info.cores + ' Kerne · ' : '') + 'Du: ' +
+      (info.client_host ? info.client_host + ' (' + info.client_ip + ')' : (info.client_ip || '?'));
+    $('demo').hidden = !info.demo;
+    $('go').disabled = false;
+    loadHistory();
+  });
+})();
+</script>
+</body>
+</html>

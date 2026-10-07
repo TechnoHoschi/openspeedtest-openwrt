@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Speedtest-Diagnose</title>
+<style>
+:root { --bg: #f4f5f7; --text: #1d2330; --muted: #677085; --line: #dde1e8; --accent: #1a73e8; }
+@media (prefers-color-scheme: dark) { :root { --bg: #12151b; --text: #e7eaf0; --muted: #98a1b3; --line: #2c323e; --accent: #5aa0ff; } }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.4 -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 760px; margin: 0 auto; padding: 16px; }
+button { font: inherit; border: 0; border-radius: 8px; padding: 10px 24px; background: var(--accent); color: #fff; cursor: pointer; }
+button:disabled { opacity: .5; }
+table { border-collapse: collapse; width: 100%; margin-top: 16px; font-variant-numeric: tabular-nums; }
+td, th { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; }
+td:last-child { text-align: right; }
+.sub { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+<h1>Speedtest-Diagnose</h1>
+<p class="sub">Misst mehrere Varianten nacheinander (je 6 s, gesamt etwa 1,5 min). Danach bitte die Tabelle als Screenshot schicken.</p>
+<button id="go">Start</button>
+<table id="out"><tr><th>Variante</th><th>Ergebnis</th></tr></table>
+</main>
+<script>
+(function () {
+  var DL = '/speedtest/data/dl.bin', UP = '/speedtest-api/up', PING = '/speedtest/ping.txt';
+  function now() { return performance.now(); }
+  function bust(u) { return u + '?r=' + Math.random().toString(36).slice(2); }
+  function row(label, text) {
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td></td><td></td>';
+    tr.children[0].textContent = label; tr.children[1].textContent = text;
+    document.getElementById('out').appendChild(tr);
+    return tr.children[1];
+  }
+
+  function ping(mode, done) {
+    var t = [], n = 0;
+    function one() {
+      var url = bust(PING), t0 = now();
+      fetch(url, { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function () {
+        var v = now() - t0;
+        if (mode === 'ttfb') {
+          var e = performance.getEntriesByName(location.origin + url).pop();
+          v = e && e.responseStart ? e.responseStart - e.requestStart : NaN;
+        }
+        if (n++ >= 2) t.push(v);
+        if (n < 22) one(); else { t.sort(function (a, b) { return a - b; }); done(t[t.length >> 1].toFixed(1) + ' ms (Median)'); }
+      });
+    }
+    one();
+  }
+
+  function transfer(kind, streams, opt, done) {
+    var bytes = 0, stop = false, aborts = [], t0 = now(), warm = null, warmT = 0;
+    var blob = kind === 'up' ? new Blob([new Uint8Array(opt.chunk)]) : null;
+    function count(b) { bytes += b; }
+    function worker() {
+      if (stop) return;
+      if (kind === 'up') {
+        var x = new XMLHttpRequest(), last = 0;
+        aborts.push(function () { x.abort(); });
+        x.open('POST', bust(UP));
+        x.upload.onprogress = function (e) { count(e.loaded - last); last = e.loaded; };
+        x.onload = function () { count(opt.chunk - last); worker(); };
+        x.onerror = function () { setTimeout(worker, 100); };
+        x.send(blob);
+      } else if (opt.xhr) {
+        var y = new XMLHttpRequest(), l2 = 0;
+        aborts.push(function () { y.abort(); });
+        y.open('GET', bust(DL));
+        y.responseType = 'arraybuffer';
+        y.onprogress = function (e) { count(e.loaded - l2); l2 = e.loaded; };
+        y.onload = function (e) { count(e.loaded - l2); worker(); };
+        y.onerror = function () { setTimeout(worker, 100); };
+        y.send();
+      } else {
+        var c = new AbortController();
+        aborts.push(function () { c.abort(); });
+        fetch(bust(DL), { cache: 'no-store', signal: c.signal }).then(function (res) {
+          var rd = res.body.getReader();
+          function pump() { return rd.read().then(function (r) { if (r.done) return worker(); count(r.value.length); return pump(); }); }
+          return pump();
+        })['catch'](function () { if (!stop) setTimeout(worker, 100); });
+      }
+    }
+    for (var i = 0; i < streams; i++) worker();
+    var tm = setInterval(function () {
+      var t = (now() - t0) / 1000;
+      if (warm === null && t >= 1.5) { warm = bytes; warmT = t; }
+      if (t >= 6) {
+        clearInterval(tm); stop = true;
+        aborts.forEach(function (f) { try { f(); } catch (e) { } });
+        performance.clearResourceTimings();
+        done(Math.round((bytes - warm) * 8 / 1e6 / (t - warmT)) + ' Mbit/s');
+      }
+    }, 100);
+  }
+
+  var tests = [
+    ['Ping, Gesamtzeit', function (d) { ping('total', d); }],
+    ['Ping, erstes Byte (Resource Timing)', function (d) { ping('ttfb', d); }],
+    ['Download fetch, 1 Verbindung', function (d) { transfer('dl', 1, {}, d); }],
+    ['Download fetch, 4 Verbindungen', function (d) { transfer('dl', 4, {}, d); }],
+    ['Download fetch, 8 Verbindungen', function (d) { transfer('dl', 8, {}, d); }],
+    ['Download XHR, 1 Verbindung', function (d) { transfer('dl', 1, { xhr: true }, d); }],
+    ['Download XHR, 4 Verbindungen', function (d) { transfer('dl', 4, { xhr: true }, d); }],
+    ['Upload 8 MB-Stücke, 4 Verbindungen', function (d) { transfer('up', 4, { chunk: 8 << 20 }, d); }],
+    ['Upload 32 MB-Stücke, 1 Verbindung', function (d) { transfer('up', 1, { chunk: 32 << 20 }, d); }],
+    ['Upload 32 MB-Stücke, 4 Verbindungen', function (d) { transfer('up', 4, { chunk: 32 << 20 }, d); }]
+  ];
+
+  document.getElementById('go').onclick = function () {
+    this.disabled = true;
+    row('Browser', navigator.userAgent);
+    var i = 0;
+    (function next() {
+      if (i >= tests.length) { row('Fertig', ''); return; }
+      var t = tests[i++], cell = row(t[0], 'läuft …');
+      setTimeout(function () { t[1](function (r) { cell.textContent = r; next(); }); }, 300);
+    })();
+  };
+})();
+</script>
+</body>
+</html>

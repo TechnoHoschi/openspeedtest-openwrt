@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Speedtest Bauhaus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;700;900&display=swap">
+<style>
+/* Bauhaus: Papier, drei Grundfarben und Schwarz. Links (oder oben) ein Plakat im Hochformat 1 : 1,41,
+   dessen Formen waehrend der Messung den Live-Werten folgen und sich danach zum Ergebnisplakat ordnen.
+   Formenzuordnung nach Kandinskys Fragebogen von 1923: Dreieck gelb, Quadrat rot, Kreis blau.
+   Alle Masse im Plakat in u = Plakatbreite / 100 (per JS als --u gesetzt). Bewusst nur hell. */
+:root {
+  --wall: #e7e1d3;
+  --paper: #f5f1e6;
+  --ink: #151413;
+  --mute: #5a554b;
+  --rule: #c9c1ae;
+  --red: #d3291d;
+  --yel: #f3b416;
+  --blu: #1c4c9c;
+  --f: "Jost", "Futura", "Century Gothic", "Avenir Next", "Trebuchet MS", "Helvetica Neue", Arial, sans-serif;
+  --u: 5px;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { background: var(--wall); color: var(--ink); }
+body { margin: 0; font: 16px/1.4 var(--f); -webkit-text-size-adjust: 100%; }
+button, select, input { font: inherit; color: inherit; }
+
+.app { max-width: 1480px; margin: 0 auto; padding: 16px; display: grid; gap: 18px;
+  grid-template-columns: minmax(0, 1fr); grid-template-areas: "mast" "poster" "panel"; }
+.app > * { min-width: 0; }
+.mast { grid-area: mast; }
+.stage { grid-area: poster; }
+.panel { grid-area: panel; display: grid; gap: 22px; align-content: start; }
+.panel > * { min-width: 0; }
+@media (min-width: 900px) {
+  .app { padding: 24px 32px; column-gap: 40px; row-gap: 20px;
+    grid-template-columns: minmax(0, calc((100vh - 48px) / 1.41)) minmax(0, 1fr);
+    grid-template-columns: minmax(0, min(760px, calc((100vh - 48px) / 1.41))) minmax(0, 1fr);
+    grid-template-areas: "poster mast" "poster panel"; grid-template-rows: auto 1fr; }
+  .stage { position: -webkit-sticky; position: sticky; top: 24px; align-self: start; }
+  .panel, .mast { max-width: 720px; }
+}
+
+/* ---------- Kopf ---------- */
+.mast { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 16px; align-items: end; border-bottom: 4px solid var(--ink); padding-bottom: 10px; }
+.mast h1 { margin: 0; font-weight: 900; font-size: 2.1rem; line-height: .9; letter-spacing: -.01em; text-transform: uppercase; }
+.mast h1 span { display: block; font-weight: 400; letter-spacing: .02em; }
+.marks { display: flex; gap: 6px; align-items: end; justify-self: end; }
+.marks i { display: block; width: 22px; height: 22px; }
+.marks .c { background: var(--blu); border-radius: 50%; }
+.marks .s { background: var(--red); }
+.marks .t { width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 21px solid var(--yel); }
+.meta { grid-column: 1 / -1; color: var(--mute); font-size: .86rem; letter-spacing: .02em; }
+.demo { display: inline-block; background: var(--yel); color: var(--ink); font-weight: 700; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; padding: 1px 7px; margin-left: 6px; vertical-align: 1px; }
+
+/* ---------- Plakat ---------- */
+.poster { position: relative; width: 100%; max-width: 560px; margin: 0 auto; background: var(--paper);
+  box-shadow: 0 1px 0 rgba(0,0,0,.08), 0 22px 50px -18px rgba(40,30,10,.35); }
+@media (min-width: 900px) { .poster { max-width: none; } }
+.poster::before { content: ""; display: block; padding-top: 141%; }
+.pin { position: absolute; left: 0; top: 0; right: 0; bottom: 0; overflow: hidden; }
+.raster { position: absolute; left: 6%; right: 6%; top: 0; bottom: 0; opacity: .5;
+  background-image: linear-gradient(90deg, var(--rule) 1px, transparent 1px);
+  background-size: 14.6667% 100%; transition: opacity .8s; }
+.final .raster { opacity: 0; }
+
+.sh, .bar { position: absolute; left: 0; top: 0; width: calc(var(--u) * 100); height: calc(var(--u) * 100);
+  will-change: transform; pointer-events: none; }
+.sh { -webkit-transform-origin: 50% 50%; transform-origin: 50% 50%; }
+.bar { -webkit-transform-origin: 0 50%; transform-origin: 0 50%; background: var(--ink); }
+.drift, .drift i { display: block; width: 100%; height: 100%; }
+.circ i { background: var(--blu); border-radius: 50%; }
+.sq i { background: var(--red); }
+.tri svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.tri polygon { fill: var(--yel); }
+.final .sh, .final .bar { mix-blend-mode: multiply; }
+.final .bar.b1, .final .bar.b3 { opacity: .9; }
+.tween .sh, .tween .bar { -webkit-transition: -webkit-transform 1.5s cubic-bezier(.75, 0, .2, 1); transition: transform 1.5s cubic-bezier(.75, 0, .2, 1); }
+.tween .tri { transition-delay: .1s; } .tween .sq { transition-delay: .2s; } .tween .circ { transition-delay: .28s; }
+.tween .b1 { transition-delay: .36s; } .tween .b2 { transition-delay: .42s; } .tween .b3 { transition-delay: .48s; }
+
+/* Leerlauf: sehr langsames Treiben, nur CSS-Transforms */
+.idle .tri .drift { animation: turn 90s linear infinite; }
+.idle .sq .drift { animation: bob 11s ease-in-out infinite; }
+.idle .circ .drift { animation: breathe 6s ease-in-out infinite; }
+@keyframes turn { to { transform: rotate(360deg); } }
+@keyframes bob { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-6%) rotate(8deg); } }
+@keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+
+.pt { position: absolute; z-index: 2; }
+.p-head { left: 6%; right: 6%; top: calc(var(--u) * 4); display: flex; justify-content: space-between; gap: calc(var(--u) * 2);
+  font-size: calc(var(--u) * 3.1); line-height: 1.1; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
+.p-head span { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.p-rule { left: 6%; right: 6%; top: calc(var(--u) * 8.6); height: calc(var(--u) * 1.1); background: var(--ink); }
+.p-rule i { position: absolute; left: 0; top: 100%; height: calc(var(--u) * 1.1); width: 100%; background: var(--red);
+  -webkit-transform-origin: 0 0; transform-origin: 0 0; -webkit-transform: scaleX(0); transform: scaleX(0); will-change: transform; }
+.p-sub { left: 6%; right: 6%; top: calc(var(--u) * 11.4); font-size: calc(var(--u) * 2.8); letter-spacing: .08em; text-transform: uppercase; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.p-vert { right: calc(var(--u) * 4.5); top: calc(var(--u) * 17); -webkit-writing-mode: vertical-rl; writing-mode: vertical-rl;
+  -webkit-transform: rotate(180deg); transform: rotate(180deg); font-size: calc(var(--u) * 5.2); line-height: 1; font-weight: 900;
+  letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; max-height: calc(var(--u) * 34); overflow: hidden; }
+.p-vert small { font-weight: 500; font-size: .5em; letter-spacing: .2em; margin-top: .6em; }
+.band { position: absolute; left: -10%; width: 120%; top: calc(var(--u) * 51.5); height: calc(var(--u) * 8); background: var(--ink); color: var(--paper);
+  display: flex; align-items: center; padding-left: 16%; z-index: 3;
+  font-size: calc(var(--u) * 4.3); font-weight: 900; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap;
+  -webkit-transform-origin: 50% 50%; transform-origin: 50% 50%; opacity: 0; -webkit-transform: scaleX(0); transform: scaleX(0);
+  -webkit-transition: opacity .5s, -webkit-transform .9s cubic-bezier(.75, 0, .2, 1) 1.1s; transition: opacity .5s, transform .9s cubic-bezier(.75, 0, .2, 1) 1.1s; }
+.band.on { opacity: 1; }
+.p-data { left: 6%; width: 74%; top: calc(var(--u) * 63); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(var(--u) * 1.6) calc(var(--u) * 3); }
+.p-data > div { min-width: 0; border-top: calc(var(--u) * .5) solid var(--ink); padding-top: calc(var(--u) * .8); }
+.p-data .k { font-size: calc(var(--u) * 2.7); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; line-height: 1.15; white-space: nowrap; }
+.p-data .v { font-size: calc(var(--u) * 6.4); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.p-data .v small { font-size: .38em; font-weight: 500; letter-spacing: .06em; margin-left: .25em; }
+.p-data .s { font-size: calc(var(--u) * 2.6); letter-spacing: .04em; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 1.2em; }
+.p-data .hot .v { color: var(--red); }
+.p-cap { left: 6%; right: 6%; top: calc(var(--u) * 94); display: flex; justify-content: space-between; gap: calc(var(--u) * 2);
+  font-size: calc(var(--u) * 3); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
+.p-cap span { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.p-big { left: calc(var(--u) * 3.4); top: calc(var(--u) * 97); font-size: calc(var(--u) * 54); line-height: .8; font-weight: 900;
+  letter-spacing: -.045em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.final .pt, .final .band { -webkit-transition: opacity .6s, -webkit-transform .9s cubic-bezier(.75, 0, .2, 1) 1.1s; transition: opacity .6s, transform .9s cubic-bezier(.75, 0, .2, 1) 1.1s; }
+.reveal .p-data, .reveal .p-big, .reveal .p-cap, .reveal .p-vert, .reveal .p-sub { opacity: 0; }
+
+/* ---------- Bedienung ---------- */
+.go { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 76px; padding: 0 22px 0 26px;
+  background: var(--red); color: #fff; border: 0; border-radius: 0; cursor: pointer; text-align: left;
+  font-size: 1.9rem; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; -webkit-transition: background .2s; transition: background .2s; }
+.go:hover { background: #b51f15; }
+.go:disabled { background: #b7ad99; cursor: default; }
+.go .ic { flex: none; width: 0; height: 0; border-top: 16px solid transparent; border-bottom: 16px solid transparent; border-left: 26px solid #fff; }
+.go.stop { background: var(--ink); }
+.go.stop .ic { border: 0; width: 24px; height: 24px; background: var(--red); }
+.go.again { background: var(--blu); }
+.go.again:hover { background: #163d80; }
+.go.again .ic { border: 0; width: 28px; height: 28px; border-radius: 50%; background: var(--yel); }
+.go:focus-visible, .btn:focus-visible, select:focus-visible, input:focus-visible, .mini:focus-visible { outline: 3px solid var(--blu); outline-offset: 3px; }
+.go.again:focus-visible, .go:focus-visible { outline-color: var(--ink); }
+.status { display: flex; justify-content: space-between; gap: 12px; font-size: .8rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; margin-top: 8px; color: var(--mute); }
+
+.opts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(0, 2fr); gap: 14px 18px; }
+.opts label { display: grid; gap: 4px; min-width: 0; font-size: .72rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--mute); }
+select, input { width: 100%; min-width: 0; background: transparent; border: 0; border-bottom: 2px solid var(--ink); border-radius: 0;
+  padding: 6px 2px; font-size: 1.05rem; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--ink); }
+select { -webkit-appearance: none; appearance: none; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50%), linear-gradient(135deg, var(--ink) 50%, transparent 50%);
+  background-position: calc(100% - 13px) 55%, calc(100% - 8px) 55%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 22px; }
+input::placeholder { color: #8b8476; }
+
+.h2 { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 10px; padding-bottom: 6px; border-bottom: 4px solid var(--ink);
+  font-size: .95rem; font-weight: 900; letter-spacing: .2em; text-transform: uppercase; }
+.reads { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-left: 2px solid var(--ink); }
+.rd { padding: 10px 12px 12px 14px; border-right: 2px solid var(--ink); border-bottom: 2px solid var(--ink); min-width: 0; }
+.rd .k { display: flex; align-items: center; gap: 8px; font-size: .72rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+.rd .k i { flex: none; width: 13px; height: 13px; }
+.rd.ping .k i { background: var(--blu); border-radius: 50%; }
+.rd.jit .k i { background: var(--blu); width: 13px; height: 4px; }
+.rd.dl .k i { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 12px solid var(--yel); }
+.rd.ul .k i { background: var(--red); }
+.rd.cpu .k i { background: var(--ink); width: 13px; height: 13px; }
+.rd .v { font-size: 2.3rem; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rd .v small { font-size: .9rem; font-weight: 500; margin-left: 4px; letter-spacing: .04em; }
+.rd .s { font-size: .82rem; color: var(--mute); min-height: 1.2em; }
+.rd.on { background: #fff8e0; }
+.rd.cpu { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: baseline; gap: 6px 14px; flex-wrap: wrap; }
+.rd.cpu .v { font-size: 1.5rem; }
+.rd.hot .v { color: var(--red); }
+
+.verdict { display: grid; gap: 4px; }
+.verdict b { font-size: 1.6rem; font-weight: 900; text-transform: uppercase; letter-spacing: .03em; line-height: 1.05; }
+.verdict p { margin: 0; color: var(--mute); }
+.note { margin: 6px 0 0; padding: 10px 12px; background: var(--red); color: #fff; font-weight: 500; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: .78rem; color: var(--mute); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { display: inline-block; width: 11px; height: 11px; }
+
+.btn { background: transparent; border: 2px solid var(--ink); border-radius: 0; padding: 5px 14px; cursor: pointer;
+  font-size: .78rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+.btn:hover { background: var(--ink); color: var(--paper); }
+.btn.red { background: var(--red); border-color: var(--red); color: #fff; }
+.confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: .8rem; letter-spacing: .04em; text-transform: none; font-weight: 500; }
+
+.minis { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 18px 14px; }
+.mini-w { min-width: 0; }
+.mini { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer; }
+.mini svg { display: block; width: 100%; height: auto; background: var(--paper); box-shadow: 0 8px 18px -10px rgba(40,30,10,.5); -webkit-transition: -webkit-transform .2s; transition: transform .2s; }
+.mini:hover svg { -webkit-transform: translateY(-3px); transform: translateY(-3px); }
+.mini.cur svg { outline: 3px solid var(--ink); outline-offset: 3px; }
+.mi { font-size: .74rem; line-height: 1.35; margin-top: 8px; font-variant-numeric: tabular-nums; }
+.mi b { display: block; font-size: .8rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mi span { display: block; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mi .d { color: var(--ink); }
+.empty { color: var(--mute); }
+
+@media (max-width: 560px) {
+  .opts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .opts label.lab { grid-column: 1 / -1; }
+  .mast h1 { font-size: 1.7rem; }
+  .rd .v { font-size: 1.85rem; }
+  .go { font-size: 1.6rem; min-height: 68px; }
+  .minis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 14px; }
+}
+@media (min-width: 1700px) { body { font-size: 18px; } }
+@media (prefers-reduced-motion: reduce) {
+  .idle .drift { animation: none !important; }
+  .tween .sh, .tween .bar { transition-duration: .01s !important; }
+  .band, .final .pt, .final .band { transition-duration: .01s !important; transition-delay: 0s !important; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="mast">
+    <h1>Netz<span>messung</span></h1>
+    <div class="marks" aria-hidden="true"><i class="t"></i><i class="s"></i><i class="c"></i></div>
+    <div class="meta" id="meta">Verbinde mit dem Router …</div>
+  </header>
+
+  <div class="stage">
+    <section class="poster idle" id="poster" aria-label="Plakat der Messung">
+      <div class="pin" id="pin">
+        <div class="raster" aria-hidden="true"></div>
+        <div class="sh tri" id="sh-tri" aria-hidden="true"><div class="drift"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><polygon points="50,-7.735 100,78.868 0,78.868"/></svg></div></div>
+        <div class="sh sq" id="sh-sq" aria-hidden="true"><div class="drift"><i></i></div></div>
+        <div class="sh circ" id="sh-circ" aria-hidden="true"><div class="drift"><i></i></div></div>
+        <div class="bar b0" id="bar0" aria-hidden="true"></div>
+        <div class="bar b1" id="bar1" aria-hidden="true"></div>
+        <div class="bar b2" id="bar2" aria-hidden="true"></div>
+        <div class="bar b3" id="bar3" aria-hidden="true"></div>
+        <div class="pt p-head"><span>Netzmessung</span><span id="p-host">OpenWrt</span></div>
+        <div class="pt p-rule" aria-hidden="true"><i id="prog"></i></div>
+        <div class="pt p-sub" id="p-sub">Ping · Download · Upload</div>
+        <div class="pt p-vert" id="p-vert">Bereit</div>
+        <div class="band" id="band"><span id="band-t"></span></div>
+        <div class="pt p-data" id="p-data">
+          <div><div class="k">Ping</div><div class="v" id="pd-ping">–<small>ms</small></div><div class="s" id="pd-ping-s"></div></div>
+          <div><div class="k">Download Ø</div><div class="v" id="pd-dl">–</div><div class="s" id="pd-dl-s"></div></div>
+          <div><div class="k">Upload Spitze</div><div class="v" id="pd-ul">–</div><div class="s" id="pd-ul-s"></div></div>
+          <div id="pd-cpu-w"><div class="k">Router-CPU-Kern</div><div class="v" id="pd-cpu">–</div><div class="s" id="pd-cpu-s"></div></div>
+        </div>
+        <div class="pt p-cap"><span id="p-cap">Download · Spitze</span><span id="p-cap2"></span></div>
+        <div class="pt p-big" id="p-big">LAN</div>
+      </div>
+    </section>
+  </div>
+
+  <div class="panel">
+    <section aria-label="Messung">
+      <div class="opts">
+        <label for="streams">Verbindungen
+          <select id="streams"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select></label>
+        <label for="duration">Dauer
+          <select id="duration"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></label>
+        <label for="label" class="lab">Gerät
+          <input id="label" maxlength="40" placeholder="z. B. Laptop WLAN" autocomplete="off"></label>
+      </div>
+      <div style="margin-top:18px"><button class="go" id="go" disabled><span id="go-t">Start</span><span class="ic" aria-hidden="true"></span></button></div>
+      <div class="status"><span id="phase" aria-live="polite">Bereit</span><span id="pct"></span></div>
+    </section>
+
+    <section aria-label="Messwerte">
+      <div class="reads">
+        <div class="rd ping" id="rd-ping"><div class="k"><i></i>Ping</div><div class="v" id="r-ping">–<small>ms</small></div><div class="s" id="r-ping-s"></div></div>
+        <div class="rd jit"><div class="k"><i></i>Jitter</div><div class="v" id="r-jit">–<small>ms</small></div><div class="s">Schwankung</div></div>
+        <div class="rd dl" id="rd-dl"><div class="k"><i></i>Download Spitze</div><div class="v" id="r-dl">–</div><div class="s" id="r-dl-s"></div></div>
+        <div class="rd ul" id="rd-ul"><div class="k"><i></i>Upload Spitze</div><div class="v" id="r-ul">–</div><div class="s" id="r-ul-s"></div></div>
+        <div class="rd cpu" id="rd-cpu"><div class="k"><i></i>Router-CPU, stärkster Kern</div><div class="v" id="r-cpu">–</div><div class="s" id="r-cpu-s"></div></div>
+      </div>
+    </section>
+
+    <section class="verdict" id="result" hidden aria-live="polite">
+      <h2 class="h2">Befund</h2>
+      <b id="verdict">–</b>
+      <p id="verdict-s"></p>
+      <div class="note" id="note" hidden></div>
+    </section>
+
+    <div class="legend" aria-label="Lesart des Plakats">
+      <span><i style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:11px solid var(--yel)"></i>Dreieck: Download-Spitze</span>
+      <span><i style="background:var(--red)"></i>Quadrat: Upload-Spitze</span>
+      <span><i style="background:var(--blu);border-radius:50%"></i>Kreis: Ping</span>
+      <span><i style="background:var(--ink);height:3px"></i>Balken und Winkel: Durchsatz und Jitter</span>
+    </div>
+
+    <section aria-label="Verlauf">
+      <h2 class="h2">Verlauf <span id="clear-wrap"></span></h2>
+      <div id="history"><div class="empty">Noch keine Messungen.</div></div>
+    </section>
+  </div>
+</div>
+
+<script src="engine.js"></script>
+<script>
+(function () {
+  'use strict';
+  var E = window.SpeedEngine, $ = function (id) { return document.getElementById(id); };
+  var poster = $('poster'), pin = $('pin');
+  var shTri = $('sh-tri'), shSq = $('sh-sq'), shCirc = $('sh-circ');
+  var bars = [$('bar0'), $('bar1'), $('bar2'), $('bar3')];
+  var reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  var info = { hostname: 'OpenWrt' }, histCache = [], current = null;
+
+  // ---------- Hilfen ----------
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+  function snap(v, g) { return Math.round(v / g) * g; }
+  function sq(v) { return Math.sqrt(Math.max(0, v)); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function two(n) { return ('0' + n).slice(-2); }
+  function dateStr(ts) { var d = ts ? new Date(ts * 1000) : new Date(); return two(d.getDate()) + '.' + two(d.getMonth() + 1) + '.' + d.getFullYear(); }
+  function timeStr(ts) { var d = ts ? new Date(ts * 1000) : new Date(); return two(d.getHours()) + ':' + two(d.getMinutes()); }
+  function has(v) { return v !== null && v !== undefined && !isNaN(v); }
+  function pk(peak, avg) { return has(peak) ? peak : (has(avg) ? avg : 0); }
+  function spd(m) { return E.fmtSpeed(m || 0); }
+  function setTf(el, s) { el.style.webkitTransform = s; el.style.transform = s; }
+
+  // Deterministischer Zufall aus den Messwerten: jedes Plakat ist durch seine Werte eindeutig
+  function seedOf(arr) {
+    var s = arr.join('|'), h = 2166136261;
+    for (var i = 0; i < s.length; i++) { h = (h ^ s.charCodeAt(i)) >>> 0; h = ((h & 0xffff) * 16777619 + (((h >>> 16) * 16777619) % 65536) * 65536) % 4294967296; }
+    return h;
+  }
+  function rng(seed) {
+    var s = seed % 4294967296;
+    return function () { s = (s * 1664525 + 1013904223) % 4294967296; return s / 4294967296; };
+  }
+
+  // ---------- Komposition: Messwerte -> Formen (Einheit u, Plakat 100 x 141) ----------
+  function compose(r) {
+    var D = pk(r.dl_peak, r.dl), Da = has(r.dl) ? r.dl : D, U = pk(r.ul_peak, r.ul), Ua = has(r.ul) ? r.ul : U;
+    var P = has(r.ping) ? r.ping : 3, J = has(r.jitter) ? r.jitter : 0.5;
+    var rnd = rng(seedOf([Math.round(D), Math.round(U), P, J, r.ts || 0]));
+    var sgn = rnd() < 0.5 ? -1 : 1;
+    var ang = sgn * clamp(5 + J * 8, 5, 24);                     // Winkel der Achse aus dem Jitter
+    var tri = clamp(28 + 58 * sq(D / 2500), 28, 110);            // Dreieck: Download-Spitze
+    var sqs = clamp(12 + 38 * sq(U / 2500), 12, 72);             // Quadrat: Upload-Spitze
+    var cd = clamp(14 + 7 * P, 14, 40);                          // Kreis: Ping
+    var ref = Math.max(2500, D, U);
+    var tx = snap(30 + rnd() * 34, 2), left = rnd() < 0.5;
+    var sqx = left ? snap(14 + rnd() * 18, 2) : Math.min(snap(58 + rnd() * 16, 2), 88 - sqs * 0.6);
+    var cx = left ? Math.min(snap(60 + rnd() * 16, 2), 88 - cd / 2) : snap(22 + rnd() * 18, 2);
+    var spec = {
+      ang: ang,
+      tri: { x: tx, y: 90 - 0.2887 * tri, r: snap(ang * 0.5, 1), s: tri },
+      sq: { x: sqx, y: Math.min(snap(16 + sqs * 0.62 + rnd() * 8, 2), 66 - sqs * 0.6), r: snap(ang * 1.6 + (rnd() < 0.5 ? 0 : 45), 1), s: sqs },
+      circ: { x: cx, y: Math.min(snap(17 + cd / 2 + rnd() * 10, 2), 60 - cd / 2), s: cd },
+      bars: [], band: clamp(ang * 0.4, -9, 9)
+    };
+    var vals = [D, Da, U, Ua], th = [3.4, 1.4, 3.4, 1.4];
+    var a = ang * Math.PI / 180, px = -Math.sin(a), py = Math.cos(a);
+    var x0 = -3, y0 = ang < 0 ? snap(44 + rnd() * 4, 1) : snap(20 + rnd() * 4, 1), gap = 4.2;
+    for (var i = 0; i < 4; i++) {
+      var off = i * gap + (i > 1 ? 2.4 : 0);
+      spec.bars.push({ x: x0 + px * off, y: y0 + py * off, r: ang, len: clamp(12 + 72 * vals[i] / ref, 10, 86), th: th[i] });
+    }
+    return spec;
+  }
+
+  // ---------- Formen setzen ----------
+  function placeC(el, x, y, r, s) { setTf(el, 'translate(' + (x - 50).toFixed(2) + '%,' + (y - 50).toFixed(2) + '%) rotate(' + r.toFixed(2) + 'deg) scale(' + (s / 100).toFixed(4) + ')'); }
+  function placeB(el, x, y, r, len, th) { setTf(el, 'translate(' + x.toFixed(2) + '%,' + (y - 50).toFixed(2) + '%) rotate(' + r.toFixed(2) + 'deg) scale(' + (len / 100).toFixed(4) + ',' + (th / 100).toFixed(4) + ')'); }
+  function applySpec(sp) {
+    placeC(shTri, sp.tri.x, sp.tri.y, sp.tri.r, sp.tri.s);
+    placeC(shSq, sp.sq.x, sp.sq.y, sp.sq.r, sp.sq.s);
+    placeC(shCirc, sp.circ.x, sp.circ.y, 0, sp.circ.s);
+    for (var i = 0; i < 4; i++) { var b = sp.bars[i]; placeB(bars[i], b.x, b.y, b.r, b.len, b.th); }
+  }
+  var IDLE = compose({ dl_peak: 1500, dl: 1300, ul_peak: 900, ul: 760, ping: 2.4, jitter: 0.7, ts: 1 });
+
+  function fitU() { var w = poster.offsetWidth || 400; poster.style.setProperty('--u', (w / 100) + 'px'); }
+  window.addEventListener('resize', fitU);
+
+  // ---------- Plakat-Texte ----------
+  function cell(id, v, unit, sub) {
+    $(id).innerHTML = v + (unit ? '<small>' + unit + '</small>' : '');
+    $(id + '-s').textContent = sub || '';
+  }
+  function verdict(dl) {
+    if (dl >= 4700) return ['Über 5 Gbit/s', 'Das schafft nur eine 10-GbE-Strecke.'];
+    if (dl >= 2000) return ['2,5 Gbit/s ausgeschöpft', 'Die 2,5-GbE-Verbindung läuft nahe am Maximum.'];
+    if (dl >= 940) return ['Mehr als Gigabit', 'Schneller als 1 GbE, also 2,5 GbE oder schnelles WLAN.'];
+    if (dl >= 600) return ['Gigabit-Klasse', 'Typisch für 1-GbE-Kabel oder gutes WLAN 6/7.'];
+    if (dl >= 90) return ['Ordentlich', 'Typisch für WLAN mit Abstand oder 100-Mbit-Kabel.'];
+    return ['Langsam', 'Kabel, Port oder WLAN-Empfang prüfen.'];
+  }
+  function coreOf(r) { var a = r.core_dl, b = r.core_ul; if (!has(a) && !has(b)) return null; return Math.max(has(a) ? a : 0, has(b) ? b : 0); }
+  function who(r) { return r.label || r.host || r.ip || 'Gerät'; }
+  function resetPosterText(sub, vert, big) {
+    $('p-vert').style.fontSize = '';
+    $('p-host').textContent = info.hostname + ' · ' + dateStr();
+    $('p-sub').textContent = sub; $('p-vert').textContent = vert; $('p-big').textContent = big;
+    $('p-cap').textContent = 'Ping · Download · Upload'; $('p-cap2').textContent = '';
+    cell('pd-ping', '–', 'ms'); cell('pd-dl', '–', ''); cell('pd-ul', '–', ''); cell('pd-cpu', '–', '%');
+    $('pd-cpu-w').className = '';
+    $('band').className = 'band'; setTf($('band'), 'rotate(0deg) scaleX(0)');
+  }
+
+  // ---------- Endplakat ----------
+  function showPoster(r, animate, nr) {
+    current = r;
+    var sp = compose(r), D = pk(r.dl_peak, r.dl), U = pk(r.ul_peak, r.ul), sd = spd(D), core = coreOf(r);
+    stopLoop();
+    poster.className = 'poster final' + (animate && !reduced ? ' tween reveal' : '');
+    $('prog').style.transform = 'scaleX(0)'; $('prog').style.webkitTransform = 'scaleX(0)';
+    applySpec(sp);
+    $('p-host').textContent = info.hostname + ' · ' + dateStr(r.ts);
+    $('p-sub').textContent = 'Gerät ' + who(r) + ' · ' + (r.streams || '–') + ' Verbindungen · ' + timeStr(r.ts) + ' Uhr';
+    var wn = who(r); if (wn.length > 13) wn = wn.slice(0, 12).replace(/\s+$/, '') + '…';
+    $('p-vert').textContent = wn; $('p-vert').style.fontSize = 'calc(var(--u) * ' + Math.max(2.9, Math.min(5.2, 32 / (wn.length * 0.84 + 0.4))).toFixed(2) + ')';
+    $('p-big').textContent = sd.v;
+    $('p-cap').textContent = 'Download · Spitze · ' + sd.u;
+    $('p-cap2').textContent = nr ? 'Nr. ' + nr : '';
+    cell('pd-ping', has(r.ping) ? E.fmt(r.ping, 1) : '–', 'ms', has(r.jitter) ? 'Jitter ± ' + E.fmt(r.jitter, 1) + ' ms' : '');
+    cell('pd-dl', spd(r.dl).v, spd(r.dl).u, 'Spitze ' + sd.v + ' ' + sd.u);
+    var su = spd(U); cell('pd-ul', su.v, su.u, 'Ø ' + spd(r.ul).v + ' ' + spd(r.ul).u);
+    cell('pd-cpu', core === null ? '–' : String(core), '%', core === null ? 'nicht gemessen' : (core >= 90 ? 'Router am Anschlag' : 'unter Last, max.'));
+    $('pd-cpu-w').className = core !== null && core >= 90 ? 'hot' : '';
+    $('band-t').textContent = verdict(D)[0];
+    $('band').className = 'band on';
+    setTf($('band'), 'rotate(' + sp.band.toFixed(2) + 'deg) scaleX(1)');
+    if (animate && !reduced) {
+      setTimeout(function () { if (current === r) poster.className = 'poster final tween'; }, 900);
+    }
+    markMini();
+  }
+
+  // ---------- Live-Animation ----------
+  var L = null, raf = 0;
+  function frame(t) {
+    raf = 0;
+    if (!L) return;
+    if (document.hidden) { L.last = t; raf = requestAnimationFrame(frame); return; }
+    var dt = L.last ? Math.min(0.1, (t - L.last) / 1000) : 0.016; L.last = t;
+    L.disp += (L.target - L.disp) * (1 - Math.exp(-dt * 5));
+    L.prog += (L.ptarget - L.prog) * (1 - Math.exp(-dt * 6));
+    var f = clamp(sq(L.disp / 2500), 0, 1.4), spin = reduced ? 0 : dt * (6 + 70 * f);
+    if (L.kind === 'download') { L.triS += ((28 + 58 * f) - L.triS) * (1 - Math.exp(-dt * 4)); L.triR += spin; }
+    if (L.kind === 'upload') { L.sqS += ((12 + 38 * f) - L.sqS) * (1 - Math.exp(-dt * 4)); L.sqR += spin; }
+    L.circS += (L.circT - L.circS) * (1 - Math.exp(-dt * 4));
+    L.pulse *= Math.exp(-dt * 4.5);
+    var I = IDLE;
+    placeC(shTri, I.tri.x, 90 - 0.2887 * L.triS, L.triR, L.triS);
+    placeC(shSq, I.sq.x, I.sq.y, L.sqR, L.sqS);
+    placeC(shCirc, I.circ.x, I.circ.y, 0, L.circS * (1 + 0.4 * L.pulse));
+    var a = I.ang * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
+    for (var i = 0; i < 4; i++) {
+      var b = I.bars[i];
+      if (L.kind !== 'ping' && !reduced) L.off[i] += dt * (10 + 150 * f) * L.mul[i];
+      var len = (10 + 52 * f) * (0.55 + 0.45 * L.mul[i]), o = reduced ? 0 : (L.off[i] % 230) - 115;
+      placeB(bars[i], b.x + ca * o, b.y + sa * o, b.r, len, b.th * (L.kind === 'ping' ? 0.6 : 1));
+    }
+    setTf($('prog'), 'scaleX(' + L.prog.toFixed(4) + ')');
+    if (t - L.txt > 90 && L.kind !== 'ping' && L.has) {
+      L.txt = t;
+      var s = spd(L.disp);
+      if (s.v !== L.shown) { L.shown = s.v; $('p-big').textContent = s.v; }
+      if (s.u !== L.unit) { L.unit = s.u; $('p-cap').textContent = (L.kind === 'download' ? 'Download' : 'Upload') + ' · live · ' + s.u; }
+    }
+    raf = requestAnimationFrame(frame);
+  }
+  function startLoop() { if (!raf) raf = requestAnimationFrame(frame); }
+  function stopLoop() { L = null; if (raf) cancelAnimationFrame(raf); raf = 0; }
+
+  // ---------- Panel ----------
+  function rd(id, v, unit, sub) { $(id).innerHTML = v + (unit ? '<small>' + unit + '</small>' : ''); if (sub !== undefined) $(id + '-s').textContent = sub; }
+  function resetReads() {
+    rd('r-ping', '–', 'ms', ''); rd('r-jit', '–', 'ms'); rd('r-dl', '–', '', ''); rd('r-ul', '–', '', ''); rd('r-cpu', '–', '', '');
+    $('rd-cpu').className = 'rd cpu';
+  }
+  function setGo(mode) {
+    var g = $('go');
+    g.className = 'go' + (mode === 'stop' ? ' stop' : mode === 'again' ? ' again' : '');
+    $('go-t').textContent = mode === 'stop' ? 'Stopp' : mode === 'again' ? 'Neu messen' : 'Start';
+    g.setAttribute('aria-label', mode === 'stop' ? 'Messung stoppen' : mode === 'again' ? 'Neu messen' : 'Messung starten');
+  }
+  function onRead(which) {
+    ['rd-ping', 'rd-dl', 'rd-ul'].forEach(function (id) { $(id).className = $(id).className.replace(/ on/g, ''); });
+    if (which) $(which).className += ' on';
+  }
+
+  // ---------- Ablauf ----------
+  var running = false, maxCore = null, lastDone = 'idle';
+  var phaseName = { ping: 'Ping', download: 'Download', upload: 'Upload' };
+  function start() {
+    var streams = +$('streams').value, duration = +$('duration').value, label = $('label').value.replace(/^\s+|\s+$/g, '');
+    try { localStorage.setItem('st-label', label); localStorage.setItem('st-streams', streams); localStorage.setItem('st-duration', duration); } catch (e) { }
+    running = true; maxCore = null; current = null; markMini();
+    setGo('stop'); resetReads(); onRead(null);
+    $('result').hidden = true; $('note').hidden = true; $('pct').textContent = '';
+    poster.className = 'poster live';
+    resetPosterText('Messung läuft · ' + streams + ' Verbindungen · ' + duration + ' s je Richtung', 'Ping', '0,0');
+    var tot = duration * 2 + 1.4, done0 = 0;
+    L = { kind: 'ping', target: 0, disp: 0, has: false, prog: 0, ptarget: 0, last: 0, txt: 0, shown: '', unit: '',
+          triS: 28, triR: 0, sqS: 14, sqR: 0, circS: IDLE.circ.s, circT: IDLE.circ.s, pulse: 0,
+          off: [0, 60, 130, 190], mul: [1, 0.72, 0.88, 0.6] };
+    applySpec(IDLE);
+    startLoop();
+    E.run({ streams: streams, duration: duration, label: label }, {
+      phase: function (p) {
+        if (!L) return;
+        $('phase').textContent = phaseName[p] + ' läuft';
+        $('p-vert').innerHTML = esc(phaseName[p]) + '<small>' + (p === 'ping' ? 'MS' : 'LIVE') + '</small>';
+        onRead({ ping: 'rd-ping', download: 'rd-dl', upload: 'rd-ul' }[p]);
+        L.kind = p; L.target = 0; L.disp = 0; L.has = false; L.shown = ''; L.unit = '';
+        if (p === 'download') done0 = 1.4; if (p === 'upload') done0 = 1.4 + duration;
+        if (p !== 'ping') { $('p-big').textContent = '…'; $('p-cap').textContent = phaseName[p] + ' · live'; }
+        else $('p-cap').textContent = 'Ping · Antwortzeit · ms';
+      },
+      pingSample: function (ms, i, n) {
+        if (!L) return;
+        $('p-big').textContent = E.fmt(ms, 1);
+        L.circT = clamp(14 + 7 * ms, 14, 40); L.pulse = 1;
+        L.ptarget = (1.4 * (i + 1) / n) / tot;
+      },
+      ping: function (p, j) {
+        rd('r-ping', E.fmt(p, p < 10 ? 1 : 0), 'ms', 'Median aus 20');
+        rd('r-jit', E.fmt(j, 1), 'ms');
+        cell('pd-ping', E.fmt(p, 1), 'ms', 'Jitter ± ' + E.fmt(j, 1) + ' ms');
+        if (L) L.circT = clamp(14 + 7 * p, 14, 40);
+      },
+      live: function (kind, m, p) {
+        if (!L) return;
+        L.ptarget = (done0 + p * duration) / tot;
+        $('pct').textContent = Math.round(L.ptarget * 100) + ' %';
+        if (m !== null) { L.target = m; if (!L.has) { L.has = true; } }
+      },
+      result: function (kind, r) {
+        var s = spd(r.peak), a = spd(r.avg);
+        var cpu = r.core === null || r.core === undefined ? null : Math.round(r.core);
+        if (cpu !== null && (maxCore === null || cpu > maxCore)) maxCore = cpu;
+        if (kind === 'download') { rd('r-dl', s.v, s.u, 'Ø ' + a.v + ' ' + a.u); cell('pd-dl', a.v, a.u, 'Spitze ' + s.v + ' ' + s.u); }
+        else { rd('r-ul', s.v, s.u, 'Ø ' + a.v + ' ' + a.u); cell('pd-ul', s.v, s.u, 'Ø ' + a.v + ' ' + a.u); }
+        if (maxCore !== null) {
+          rd('r-cpu', String(maxCore), '%', maxCore >= 90 ? 'Der Router begrenzt die Messung.' : 'Router hat Reserven.');
+          $('rd-cpu').className = 'rd cpu' + (maxCore >= 90 ? ' hot' : '');
+          cell('pd-cpu', String(maxCore), '%', 'unter Last, max.');
+        }
+      },
+      done: function (rec) {
+        running = false; setGo('again'); onRead(null);
+        $('phase').textContent = 'Fertig · Plakat gedruckt'; $('pct').textContent = '';
+        if (L) { L.triR = L.triR % 120; L.sqR = L.sqR % 90; }
+        if (!rec.ts) rec.ts = Math.floor(Date.now() / 1000);
+        if (!rec.host && info.client_host) rec.host = info.client_host;
+        if (!rec.ip && info.client_ip) rec.ip = info.client_ip;
+        showPoster(rec, true, histCache.length + 1);
+        showVerdict(rec);
+        loadHistory(rec.ts);
+        var top = poster.getBoundingClientRect().top;
+        if (top < -40 && poster.scrollIntoView) poster.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+      },
+      error: function (msg) { abort(msg); }
+    });
+  }
+  function showVerdict(r) {
+    var v = verdict(pk(r.dl_peak, r.dl)), core = coreOf(r);
+    $('verdict').textContent = v[0]; $('verdict-s').textContent = v[1];
+    if (core !== null) {
+      rd('r-cpu', String(core), '%', core >= 90 ? 'Der Router begrenzt die Messung.' : 'Router hat Reserven.');
+      $('rd-cpu').className = 'rd cpu' + (core >= 90 ? ' hot' : '');
+    }
+    if (core !== null && core >= 90) {
+      $('note').textContent = 'Ein Prozessorkern des Routers war zu ' + core + ' % ausgelastet. Das Ergebnis zeigt eher die Grenze des Routers als die des Netzes.';
+      $('note').hidden = false;
+    } else $('note').hidden = true;
+    $('result').hidden = false;
+  }
+  function fillReads(r) {
+    var D = pk(r.dl_peak, r.dl), U = pk(r.ul_peak, r.ul);
+    rd('r-ping', has(r.ping) ? E.fmt(r.ping, r.ping < 10 ? 1 : 0) : '–', 'ms', 'Median aus 20');
+    rd('r-jit', has(r.jitter) ? E.fmt(r.jitter, 1) : '–', 'ms');
+    rd('r-dl', spd(D).v, spd(D).u, 'Ø ' + spd(r.dl).v + ' ' + spd(r.dl).u);
+    rd('r-ul', spd(U).v, spd(U).u, 'Ø ' + spd(r.ul).v + ' ' + spd(r.ul).u);
+    var c = coreOf(r); if (c === null) { rd('r-cpu', '–', '', 'nicht gemessen'); $('rd-cpu').className = 'rd cpu'; }
+  }
+  function abort(msg) {
+    stopLoop(); running = false; setGo('start'); onRead(null); resetReads(); $("result").hidden = true;
+    $('phase').textContent = msg; $('pct').textContent = '';
+    poster.className = 'poster idle tween';
+    applySpec(IDLE);
+    resetPosterText(msg === 'Abgebrochen' ? 'Nichts gespeichert' : 'Bitte erneut versuchen', msg, msg === 'Abgebrochen' ? 'STOPP' : 'FEHLER');
+    setTimeout(function () { if (!running && !current) poster.className = 'poster idle'; }, 1600);
+  }
+
+  // ---------- Verlauf als Plakat-Miniaturen ----------
+  function miniSVG(r) {
+    var sp = compose(r), D = pk(r.dl_peak, r.dl), o = '';
+    function tri(t) {
+      var h = t.s, cx = t.x, cy = t.y;
+      var pts = cx.toFixed(1) + ',' + (cy - 0.5774 * h).toFixed(1) + ' ' + (cx + h / 2).toFixed(1) + ',' + (cy + 0.2887 * h).toFixed(1) + ' ' + (cx - h / 2).toFixed(1) + ',' + (cy + 0.2887 * h).toFixed(1);
+      return '<polygon points="' + pts +
+        '" fill="#f3b416" style="mix-blend-mode:multiply" transform="rotate(' + t.r + ' ' + cx + ' ' + cy + ')"/>';
+    }
+    o += '<svg viewBox="0 0 100 141" role="img" aria-hidden="true" focusable="false"><rect width="100" height="141" fill="#f5f1e6"/>';
+    o += tri(sp.tri);
+    o += '<rect x="' + (sp.sq.x - sp.sq.s / 2).toFixed(1) + '" y="' + (sp.sq.y - sp.sq.s / 2).toFixed(1) + '" width="' + sp.sq.s.toFixed(1) + '" height="' + sp.sq.s.toFixed(1) +
+      '" fill="#d3291d" style="mix-blend-mode:multiply" transform="rotate(' + sp.sq.r + ' ' + sp.sq.x + ' ' + sp.sq.y + ')"/>';
+    o += '<circle cx="' + sp.circ.x + '" cy="' + sp.circ.y + '" r="' + (sp.circ.s / 2).toFixed(1) + '" fill="#1c4c9c" style="mix-blend-mode:multiply"/>';
+    for (var i = 0; i < 4; i++) {
+      var b = sp.bars[i];
+      o += '<rect x="' + b.x.toFixed(1) + '" y="' + (b.y - b.th / 2).toFixed(1) + '" width="' + b.len.toFixed(1) + '" height="' + b.th + '" fill="#151413" transform="rotate(' + b.r.toFixed(1) + ' ' + b.x.toFixed(1) + ' ' + b.y.toFixed(1) + ')"/>';
+    }
+    o += '<rect x="6" y="8.6" width="88" height="1.4" fill="#151413"/>';
+    o += '<rect x="-10" y="51.5" width="120" height="8" fill="#151413" transform="rotate(' + sp.band.toFixed(1) + ' 50 55.5)"/>';
+    o += '<rect x="6" y="63" width="35" height="0.7" fill="#151413"/><rect x="45" y="63" width="35" height="0.7" fill="#151413"/>';
+    o += '<rect x="6" y="78" width="35" height="0.7" fill="#151413"/><rect x="45" y="78" width="35" height="0.7" fill="#151413"/>';
+    o += '<text x="3.4" y="136" font-family="Jost, Futura, Century Gothic, Arial, sans-serif" font-weight="900" font-size="54" letter-spacing="-2.4" fill="#151413">' + spd(D).v + '</text>';
+    return o + '</svg>';
+  }
+  function markMini() {
+    var els = document.querySelectorAll('.mini');
+    for (var i = 0; i < els.length; i++) {
+      var on = current && +els[i].getAttribute('data-ts') === current.ts;
+      els[i].className = 'mini' + (on ? ' cur' : '');
+    }
+  }
+  function loadHistory() {
+    E.history(function (h) {
+      histCache = h || [];
+      clearReset();
+      if (!histCache.length) { $('history').innerHTML = '<div class="empty">Noch keine Messungen. Jede Messung druckt ein eigenes Plakat.</div>'; return; }
+      var html = '<div class="minis">';
+      for (var i = histCache.length - 1; i >= 0; i--) {
+        var e = histCache[i], D = pk(e.dl_peak, e.dl), U = pk(e.ul_peak, e.ul);
+        html += '<div class="mini-w"><button class="mini" data-i="' + i + '" data-ts="' + (e.ts || 0) + '" aria-label="Plakat vom ' + dateStr(e.ts) + ' ' + timeStr(e.ts) + ' anzeigen">' + miniSVG(e) + '</button>' +
+          '<div class="mi"><b>' + esc(who(e)) + '</b><span>' + dateStr(e.ts).slice(0, 6) + ' ' + timeStr(e.ts) + (e.label && e.host ? ' · ' + esc(e.host) : '') + '</span>' +
+          '<span class="d">↓ ' + spd(D).v + ' / Ø ' + spd(e.dl).v + ' ' + spd(D).u + '</span>' +
+          '<span class="d">↑ ' + spd(U).v + ' / Ø ' + spd(e.ul).v + ' ' + spd(U).u + '</span>' +
+          '<span>Ping ' + (has(e.ping) ? E.fmt(e.ping, 1) : '–') + ' ms' + (has(e.jitter) ? ' ± ' + E.fmt(e.jitter, 1) : '') + '</span></div></div>';
+      }
+      $('history').innerHTML = html + '</div>';
+      var btns = document.querySelectorAll('.mini');
+      for (var k = 0; k < btns.length; k++) btns[k].onclick = function () {
+        if (running) return;
+        var r = histCache[+this.getAttribute('data-i')];
+        showPoster(r, true, +this.getAttribute('data-i') + 1); showVerdict(r); fillReads(r);
+        $('phase').textContent = 'Plakat vom ' + dateStr(r.ts) + ', ' + timeStr(r.ts) + ' Uhr';
+        var top = poster.getBoundingClientRect().top;
+        if (top < -40 && poster.scrollIntoView) poster.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+      };
+      markMini();
+    });
+  }
+  function clearAsk() {
+    $('clear-wrap').innerHTML = '<span class="confirm">Alle ' + histCache.length + ' Plakate löschen? <button class="btn red" id="yes">Ja, löschen</button><button class="btn" id="no">Nein</button></span>';
+    $('yes').onclick = function () { E.clearHistory(function () { loadHistory(); }); };
+    $('no').onclick = clearReset;
+    $('no').focus();
+  }
+  function clearReset() {
+    $('clear-wrap').innerHTML = histCache.length ? '<button class="btn" id="clear">Löschen</button>' : '';
+    if ($('clear')) $('clear').onclick = clearAsk;
+  }
+
+  // ---------- Start ----------
+  $('go').onclick = function () {
+    if (running) { E.stop(); abort('Abgebrochen'); return; }
+    start();
+  };
+  try {
+    var l = localStorage.getItem('st-label'), s = localStorage.getItem('st-streams'), d = localStorage.getItem('st-duration');
+    if (l) $('label').value = l; if (s) $('streams').value = s; if (d) $('duration').value = d;
+  } catch (e) { }
+
+  fitU(); applySpec(IDLE);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitU);
+  resetPosterText('Zwischen Gerät und Router', 'Bereit', 'LAN');
+  E.init(function (i) {
+    info = i;
+    $('p-host').textContent = info.hostname + ' · ' + dateStr();
+    $('meta').innerHTML = esc(info.hostname + (info.model ? ' · ' + info.model : '') + ' · ' + info.cores + ' Kerne · Du: ' +
+      (info.client_host ? info.client_host + ' (' + info.client_ip + ')' : info.client_ip)) + (info.demo ? '<span class="demo">Demo</span>' : '');
+    $('go').disabled = false;
+    loadHistory();
+  });
+})();
+</script>
+</body>
+</html>
