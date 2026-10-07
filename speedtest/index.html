@@ -6,8 +6,9 @@
 <meta name="theme-color" content="#030605">
 <title>Speedtest</title>
 <style>
-/* Einstieg: prüft, ob der Browser die 3D-Ansicht flüssig darstellen kann, und lädt dann silizium3d.html
-   oder silizium2d.html. Eine einmal gewählte Ansicht (Knopf in der Messoberfläche) hat Vorrang. */
+/* Einstieg: prüft, was der Browser flüssig darstellen kann, und lädt dann
+   silizium3d.html (WebGL), silizium2d.html (Canvas-Animation) oder silizium-lite.html (ohne Animation).
+   Eine einmal gewählte Ansicht (Knöpfe in der Messoberfläche) hat Vorrang. */
 :root { --board: #030605; --silk: #d6e2dc; --mute: #8aa39a; --acc: #3ef0ff; color-scheme: dark; }
 html, body { margin: 0; height: 100%; background: var(--board); color: var(--silk); font: 15px/1.5 ui-monospace, Consolas, monospace; }
 main { min-height: 100%; display: grid; place-items: center; text-align: center; padding: 16px; box-sizing: border-box; }
@@ -19,7 +20,7 @@ a { color: var(--acc); }
 <main>
   <div>
     <p id="msg">Speedtest wird geladen …</p>
-    <p><small>Ansicht direkt wählen: <a href="silizium3d.html" id="a3">3D</a> · <a href="silizium2d.html" id="a2">2D</a></small></p>
+    <p><small>Ansicht direkt wählen: <a href="silizium3d.html" id="a3">3D</a> · <a href="silizium2d.html" id="a2">2D</a> · <a href="silizium-lite.html" id="a1">Lite</a></small></p>
     <noscript><p>Der Speedtest braucht JavaScript.</p></noscript>
   </div>
 </main>
@@ -43,12 +44,29 @@ a { color: var(--acc); }
       return true;
     } catch (e) { return false; }
   }
+  // Besonders langsame Geräte bekommen die Lite-Fassung ohne Animation: alte oder schwache Browser,
+  // SmartTV-Browser ohne viel Rechenleistung und Systeme mit "weniger Bewegung".
+  function slow() {
+    var ua = navigator.userAgent || '', tv = /SMART-TV|SmartTV|Tizen|Web0S|webOS|NetCast|BRAVIA|HbbTV|VIDAA|AFT[A-Z]|CrKey|PlayStation|Xbox/i.test(ua);
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return true;
+    if (!window.requestAnimationFrame || !document.createElement('canvas').getContext) return true;
+    if (!(window.CSS && CSS.supports && CSS.supports('display', 'grid'))) return true;   // Browser älter als ca. 2017
+    if ((navigator.hardwareConcurrency || 2) <= 2) return true;
+    if (navigator.deviceMemory && navigator.deviceMemory <= 1) return true;
+    // kurzer Rechentest: moderne Geräte brauchen 2 bis 6 ms, schwache 30 ms und mehr
+    var t0 = Date.now(), x = 0;
+    for (var i = 0; i < 2000000; i++) x += Math.sqrt(i) * 0.5;
+    var ms = Date.now() - t0;
+    return ms > (tv ? 20 : 40) || x < 0;
+  }
   var pref = null;
   try { pref = localStorage.getItem('st-view'); } catch (e) { }
-  var target = pref === '2d' ? 'silizium2d.html' : (pref === '3d' || can3d() ? 'silizium3d.html' : 'silizium2d.html');
+  var target = pref === 'lite' ? 'silizium-lite.html' : pref === '2d' ? 'silizium2d.html' : pref === '3d' ? 'silizium3d.html'
+    : (slow() ? 'silizium-lite.html' : (can3d() ? 'silizium3d.html' : 'silizium2d.html'));
   // Direktwahl über die Links merkt sich die Ansicht ebenfalls
   document.getElementById('a3').onclick = function () { try { localStorage.setItem('st-view', '3d'); } catch (e) { } };
   document.getElementById('a2').onclick = function () { try { localStorage.setItem('st-view', '2d'); } catch (e) { } };
+  document.getElementById('a1').onclick = function () { try { localStorage.setItem('st-view', 'lite'); } catch (e) { } };
   location.replace(target + location.search + location.hash);
 })();
 </script>

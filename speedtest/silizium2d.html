@@ -101,8 +101,9 @@ select, input { color: var(--ink); background: rgba(6,12,10,.9); border: 1px sol
 input { width: 11em; }
 .btn { font: .74rem var(--f-m); letter-spacing: .16em; text-transform: uppercase; color: var(--silk); background: transparent; border: 1px solid var(--line); padding: 7px 14px; cursor: pointer; }
 .btn:hover { border-color: var(--acc); color: var(--acc); }
-.view { margin-left: auto; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
-.view b { font-weight: 400; color: var(--acc); }
+.views { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+.views .btn { text-decoration: none; padding: 6px 11px; }
+.views .cur { border-color: var(--gold); color: var(--gold); cursor: default; }
 
 /* Messprotokoll im Stil der Messung: Bestückungsdruck auf schwarzer Platine */
 .sheet { max-width: 1280px; margin: 0 auto; padding: 10px 24px 40px; display: grid; gap: 26px; }
@@ -200,7 +201,7 @@ input { width: 11em; }
       <label for="streams">Verbindungen <select id="streams"><option>1</option><option>2</option><option selected>4</option><option>6</option><option>8</option></select></label>
       <label for="duration">Dauer <select id="duration"><option value="5">5 s</option><option value="10" selected>10 s</option><option value="20">20 s</option></select></label>
       <label for="label">Gerät <input id="label" maxlength="40" placeholder="z. B. Laptop WLAN"></label>
-      <a class="btn view" id="view" href="silizium3d.html" data-view="3d" title="Zur 3D-Ansicht wechseln">Ansicht <b>2D</b> → 3D</a>
+      <span class="views">Ansicht <a class="btn" href="silizium-lite.html" data-view="lite">Lite</a> <span class="btn cur">2D</span> <a class="btn" href="silizium3d.html" data-view="3d">3D</a></span>
     </div>
   </section>
 
@@ -665,7 +666,8 @@ input { width: 11em; }
 
   $('go').onclick = start;
   // Wechsel der Ansicht wird gemerkt; index.html wählt beim nächsten Aufruf dieselbe
-  $('view').onclick = function () { try { localStorage.setItem('st-view', this.getAttribute('data-view')); } catch (e) { } };
+  var views = document.querySelectorAll('.views a');
+  for (var vi = 0; vi < views.length; vi++) views[vi].onclick = function () { try { localStorage.setItem('st-view', this.getAttribute('data-view')); } catch (e) { } };
   $('again').onclick = function () { window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' }); start(); };
 
   try {
